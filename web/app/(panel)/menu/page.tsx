@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { api } from "../../../lib/api";
 
 type Item = { id: number; name: string; price: number; category: string; available: boolean; description: string };
 const empty = { name: "", price: 0, category: "General", description: "" };

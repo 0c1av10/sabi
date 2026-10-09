@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { api } from "../../../lib/api";
 
 export default function Config() {
   const [form, setForm] = useState({ welcome_message: "", opening_hours: "", owner_phone: "", name: "" });

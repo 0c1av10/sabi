@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { api } from "../../../lib/api";
 
 type Conv = {
   id: number; status: string; customer_phone: string; customer_name: string;

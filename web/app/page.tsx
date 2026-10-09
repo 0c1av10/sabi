@@ -12,17 +12,14 @@ const features = [
   {
     title: "Atiende y toma pedidos 24/7",
     desc: "Responde menú, precios y horarios al instante. Conversa hasta completar el pedido: ítems, cantidades, extras, delivery o retiro, dirección y total.",
-    tags: ["24/7", "Español neutro", "Solo tu menú"],
   },
   {
     title: "Vos aprobás cada pedido",
     desc: "Nada se confirma solo. Cada pedido llega a tu bandeja con el resumen completo y lo aprobás, editás o rechazás con un toque. Recién ahí el cliente recibe la confirmación.",
-    tags: ["Aprobación manual", "Aviso por WhatsApp", "Control total"],
   },
   {
     title: "Todo queda registrado",
     desc: "Cada conversación y pedido guardado. Vista del día con aprobados, rechazados y consultas sin cerrar. Sin audios que no se escucharon ni notas a mano.",
-    tags: ["Historial completo", "Vista del día", "Pedidos estructurados"],
   },
 ];
 
@@ -77,11 +74,10 @@ export default function Landing() {
 
       {/* Metrics strip */}
       <section className="border-b bg-emerald-900 text-white">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-6 py-10 text-center md:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-10 text-center md:grid-cols-3">
           {[["24 h", "Atención todos los días"],
-            ["<10 s", "Tiempo de respuesta"],
-            ["100%", "Pedidos que vos aprobás"],
-            ["0", "Pedidos mal anotados"]].map(([n, l]) => (
+            ["100%", "Pedidos que pasan por tu aprobación"],
+            ["0", "Pedidos confirmados sin tu ok"]].map(([n, l]) => (
             <div key={l}>
               <p className="text-3xl font-bold">{n}</p>
               <p className="mt-1 text-sm text-emerald-200">{l}</p>
@@ -101,11 +97,6 @@ export default function Landing() {
             <div key={f.title} className="rounded-2xl border p-6">
               <h3 className="text-lg font-semibold">{f.title}</h3>
               <p className="mt-3 text-sm leading-relaxed text-stone-600">{f.desc}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {f.tags.map((t) => (
-                  <span key={t} className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800">{t}</span>
-                ))}
-              </div>
             </div>
           ))}
         </div>
