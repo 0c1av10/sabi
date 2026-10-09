@@ -28,7 +28,9 @@ class Restaurant(Base):
         Text, default="¡Hola! Soy Sabi, el asistente de este restaurante. ¿En qué te ayudo?"
     )
     opening_hours: Mapped[str] = mapped_column(Text, default="Lun-Dom 12:00-23:00")
-    currency: Mapped[str] = mapped_column(String(10), default="$")
+    currency: Mapped[str] = mapped_column(String(10), default="USD")
+    # Bs per USD, set daily by the owner; menu prices are stored in USD
+    exchange_rate: Mapped[float] = mapped_column(Float, default=36.5)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     menu_items: Mapped[list["MenuItem"]] = relationship(back_populates="restaurant")

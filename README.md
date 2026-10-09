@@ -87,3 +87,7 @@ pipeline que el webhook real, para probar conversaciones desde curl o el panel.
 ## Fuera de alcance (v0.1)
 
 POS, pagos, multi-sucursal, reservas, analítica avanzada.
+
+## Multimoneda (USD / Bs)
+
+Los precios del menú se cargan en dólares. El dueño fija la tasa del día (Bs por 1 USD) en **Configuración**; el agente, la bandeja y el menú muestran cada monto en ambas monedas (`$10,20 · Bs 372,30`).

@@ -29,6 +29,7 @@ class RestaurantSettingsIn(BaseModel):
     opening_hours: Optional[str] = None
     owner_phone: Optional[str] = None
     name: Optional[str] = None
+    exchange_rate: Optional[float] = None
 
 
 class RestaurantOut(BaseModel):
@@ -39,6 +40,7 @@ class RestaurantOut(BaseModel):
     opening_hours: str
     owner_phone: str
     currency: str
+    exchange_rate: float
 
     class Config:
         from_attributes = True

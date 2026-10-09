@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "../../../lib/api";
+import { bs, usd } from "../../../lib/money";
 
 type OrderItem = { id: number; name: string; quantity: number; unit_price: number; extras: string; notes: string };
 type Order = {
@@ -14,6 +15,9 @@ export default function Pedidos() {
   const [rejecting, setRejecting] = useState<number | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
+  const [rate, setRate] = useState(0);
+
+  useEffect(() => { api("/me").then((r) => setRate(r.exchange_rate)).catch(() => {}); }, []);
 
   async function load() {
     try {
@@ -47,7 +51,8 @@ export default function Pedidos() {
           <div key={o.id} className="rounded-xl border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-semibold">Pedido #{o.id} — ${o.total}</p>
+                <p className="font-semibold">Pedido #{o.id} — {usd(o.total)}
+                  <span className="ml-2 font-normal text-stone-500">{bs(o.total, rate)}</span></p>
                 <p className="text-sm text-stone-500">
                   {o.customer_name || o.customer_phone} · {o.order_type}
                   {o.address ? ` · ${o.address}` : ""}
@@ -60,7 +65,8 @@ export default function Pedidos() {
             <ul className="mt-2 text-sm">
               {o.items.map((i) => (
                 <li key={i.id}>
-                  {i.quantity} × {i.name} — ${i.unit_price * i.quantity}
+                  {i.quantity} × {i.name} — {usd(i.unit_price * i.quantity)}
+                  <span className="text-stone-400"> · {bs(i.unit_price * i.quantity, rate)}</span>
                   {i.extras && <span className="text-stone-500"> ({i.extras})</span>}
                 </li>
               ))}

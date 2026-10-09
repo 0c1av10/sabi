@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "../../../lib/api";
+import { bs, usd } from "../../../lib/money";
 
 type Item = { id: number; name: string; price: number; category: string; available: boolean; description: string };
 const empty = { name: "", price: 0, category: "General", description: "" };
@@ -9,6 +10,9 @@ export default function Menu() {
   const [items, setItems] = useState<Item[]>([]);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState<number | null>(null);
+  const [rate, setRate] = useState(0);
+
+  useEffect(() => { api("/me").then((r) => setRate(r.exchange_rate)).catch(() => {}); }, []);
 
   async function load() { setItems(await api("/menu")); }
   useEffect(() => { load().catch(() => {}); }, []);
@@ -36,7 +40,7 @@ export default function Menu() {
       <form onSubmit={save} className="mb-6 flex flex-wrap gap-2 rounded-xl border bg-white p-4">
         <input required className="rounded border p-2" placeholder="Nombre" value={form.name}
                onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input required type="number" step="0.01" className="w-28 rounded border p-2" placeholder="Precio"
+        <input required type="number" step="0.01" className="w-28 rounded border p-2" placeholder="Precio USD"
                value={form.price || ""} onChange={(e) => setForm({ ...form, price: +e.target.value })} />
         <input className="rounded border p-2" placeholder="Categoría" value={form.category}
                onChange={(e) => setForm({ ...form, category: e.target.value })} />
@@ -48,13 +52,14 @@ export default function Menu() {
       </form>
       <table className="w-full overflow-hidden rounded-xl border bg-white text-sm">
         <thead className="bg-stone-100 text-left">
-          <tr><th className="p-3">Nombre</th><th>Precio</th><th>Categoría</th><th>Disponible</th><th /></tr>
+          <tr><th className="p-3">Nombre</th><th>Precio USD</th><th>Bs a la tasa del día</th><th>Categoría</th><th>Disponible</th><th /></tr>
         </thead>
         <tbody>
           {items.map((it) => (
             <tr key={it.id} className="border-t">
               <td className="p-3">{it.name}</td>
-              <td>${it.price}</td>
+              <td>{usd(it.price)}</td>
+              <td className="text-stone-500">{bs(it.price, rate)}</td>
               <td>{it.category}</td>
               <td>
                 <button onClick={() => toggle(it)}

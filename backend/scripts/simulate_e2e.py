@@ -35,7 +35,7 @@ def main():
         order = orders[0]
         print(f"\n== Panel del dueño ==\nPedido #{order['id']} pendiente: "
               + ", ".join(f"{i['quantity']}x {i['name']}" for i in order["items"])
-              + f" — total ${order['total']:g}")
+              + f" — total ${order['total']:.2f}")
         c.post(f"/api/orders/{order['id']}/approve", headers=h).raise_for_status()
         print(f"Dueño aprobó el pedido #{order['id']}.")
 

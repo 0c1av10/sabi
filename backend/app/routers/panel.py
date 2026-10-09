@@ -37,7 +37,7 @@ async def me(restaurant: Restaurant = Depends(current_restaurant)):
 async def update_settings(data: RestaurantSettingsIn,
                           restaurant: Restaurant = Depends(current_restaurant),
                           db: AsyncSession = Depends(get_db)):
-    for f in ("welcome_message", "opening_hours", "owner_phone", "name"):
+    for f in ("welcome_message", "opening_hours", "owner_phone", "name", "exchange_rate"):
         v = getattr(data, f)
         if v is not None:
             setattr(restaurant, f, v)

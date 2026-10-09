@@ -10,14 +10,14 @@ from app.models import Conversation, MenuItem, Restaurant  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
 MENU = [
-    ("Milanesa napolitana", 4500, "Platos", "Con salsa y mozzarella, guarnición incluida"),
-    ("Hamburguesa completa", 3800, "Platos", "Medallón casero, queso, huevo, papas"),
-    ("Ensalada César", 2900, "Platos", "Pollo grillado, crutones, parmesano"),
-    ("Empanadas de carne (docena)", 3600, "Entradas", "Fritas u horno"),
-    ("Provoleta", 2200, "Entradas", "Con orégano y tomate"),
-    ("Flan con dulce de leche", 1500, "Postres", "Casero"),
-    ("Gaseosa 1.5L", 1200, "Bebidas", "Coca-Cola o Sprite"),
-    ("Agua mineral 500ml", 800, "Bebidas", "Con o sin gas"),
+    ("Milanesa napolitana", 4.50, "Platos", "Con salsa y mozzarella, guarnición incluida"),
+    ("Hamburguesa completa", 3.80, "Platos", "Medallón casero, queso, huevo, papas"),
+    ("Ensalada César", 2.90, "Platos", "Pollo grillado, crutones, parmesano"),
+    ("Empanadas de carne (docena)", 3.60, "Entradas", "Fritas u horno"),
+    ("Provoleta", 2.20, "Entradas", "Con orégano y tomate"),
+    ("Flan con dulce de leche", 1.50, "Postres", "Casero"),
+    ("Gaseosa 1.5L", 1.20, "Bebidas", "Coca-Cola o Sprite"),
+    ("Agua mineral 500ml", 0.80, "Bebidas", "Con o sin gas"),
 ]
 
 
@@ -34,7 +34,8 @@ async def seed() -> bool:
             owner_phone="59911111111",
             welcome_message="¡Hola! 👋 Soy Sabi de *La Esquina*. ¿Qué te provoca hoy?",
             opening_hours="Lun-Dom 12:00-15:00 y 19:00-23:30",
-            currency="$",
+            currency="USD",
+            exchange_rate=36.5,
         )
         db.add(r)
         await db.flush()

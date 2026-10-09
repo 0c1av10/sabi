@@ -4,18 +4,22 @@ const chat = [
   { who: "c", text: "Hola! Quiero pedir 2 milanesas napolitanas y una gaseosa", time: "21:03" },
   { who: "s", text: "Anoté: 2 x Milanesa napolitana, 1 x Gaseosa 1.5L. ¿Delivery o retiro?", time: "21:03" },
   { who: "c", text: "Delivery, Av. Italia 1234", time: "21:04" },
-  { who: "s", text: "Tu pedido: 2 milanesas + 1 gaseosa — $10.200. ¿Está correcto?", time: "21:04" },
+  { who: "s", text: "Tu pedido: 2 milanesas + 1 gaseosa. Total: $10,20 · Bs 372,30. ¿Está correcto?", time: "21:04" },
   { who: "c", text: "Sí", time: "21:05" },
 ];
 
 const features = [
   {
     title: "Atiende y toma pedidos 24/7",
-    desc: "Responde menú, precios y horarios al instante. Conversa hasta completar el pedido: ítems, cantidades, extras, delivery o retiro, dirección y total.",
+    desc: "Responde menú, precios y horarios al instante. Conversa hasta completar el pedido: ítems, cantidades, extras, delivery o retiro, dirección y total en dólares y bolívares.",
   },
   {
     title: "Vos aprobás cada pedido",
     desc: "Nada se confirma solo. Cada pedido llega a tu bandeja con el resumen completo y lo aprobás, editás o rechazás con un toque. Recién ahí el cliente recibe la confirmación.",
+  },
+  {
+    title: "Dólares y bolívares",
+    desc: "Cargás el menú en dólares y la tasa del día. Sabi le da a cada cliente el precio en las dos monedas, sin cuentas a mano ni tasas viejas.",
   },
   {
     title: "Todo queda registrado",
@@ -92,7 +96,7 @@ export default function Landing() {
         <p className="mt-3 max-w-2xl text-stone-600">
           Un sistema completo: el agente conversa, estructura el pedido y vos tenés la última palabra.
         </p>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
+        <div className="mt-12 grid gap-6 md:grid-cols-2">
           {features.map((f) => (
             <div key={f.title} className="rounded-2xl border p-6">
               <h3 className="text-lg font-semibold">{f.title}</h3>

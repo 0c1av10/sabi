@@ -26,15 +26,23 @@ class AgentResult:
     state: dict = field(default_factory=dict)
 
 
-def menu_text(items: list[MenuItem], currency: str) -> str:
+def _num(value: float) -> str:
+    return f"{value:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def fmt_money(usd: float, rate: float) -> str:
+    return f"${_num(usd)} · Bs {_num(usd * rate)}"
+
+
+def menu_text(items: list[MenuItem], rate: float) -> str:
     lines = []
     for it in items:
         if it.available:
-            lines.append(f"- {it.name} ({it.category}): {currency}{it.price:g}")
+            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, rate)}")
     return "\n".join(lines)
 
 
-def summarize_order(order: dict, items_by_name: dict[str, MenuItem], currency: str) -> tuple[str, float]:
+def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rate: float) -> tuple[str, float]:
     total = 0.0
     lines = []
     for oi in order.get("items", []):
@@ -43,17 +51,18 @@ def summarize_order(order: dict, items_by_name: dict[str, MenuItem], currency: s
         qty = int(oi.get("quantity", 1))
         total += price * qty
         extra = f" ({oi['extras']})" if oi.get("extras") else ""
-        lines.append(f"• {qty} x {mi.name if mi else oi['name']}{extra} — {currency}{price*qty:g}")
+        lines.append(f"• {qty} x {mi.name if mi else oi['name']}{extra} — {fmt_money(price * qty, rate)}")
     tipo = "Delivery" + (f" a {order.get('address','')}" if order.get("address") else "") \
         if order.get("order_type") == "delivery" else "Retiro en local"
     notes = f"\nNotas: {order['notes']}" if order.get("notes") else ""
-    return "\n".join(lines) + f"\n{tipo}{notes}\nTotal: {currency}{total:g}", total
+    return "\n".join(lines) + f"\n{tipo}{notes}\nTotal: {fmt_money(total, rate)}", total
 
 
 SYSTEM_PROMPT = """Eres Sabi, el agente de ventas por WhatsApp de un restaurante.
 Reglas:
 - Tono cercano, español neutro, mensajes cortos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
+- Los precios se expresan en dólares y bolívares a la tasa del día; usa exactamente los montos del menú.
 - Si el cliente pide algo fuera del menú o no sabes algo, dilo y ofrece pasar la conversación al dueño (action=handoff).
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
@@ -80,7 +89,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     import anthropic
 
     state = json.loads(conversation.state_json or "{}")
-    menu = menu_text(items, restaurant.currency)
+    menu = menu_text(items, restaurant.exchange_rate)
     msgs = [{"role": "user", "content": f"Menú actual:\n{menu}\n\nHorarios: {restaurant.opening_hours}"}]
     for direction, body in history[-20:]:
         msgs.append({"role": "user" if direction == "inbound" else "assistant", "content": body})
@@ -107,10 +116,10 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     reply = data.get("reply", "")
 
     if action == "submit_order" and order:
-        reply, _ = summarize_order(order, items_by_name, restaurant.currency)
+        reply, _ = summarize_order(order, items_by_name, restaurant.exchange_rate)
         reply = "¡Perfecto! Tu pedido fue enviado al restaurante para aprobación. Te confirmo enseguida. 🙌"
     elif action == "ask_confirm" and order:
-        summary, _ = summarize_order(order, items_by_name, restaurant.currency)
+        summary, _ = summarize_order(order, items_by_name, restaurant.exchange_rate)
         reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
 
     return AgentResult(reply=reply, action=action, order=order,
@@ -161,7 +170,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})
 
     if re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
-        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, restaurant.currency),
+        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, restaurant.exchange_rate),
                            state={**state, "draft": draft})
 
     if re.search(r"\b(horarios?|abierto|atienden|abren|cierran)\b", text):
@@ -197,7 +206,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
             got = ", ".join(f'{i["quantity"]} x {i["name"]}' for i in draft["items"])
             return AgentResult(reply=f"Anoté: {got}. " + " ".join(missing),
                                state={**state, "draft": draft})
-        summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, restaurant.currency)
+        summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, restaurant.exchange_rate)
         return AgentResult(
             reply=f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante.",
             action="ask_confirm", order=draft, state={**state, "stage": "confirming", "draft": draft})
