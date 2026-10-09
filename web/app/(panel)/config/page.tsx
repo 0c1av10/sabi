@@ -3,19 +3,23 @@ import { useEffect, useState } from "react";
 import { api } from "../../../lib/api";
 
 export default function Config() {
-  const [form, setForm] = useState({ welcome_message: "", opening_hours: "", owner_phone: "", name: "", exchange_rate: "" });
+  const [form, setForm] = useState({ welcome_message: "", opening_hours: "", owner_phone: "", name: "", exchange_rate: "", eur_rate: "" });
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     api("/me").then((r) => setForm({
       welcome_message: r.welcome_message, opening_hours: r.opening_hours,
-      owner_phone: r.owner_phone, name: r.name, exchange_rate: String(r.exchange_rate),
+      owner_phone: r.owner_phone, name: r.name, exchange_rate: String(r.exchange_rate), eur_rate: String(r.eur_rate),
     })).catch(() => {});
   }, []);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    await api("/settings", { method: "PUT", body: JSON.stringify({ ...form, exchange_rate: parseFloat(form.exchange_rate.replace(",", ".")) || undefined }) });
+    await api("/settings", { method: "PUT", body: JSON.stringify({
+      ...form,
+      exchange_rate: parseFloat(form.exchange_rate.replace(",", ".")) || undefined,
+      eur_rate: parseFloat(form.eur_rate.replace(",", ".")) || undefined,
+    }) });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -38,7 +42,8 @@ export default function Config() {
         {field("name", "Nombre del restaurante")}
         {field("welcome_message", "Mensaje de bienvenida", true)}
         {field("opening_hours", "Horarios")}
-        {field("exchange_rate", "Tasa del día (Bs por 1 USD)")}
+        {field("exchange_rate", "Tasa BCV dólar (Bs por 1 USD)")}
+        {field("eur_rate", "Tasa BCV euro (Bs por 1 EUR)")}
         {field("owner_phone", "WhatsApp del dueño (notificaciones de pedidos)")}
         <button className="rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white">
           {saved ? "Guardado ✓" : "Guardar"}

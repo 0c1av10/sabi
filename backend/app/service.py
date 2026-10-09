@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .agent import fmt_money, run_agent, summarize_order
+from .agent import fmt_money, rates_of, run_agent, summarize_order
 from .models import (Conversation, Customer, MenuItem, Message, Order,
                      OrderItem, OrderStatus, Restaurant)
 from .whatsapp import send_whatsapp_message
@@ -71,7 +71,7 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
                                conv: Conversation, draft: dict) -> Order:
     items_by_name = {i.name.lower(): i for i in (await db.execute(select(MenuItem).where(
         MenuItem.restaurant_id == restaurant.id))).scalars().all()}
-    _, total = summarize_order(draft, items_by_name, restaurant.exchange_rate)
+    _, total = summarize_order(draft, items_by_name, rates_of(restaurant))
 
     order = Order(
         restaurant_id=restaurant.id,
@@ -111,7 +111,7 @@ async def notify_owner_new_order(db: AsyncSession, restaurant: Restaurant, order
     await send_whatsapp_message(
         restaurant.owner_phone,
         f"🔔 Nuevo pedido #{order.id} pendiente de aprobación: {items} — "
-        f"total {fmt_money(order.total, restaurant.exchange_rate)}. Apruébalo en el panel de Sabi.",
+        f"total {fmt_money(order.total, *rates_of(restaurant))}. Apruébalo en el panel de Sabi.",
     )
 
 
@@ -129,7 +129,7 @@ async def approve_order(db: AsyncSession, restaurant: Restaurant, order: Order,
     extra = f" (con ajustes: {order.edit_summary})" if edited and order.edit_summary else ""
     phone = await get_customer_phone(db, order)
     msg = (f"✅ ¡Pedido confirmado por {restaurant.name}!{extra}\n"
-           f"{items}\nTotal: {fmt_money(order.total, restaurant.exchange_rate)}\n¡Gracias!")
+           f"{items}\nTotal: {fmt_money(order.total, *rates_of(restaurant))}\n¡Gracias!")
     db.add(Message(conversation_id=order.conversation_id, direction="outbound", body=msg))
     if phone:
         await send_whatsapp_message(phone, msg)

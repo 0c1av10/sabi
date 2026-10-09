@@ -36,6 +36,7 @@ async def seed() -> bool:
             opening_hours="Lun-Dom 12:00-15:00 y 19:00-23:30",
             currency="USD",
             exchange_rate=36.5,
+            eur_rate=39.6,
         )
         db.add(r)
         await db.flush()

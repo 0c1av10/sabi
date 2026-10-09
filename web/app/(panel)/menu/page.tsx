@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "../../../lib/api";
-import { bs, usd } from "../../../lib/money";
+import { bs, eur, usd, type Rates } from "../../../lib/money";
 
 type Item = { id: number; name: string; price: number; category: string; available: boolean; description: string };
 const empty = { name: "", price: 0, category: "General", description: "" };
@@ -10,9 +10,9 @@ export default function Menu() {
   const [items, setItems] = useState<Item[]>([]);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState<number | null>(null);
-  const [rate, setRate] = useState(0);
+  const [rate, setRate] = useState<Rates>({ usd: 0, eur: 0 });
 
-  useEffect(() => { api("/me").then((r) => setRate(r.exchange_rate)).catch(() => {}); }, []);
+  useEffect(() => { api("/me").then((r) => setRate({ usd: r.exchange_rate, eur: r.eur_rate })).catch(() => {}); }, []);
 
   async function load() { setItems(await api("/menu")); }
   useEffect(() => { load().catch(() => {}); }, []);
@@ -52,13 +52,14 @@ export default function Menu() {
       </form>
       <table className="w-full overflow-hidden rounded-xl border bg-white text-sm">
         <thead className="bg-stone-100 text-left">
-          <tr><th className="p-3">Nombre</th><th>Precio USD</th><th>Bs a la tasa del día</th><th>Categoría</th><th>Disponible</th><th /></tr>
+          <tr><th className="p-3">Nombre</th><th>Precio USD</th><th>EUR</th><th>Bs</th><th>Categoría</th><th>Disponible</th><th /></tr>
         </thead>
         <tbody>
           {items.map((it) => (
             <tr key={it.id} className="border-t">
               <td className="p-3">{it.name}</td>
               <td>{usd(it.price)}</td>
+              <td className="text-stone-500">{eur(it.price, rate)}</td>
               <td className="text-stone-500">{bs(it.price, rate)}</td>
               <td>{it.category}</td>
               <td>

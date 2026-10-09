@@ -31,6 +31,8 @@ class Restaurant(Base):
     currency: Mapped[str] = mapped_column(String(10), default="USD")
     # Bs per USD, set daily by the owner; menu prices are stored in USD
     exchange_rate: Mapped[float] = mapped_column(Float, default=36.5)
+    # Bs per EUR (BCV publishes both); EUR amounts derive from USD via Bs
+    eur_rate: Mapped[float] = mapped_column(Float, default=39.6)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     menu_items: Mapped[list["MenuItem"]] = relationship(back_populates="restaurant")

@@ -88,6 +88,6 @@ pipeline que el webhook real, para probar conversaciones desde curl o el panel.
 
 POS, pagos, multi-sucursal, reservas, analítica avanzada.
 
-## Multimoneda (USD / Bs)
+## Multimoneda (USD / EUR / Bs)
 
-Los precios del menú se cargan en dólares. El dueño fija la tasa del día (Bs por 1 USD) en **Configuración**; el agente, la bandeja y el menú muestran cada monto en ambas monedas (`$10,20 · Bs 372,30`).
+Los precios del menú se cargan en dólares. El dueño fija las tasas del día (Bs por 1 USD y Bs por 1 EUR, como las publica el BCV) en **Configuración**; el agente, la bandeja y el menú muestran cada monto en las tres monedas (`$10,20 · €9,40 · Bs 372,30`).
