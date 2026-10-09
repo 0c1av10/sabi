@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.models import MenuItem, Restaurant  # noqa: E402
+from app.models import Conversation, MenuItem, Restaurant  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
 MENU = [
@@ -60,6 +60,8 @@ async def seed_demo_conversations() -> None:
     async with SessionLocal() as db:
         r = (await db.execute(
             select(Restaurant).where(Restaurant.slug == "la-esquina"))).scalar_one()
+        if (await db.execute(select(Conversation).limit(1))).first():
+            return
         for phone, name, lines in DEMO_CHATS:
             for text in lines:
                 await handle_inbound_message(db, r, phone, text, name)

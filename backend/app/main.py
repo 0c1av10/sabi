@@ -18,8 +18,8 @@ async def ensure_ready() -> None:
     await init_db()
     if settings.demo_autoseed:
         from scripts.seed import seed, seed_demo_conversations
-        if await seed():
-            await seed_demo_conversations()
+        await seed()
+        await seed_demo_conversations()
     _ready = True
 
 
