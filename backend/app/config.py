@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     session_secret: str = "change-me-in-production"
 
     backend_base_url: str = "http://localhost:8000"
+    demo_autoseed: bool = False
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
 
 settings = Settings()

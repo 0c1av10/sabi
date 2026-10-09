@@ -21,14 +21,12 @@ MENU = [
 ]
 
 
-async def main():
-    await init_db()
+async def seed() -> bool:
     async with SessionLocal() as db:
         existing = (await db.execute(
             select(Restaurant).where(Restaurant.slug == "la-esquina"))).scalar_one_or_none()
         if existing:
-            print("Seed ya aplicado (restaurante 'la-esquina' existe).")
-            return
+            return False
         r = Restaurant(
             name="La Esquina",
             slug="la-esquina",
@@ -44,6 +42,34 @@ async def main():
             db.add(MenuItem(restaurant_id=r.id, name=name, price=price,
                             category=cat, description=desc))
         await db.commit()
+        return True
+
+
+DEMO_CHATS = [
+    ("59890000001", "Lucía R.", ["hola", "quiero 2 milanesa napolitana y una gaseosa 1.5l",
+                                 "delivery", "dirección: Av. Italia 1234, apto 5", "sí"]),
+    ("59890000002", "Martín P.", ["hola", "quiero 1 hamburguesa completa y 2 agua mineral 500ml",
+                                  "retiro", "sí"]),
+    ("59890000003", "María G.", ["hola", "quiero 1 provoleta y 1 flan con dulce de leche"]),
+]
+
+
+async def seed_demo_conversations() -> None:
+    from app.service import handle_inbound_message
+
+    async with SessionLocal() as db:
+        r = (await db.execute(
+            select(Restaurant).where(Restaurant.slug == "la-esquina"))).scalar_one()
+        for phone, name, lines in DEMO_CHATS:
+            for text in lines:
+                await handle_inbound_message(db, r, phone, text, name)
+
+
+async def main():
+    await init_db()
+    if not await seed():
+        print("Seed ya aplicado (restaurante 'la-esquina' existe).")
+    else:
         print("Seed listo: restaurante 'La Esquina' (slug: la-esquina, PIN: 1234) "
               f"con {len(MENU)} ítems de menú.")
 
