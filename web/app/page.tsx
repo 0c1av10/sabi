@@ -2,13 +2,28 @@ import Link from "next/link";
 import Phone, { Msg } from "../components/Phone";
 import RevealObserver from "../components/RevealObserver";
 import { WhatsAppLogo, MetaLogo } from "../components/Brand";
-import { usd, eur, bs } from "../lib/money";
+import { usd, eur, bs, type Rates } from "../lib/money";
 
-// Tasas BCV oficiales del 09/10/2026 (ve.dolarapi.com), solo para la demo.
-const R = { usd: 875.65, eur: 980.61 };
+export const revalidate = 3600;
+
+const FALLBACK = { usd: 875.65, eur: 980.61, fecha: "2026-10-09" };
+let R: Rates = FALLBACK;
+let bcvDate = FALLBACK.fecha;
+
+async function bcvRates() {
+  try {
+    const [u, e] = await Promise.all(["dolares", "euros"].map((k) =>
+      fetch(`https://ve.dolarapi.com/v1/${k}/oficial`, { next: { revalidate: 3600 } }).then((r) => r.json())));
+    const round = (v: number) => Math.round(v * 100) / 100;
+    if (!u.promedio || !e.promedio) return FALLBACK;
+    return { usd: round(u.promedio), eur: round(e.promedio), fecha: String(u.fechaActualizacion).slice(0, 10) };
+  } catch {
+    return FALLBACK;
+  }
+}
 const m = (v: number) => `${usd(v)} · ${eur(v, R)} · ${bs(v, R)}`;
 
-const heroChat: Msg[] = [
+const heroChat = (): Msg[] => [
   { who: "c", text: "Hola! qué me recomiendas para 2?", time: "21:02" },
   { who: "s", text: `El pollo entero a la brasa es la especialidad de la casa y alcanza para 2: ${m(21)}. ¿Te lo anoto?`, time: "21:02" },
   { who: "c", text: "Dale, el pollo y 2 papelones con limón", time: "21:03" },
@@ -17,7 +32,7 @@ const heroChat: Msg[] = [
   { who: "s", text: `Total: ${m(31)}\n¿Está correcto?`, time: "21:04" },
 ];
 
-const demos: { title: string; desc: string; from: string; result: string; gain?: number; msgs: Msg[]; footer?: React.ReactNode }[] = [
+const demos = (): { title: string; desc: string; from: string; result: string; gain?: number; msgs: Msg[]; footer?: React.ReactNode }[] => [
   {
     title: "Upselling",
     desc: "Sabi ofrece la versión más completa del plato cuando vale la pena.",
@@ -74,7 +89,7 @@ const features = [
   },
   {
     title: "Dólares, euros y bolívares",
-    desc: "Cargas el menú en dólares y las tasas del día. Sabi le da a cada cliente el precio en las tres monedas, sin cuentas a mano ni tasas viejas.",
+    desc: "Cargas el menú en dólares y Sabi toma la tasa oficial del BCV cada día. Luego le da a cada cliente el precio en las tres monedas, sin cuentas a mano ni tasas viejas.",
   },
   {
     title: "Reservas sin cruces",
@@ -98,12 +113,16 @@ const faqs: [string, string][] = [
   ["¿La IA puede inventar precios o promociones?", "No. Sabi solo vende lo que está en tu menú, con tus precios, y no inventa descuentos. Además, ningún pedido se confirma sin tu aprobación."],
   ["¿Cómo apruebo los pedidos?", "Cada pedido llega a la bandeja de tu panel con ítems, total, tipo de entrega y dirección. Lo apruebas, lo editas o lo rechazas con un motivo, y solo entonces el cliente recibe la respuesta por WhatsApp."],
   ["¿Qué pasa si el cliente quiere hablar con una persona?", "Si el cliente pide algo fuera del menú o prefiere hablar contigo, Sabi se lo dice y te pasa la conversación."],
-  ["¿Cómo maneja dólares, euros y bolívares?", "Cargas el menú en dólares y pones las tasas BCV del día en Configuración. Sabi muestra cada precio y cada total en las tres monedas."],
+  ["¿Cómo maneja dólares, euros y bolívares?", "Cargas el menú en dólares y Sabi actualiza solo la tasa oficial del BCV del dólar y del euro. Si prefieres otra tasa, la pones a mano en Configuración. Cada precio y cada total sale en las tres monedas."],
   ["¿Toma reservas y se conecta con mi POS?", "Las reservas por WhatsApp y la conexión con tu POS llegan con el piloto. Hoy Sabi toma pedidos de delivery y retiro."],
   ["¿Qué necesito para empezar?", "Tu menú con precios, tus horarios y un número de WhatsApp. Estamos abriendo el piloto para 1 a 3 restaurantes."],
 ];
 
-export default function Landing() {
+export default async function Landing() {
+  const rates = await bcvRates();
+  R = rates;
+  bcvDate = rates.fecha;
+  const bcvLine = `BCV ${bcvDate.split("-").reverse().join("/")}: $1 = ${bs(1, R)} · €1 = ${bs(R.eur / R.usd, R)}`;
   return (
     <div className="relative overflow-hidden bg-[#04140f] text-white">
       <div className="grain" aria-hidden="true" />
@@ -136,7 +155,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="relative flex justify-center md:justify-end">
-            <Phone animate height={640} msgs={heroChat}
+            <Phone animate height={640} msgs={heroChat()}
               footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Pedido enviado al dueño · pendiente de aprobación</div>} />
             <div className="absolute -left-4 bottom-16 hidden w-64 -rotate-3 lg:block xl:-left-16">
               <div className="msg-in" style={{ animationDelay: "6.6s" }}>
@@ -217,7 +236,8 @@ export default function Landing() {
           </div></div>
           <div className="bezel h-full md:col-span-3"><div className="bezel-core flex h-full flex-col p-7">
             <h3 className="text-xl font-semibold tracking-tight">Dólares, euros y bolívares</h3>
-            <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Cargas el menú en dólares y las tasas BCV del día. Cada precio sale en las tres monedas.</p>
+            <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Cargas el menú en dólares. Sabi toma la tasa oficial del BCV del dólar y del euro cada día, sin que la copies a mano.</p>
+            <p className="mt-3 text-xs font-medium text-[#25D366]">{bcvLine}</p>
             <dl className="mt-auto grid grid-cols-3 gap-3 pt-8">
               {[["Dólares", usd(31)], ["Euros", eur(31, R)], ["Bolívares", bs(31, R)]].map(([k, v]) => (
                 <div key={k}>
@@ -261,7 +281,7 @@ export default function Landing() {
             Conversaciones de prueba con el menú de La Esquina. Cada sugerencia sale de tu carta y tus precios, una sola vez y sin presionar.
           </p>
           <div className="mt-14 grid justify-items-center gap-14 lg:grid-cols-3">
-            {demos.map((d, i) => (
+            {demos().map((d, i) => (
               <div key={d.title} className={`flex flex-col items-center ${i === 1 ? "lg:-translate-y-10" : "lg:translate-y-6"}`}>
                 <Phone msgs={d.msgs} footer={d.footer} className={i === 0 ? "lg:-rotate-2" : i === 2 ? "lg:rotate-2" : ""} />
                 <div className="mt-8 w-[300px]">
@@ -293,7 +313,7 @@ export default function Landing() {
             </div>
             <div className="flex items-center gap-6 border-b bg-white px-6 py-3 text-sm">
               <span className="font-bold text-emerald-700">Sabi</span>
-              <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800 md:inline">Tasa BCV hoy: $1 = Bs 875,65 · €1 = Bs 980,61</span>
+              <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800 md:inline">Tasa {bcvLine}</span>
               <span className="ml-auto font-medium text-stone-900">Pedidos</span>
               <span className="text-stone-500">Menú</span><span className="text-stone-500">Registro</span><span className="text-stone-500">Configuración</span>
             </div>

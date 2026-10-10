@@ -31,6 +31,7 @@ class RestaurantSettingsIn(BaseModel):
     name: Optional[str] = None
     exchange_rate: Optional[float] = None
     eur_rate: Optional[float] = None
+    bcv_auto: Optional[bool] = None
 
 
 class RestaurantOut(BaseModel):
@@ -43,6 +44,9 @@ class RestaurantOut(BaseModel):
     currency: str
     exchange_rate: float
     eur_rate: float
+    bcv_auto: Optional[bool] = None
+    rates_date: Optional[str] = None
+    rates_updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

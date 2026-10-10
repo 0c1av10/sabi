@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from ..bcv import fetch_bcv, refresh_rates
 from ..auth import COOKIE_NAME, current_restaurant, make_token
 from ..db import get_db
 from ..models import (Conversation, Customer, MenuItem, Message, Order,
@@ -29,7 +30,27 @@ async def login(data: LoginIn, response: Response, db: AsyncSession = Depends(ge
 
 
 @router.get("/me", response_model=RestaurantOut)
-async def me(restaurant: Restaurant = Depends(current_restaurant)):
+async def me(restaurant: Restaurant = Depends(current_restaurant),
+             db: AsyncSession = Depends(get_db)):
+    if await refresh_rates(restaurant):
+        await db.commit()
+    return restaurant
+
+
+@router.get("/bcv")
+async def bcv_rates():
+    data = await fetch_bcv()
+    if not data:
+        raise HTTPException(502, "No se pudo consultar la tasa BCV")
+    return data
+
+
+@router.post("/settings/bcv", response_model=RestaurantOut)
+async def sync_bcv(restaurant: Restaurant = Depends(current_restaurant),
+                   db: AsyncSession = Depends(get_db)):
+    if not await refresh_rates(restaurant, force=True):
+        raise HTTPException(502, "No se pudo consultar la tasa BCV")
+    await db.commit()
     return restaurant
 
 
@@ -37,10 +58,17 @@ async def me(restaurant: Restaurant = Depends(current_restaurant)):
 async def update_settings(data: RestaurantSettingsIn,
                           restaurant: Restaurant = Depends(current_restaurant),
                           db: AsyncSession = Depends(get_db)):
-    for f in ("welcome_message", "opening_hours", "owner_phone", "name", "exchange_rate", "eur_rate"):
+    for f in ("welcome_message", "opening_hours", "owner_phone", "name", "bcv_auto"):
         v = getattr(data, f)
         if v is not None:
             setattr(restaurant, f, v)
+    if restaurant.bcv_auto:
+        await refresh_rates(restaurant, force=True)
+    else:
+        for f in ("exchange_rate", "eur_rate"):
+            v = getattr(data, f)
+            if v is not None:
+                setattr(restaurant, f, v)
     await db.commit()
     return restaurant
 

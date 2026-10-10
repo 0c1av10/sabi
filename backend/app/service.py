@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from .bcv import refresh_rates
 from .agent import fmt_money, rates_of, run_agent, summarize_order
 from .models import (Conversation, Customer, MenuItem, Message, Order,
                      OrderItem, OrderStatus, Restaurant)
@@ -39,6 +40,7 @@ async def get_or_create_conversation(db: AsyncSession, restaurant: Restaurant,
 async def handle_inbound_message(db: AsyncSession, restaurant: Restaurant,
                                  phone: str, body: str, name: str = "") -> str:
     """Process one inbound customer message. Returns the reply text sent."""
+    await refresh_rates(restaurant)
     conv = await get_or_create_conversation(db, restaurant, phone, name)
     db.add(Message(conversation_id=conv.id, direction="inbound", body=body))
     await db.flush()
