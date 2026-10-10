@@ -1,25 +1,30 @@
 import Link from "next/link";
 import Phone, { Msg } from "../components/Phone";
 import { WhatsAppLogo, MetaLogo } from "../components/Brand";
+import { usd, eur, bs } from "../lib/money";
+
+const R = { usd: 36.5, eur: 39.6 };
+const m = (v: number) => `${usd(v)} · ${eur(v, R)} · ${bs(v, R)}`;
 
 const heroChat: Msg[] = [
   { who: "c", text: "Hola! qué me recomiendas para 2?", time: "21:02" },
-  { who: "s", text: "La milanesa napolitana es la favorita de la casa: salsa, mozzarella y guarnición, $4,50. ¿Te anoto 2?", time: "21:02" },
+  { who: "s", text: `La milanesa napolitana es la favorita de la casa: salsa, mozzarella y guarnición, ${m(4.5)}. ¿Te anoto 2?`, time: "21:02" },
   { who: "c", text: "Dale, 2 milanesas y una gaseosa", time: "21:03" },
-  { who: "s", text: "¿Les sumo un flan casero de postre? $1,50", time: "21:03" },
+  { who: "s", text: `¿Les sumo un flan casero de postre? ${m(1.5)}`, time: "21:03" },
   { who: "c", text: "Sí, súmalo. Delivery a Chacao", time: "21:04" },
   { who: "s", text: "Total: $11,70 · €10,78 · Bs 427,05\n¿Está correcto?", time: "21:04" },
 ];
 
-const demos: { title: string; desc: string; from: string; result: string; msgs: Msg[]; footer?: React.ReactNode }[] = [
+const demos: { title: string; desc: string; from: string; result: string; gain?: number; msgs: Msg[]; footer?: React.ReactNode }[] = [
   {
     title: "Upselling",
     desc: "Sabi ofrece la versión más completa del plato cuando vale la pena.",
     from: "$7,60",
     result: "$9,00 · +$1,40",
+    gain: 1.4,
     msgs: [
       { who: "c", text: "Quiero 2 hamburguesas completas", time: "13:10" },
-      { who: "s", text: "¡Buena elección! Por $0,70 más cada una, la milanesa napolitana viene con salsa, mozzarella y guarnición incluida. ¿Te las cambio?", time: "13:10" },
+      { who: "s", text: `¡Buena elección! Por ${usd(0.7)} más cada una (${bs(0.7, R)}), la milanesa napolitana viene con salsa, mozzarella y guarnición incluida. ¿Te las cambio?`, time: "13:10" },
       { who: "c", text: "Sí, mejor las milanesas", time: "13:11" },
       { who: "s", text: "Listo: 2 x Milanesa napolitana.\nTotal: $9,00 · €8,30 · Bs 328,50", time: "13:11" },
     ],
@@ -29,9 +34,10 @@ const demos: { title: string; desc: string; from: string; result: string; msgs: 
     desc: "Sugiere lo que combina con el pedido: la bebida, la entrada o el postre.",
     from: "$3,60",
     result: "$4,80 · +$1,20",
+    gain: 1.2,
     msgs: [
       { who: "c", text: "Una docena de empanadas para retirar", time: "19:42" },
-      { who: "s", text: "Anotado. ¿Le sumamos una Gaseosa 1.5L bien fría para acompañar? $1,20", time: "19:42" },
+      { who: "s", text: `Anotado. ¿Le sumamos una Gaseosa 1.5L bien fría para acompañar? ${m(1.2)}`, time: "19:42" },
       { who: "c", text: "Dale", time: "19:43" },
       { who: "s", text: "1 x Empanadas de carne (docena)\n1 x Gaseosa 1.5L\nTotal: $4,80 · €4,42 · Bs 175,20", time: "19:43" },
     ],
@@ -201,6 +207,7 @@ export default function Landing() {
                   <h3 className="text-xl font-bold">{d.title}</h3>
                   <p className="mt-1 text-sm text-stone-600">{d.desc}</p>
                   <p className="mt-3 text-sm"><span className="text-stone-500">{d.from}</span> <span className="text-stone-400">→</span> <span className="text-lg font-bold text-emerald-700">{d.result}</span></p>
+                  {d.gain && <p className="mt-1 text-xs text-stone-500">Suma {m(d.gain)} en cada pedido</p>}
                 </div>
               </div>
             ))}
@@ -222,6 +229,7 @@ export default function Landing() {
             </div>
             <div className="flex items-center gap-6 border-b bg-white px-6 py-3 text-sm">
               <span className="font-bold text-emerald-700">Sabi</span>
+              <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800 md:inline">Tasa BCV hoy: $1 = Bs 36,50 · €1 = Bs 39,60</span>
               <span className="ml-auto font-medium text-stone-900">Pedidos</span>
               <span className="text-stone-500">Menú</span><span className="text-stone-500">Registro</span><span className="text-stone-500">Configuración</span>
             </div>
@@ -240,9 +248,9 @@ export default function Landing() {
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Pendiente</span>
                   </div>
                   <ul className="mt-3 space-y-1 text-sm text-stone-700">
-                    <li className="flex justify-between"><span>2 x Milanesa napolitana</span><span>$9,00</span></li>
-                    <li className="flex justify-between"><span>1 x Gaseosa 1.5L</span><span>$1,20</span></li>
-                    <li className="flex justify-between"><span>1 x Flan con dulce de leche <span className="ml-1 rounded bg-emerald-100 px-1.5 text-[10px] font-medium text-emerald-800">sugerido por Sabi</span></span><span>$1,50</span></li>
+                    <li className="flex justify-between"><span>2 x Milanesa napolitana</span><span className="text-right">$9,00<span className="block text-[11px] text-stone-400">{eur(9, R)} · {bs(9, R)}</span></span></li>
+                    <li className="flex justify-between"><span>1 x Gaseosa 1.5L</span><span className="text-right">$1,20<span className="block text-[11px] text-stone-400">{eur(1.2, R)} · {bs(1.2, R)}</span></span></li>
+                    <li className="flex justify-between"><span>1 x Flan con dulce de leche <span className="ml-1 rounded bg-emerald-100 px-1.5 text-[10px] font-medium text-emerald-800">sugerido por Sabi</span></span><span className="text-right">$1,50<span className="block text-[11px] text-stone-400">{eur(1.5, R)} · {bs(1.5, R)}</span></span></li>
                   </ul>
                   <p className="mt-2 text-xs text-stone-500">Delivery · Av. Francisco de Miranda, Chacao</p>
                   <p className="mt-3 border-t pt-3 text-sm font-semibold">Total: $11,70 · €10,78 · Bs 427,05</p>
