@@ -19,15 +19,11 @@ const features = [
   },
   {
     title: "Tú apruebas cada pedido",
-    desc: "Nada se confirma solo. Cada pedido llega a tu bandeja con el resumen completo y lo apruebas, editas o rechazas con un toque. Solo entonces el cliente recibe la confirmación.",
+    desc: "Nada se confirma solo. Cada pedido llega a tu bandeja con el resumen completo y lo apruebas, editas o rechazas con un toque. Solo entonces el cliente recibe la confirmación. Cada conversación y pedido queda registrado.",
   },
   {
     title: "Dólares, euros y bolívares",
     desc: "Cargas el menú en dólares y las tasas del día. Sabi le da a cada cliente el precio en las tres monedas, sin cuentas a mano ni tasas viejas.",
-  },
-  {
-    title: "Todo queda registrado",
-    desc: "Cada conversación y pedido guardado. Vista del día con aprobados, rechazados y consultas sin cerrar.",
   },
 ];
 
