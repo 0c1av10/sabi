@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Phone, { Msg } from "../components/Phone";
 import RevealObserver from "../components/RevealObserver";
+import Mascot from "../components/Mascot";
 import { WhatsAppLogo, MetaLogo } from "../components/Brand";
 import { usd, eur, bs, type Rates } from "../lib/money";
 
@@ -155,6 +156,10 @@ export default async function Landing() {
             </div>
           </div>
           <div className="relative flex justify-center md:justify-end">
+            <div className="absolute -top-20 right-0 z-10 flex flex-col items-end gap-1 sm:right-4 xl:-right-36 xl:top-16">
+              <span className="msg-in mr-10 rounded-2xl rounded-br-sm bg-white px-3 py-2 text-xs font-medium text-stone-800 shadow-lg" style={{ animationDelay: ".4s" }}>¡Hola! Soy Sabi</span>
+              <Mascot className="w-24 md:w-32" />
+            </div>
             <Phone animate height={640} msgs={heroChat()}
               footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Pedido enviado al dueño · pendiente de aprobación</div>} />
             <div className="absolute -left-4 bottom-16 hidden w-64 -rotate-3 lg:block xl:-left-16">

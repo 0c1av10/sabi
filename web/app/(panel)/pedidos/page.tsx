@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Mascot from "../../../components/Mascot";
 import { api } from "../../../lib/api";
 import { bs, eur, usd, type Rates } from "../../../lib/money";
 
@@ -44,7 +45,10 @@ export default function Pedidos() {
       <h1 className="mb-4 text-xl font-semibold">Bandeja de aprobación</h1>
       {error && <p className="text-red-600">{error}</p>}
       {orders.length === 0 && !error && (
-        <p className="text-stone-500">No hay pedidos pendientes.</p>
+        <div className="flex flex-col items-center gap-3 py-12 text-center text-stone-500">
+          <Mascot pose="idle" className="w-24" />
+          <p>No hay pedidos pendientes. Sabi te avisa cuando entre uno.</p>
+        </div>
       )}
       <div className="space-y-4">
         {orders.map((o) => (

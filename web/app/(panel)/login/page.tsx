@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Mascot from "../../../components/Mascot";
 
 export default function Login() {
   const [slug, setSlug] = useState("");
@@ -22,8 +23,9 @@ export default function Login() {
   }
 
   return (
-    <div className="mx-auto mt-20 max-w-sm rounded-xl border bg-white p-6 shadow-sm">
-      <h1 className="mb-4 text-xl font-semibold">Entrar a Sabi</h1>
+    <div className="mx-auto mt-28 max-w-sm rounded-xl border bg-white p-6 shadow-sm">
+      <div className="-mt-16 mb-2 flex justify-center"><Mascot className="w-24" /></div>
+      <h1 className="mb-4 text-center text-xl font-semibold">Entrar a Sabi</h1>
       <form onSubmit={submit} className="space-y-3">
         <input className="w-full rounded border p-2" placeholder="Slug del restaurante"
                value={slug} onChange={(e) => setSlug(e.target.value)} />
