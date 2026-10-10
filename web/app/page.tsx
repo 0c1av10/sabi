@@ -1,11 +1,54 @@
 import Link from "next/link";
+import Phone, { Msg } from "../components/Phone";
+import { WhatsAppLogo, MetaLogo } from "../components/Brand";
 
-const chat = [
-  { who: "c", text: "Hola! Quiero pedir 2 milanesas napolitanas y una gaseosa", time: "21:03" },
-  { who: "s", text: "Anoté 2 milanesas y una gaseosa. ¿Les sumo un flan con dulce de leche de postre? Es casero, $1,50. ¿Delivery o retiro?", time: "21:03" },
-  { who: "c", text: "Dale, súmalo. Delivery a Av. Francisco de Miranda, Chacao", time: "21:04" },
-  { who: "s", text: "Tu pedido: 2 milanesas + 1 gaseosa + 1 flan. Total: $11,70 · €10,78 · Bs 427,05. ¿Está correcto?", time: "21:04" },
-  { who: "c", text: "Sí", time: "21:05" },
+const heroChat: Msg[] = [
+  { who: "c", text: "Hola! qué me recomiendas para 2?", time: "21:02" },
+  { who: "s", text: "La milanesa napolitana es la favorita de la casa: salsa, mozzarella y guarnición, $4,50. ¿Te anoto 2?", time: "21:02" },
+  { who: "c", text: "Dale, 2 milanesas y una gaseosa", time: "21:03" },
+  { who: "s", text: "¿Les sumo un flan casero de postre? $1,50", time: "21:03" },
+  { who: "c", text: "Sí, súmalo. Delivery a Chacao", time: "21:04" },
+  { who: "s", text: "Total: $11,70 · €10,78 · Bs 427,05\n¿Está correcto?", time: "21:04" },
+];
+
+const demos: { title: string; desc: string; from: string; result: string; msgs: Msg[]; footer?: React.ReactNode }[] = [
+  {
+    title: "Upselling",
+    desc: "Sabi ofrece la versión más completa del plato cuando vale la pena.",
+    from: "$7,60",
+    result: "$9,00 · +$1,40",
+    msgs: [
+      { who: "c", text: "Quiero 2 hamburguesas completas", time: "13:10" },
+      { who: "s", text: "¡Buena elección! Por $0,70 más cada una, la milanesa napolitana viene con salsa, mozzarella y guarnición incluida. ¿Te las cambio?", time: "13:10" },
+      { who: "c", text: "Sí, mejor las milanesas", time: "13:11" },
+      { who: "s", text: "Listo: 2 x Milanesa napolitana.\nTotal: $9,00 · €8,30 · Bs 328,50", time: "13:11" },
+    ],
+  },
+  {
+    title: "Cross-selling",
+    desc: "Sugiere lo que combina con el pedido: la bebida, la entrada o el postre.",
+    from: "$3,60",
+    result: "$4,80 · +$1,20",
+    msgs: [
+      { who: "c", text: "Una docena de empanadas para retirar", time: "19:42" },
+      { who: "s", text: "Anotado. ¿Le sumamos una Gaseosa 1.5L bien fría para acompañar? $1,20", time: "19:42" },
+      { who: "c", text: "Dale", time: "19:43" },
+      { who: "s", text: "1 x Empanadas de carne (docena)\n1 x Gaseosa 1.5L\nTotal: $4,80 · €4,42 · Bs 175,20", time: "19:43" },
+    ],
+  },
+  {
+    title: "Reservas",
+    desc: "El cliente pide mesa por el mismo chat y tú la apruebas. Llega con el piloto.",
+    from: "Mesa vacía",
+    result: "Mesa para 4",
+    msgs: [
+      { who: "c", text: "Tienen mesa para 4 el sábado a las 9pm?", time: "16:20" },
+      { who: "s", text: "Sí, hay mesa para 4 el sábado a las 21:00. ¿A nombre de quién la anoto?", time: "16:20" },
+      { who: "c", text: "Andrea", time: "16:21" },
+      { who: "s", text: "Perfecto, Andrea: mesa para 4, sábado 21:00. Te confirmo apenas el local la apruebe.", time: "16:21" },
+    ],
+    footer: <div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Reserva enviada al dueño</div>,
+  },
 ];
 
 const features = [
@@ -46,48 +89,35 @@ export default function Landing() {
   return (
     <div className="bg-white">
       {/* Hero */}
-      <section className="border-b">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center">
+      <section className="relative overflow-hidden bg-[#06281e] text-white">
+        <div className="blob pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-[#25D366]/30 blur-3xl" />
+        <div className="blob pointer-events-none absolute -bottom-40 right-0 h-[30rem] w-[30rem] rounded-full bg-emerald-400/20 blur-3xl" style={{ animationDelay: "-7s" }} />
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-[1.1fr_1fr] md:items-center">
           <div>
-            <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl">
-              Tu mejor vendedor, atendiendo WhatsApp las 24 horas
+            <div className="flex items-center gap-4 text-sm text-emerald-100/90">
+              <span className="flex items-center gap-2"><WhatsAppLogo className="h-6 w-6" />WhatsApp</span>
+              <span className="h-4 w-px bg-white/20" />
+              <span className="flex items-center gap-2"><MetaLogo className="h-6 w-6" />API oficial de Meta</span>
+            </div>
+            <h1 className="mt-8 text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
+              Tu mejor vendedor, atendiendo <span className="text-[#25D366]">WhatsApp</span> las 24 horas
             </h1>
-            <p className="mt-5 text-lg text-stone-600">
-              Tu cliente ordena, pregunta y reserva desde WhatsApp. Sabi no es un chatbot que contesta
-              preguntas: recomienda platos, sugiere el acompañamiento justo y cierra el pedido. Tú apruebas
-              cada uno antes de que se confirme.
+            <p className="mt-6 max-w-xl text-lg text-emerald-50/80">
+              Tu cliente ordena, pregunta y reserva desde WhatsApp. Sabi recomienda, sube el ticket con
+              la sugerencia justa y cierra el pedido. Tú apruebas cada uno antes de que se confirme.
             </p>
-            <div className="mt-8 flex gap-3">
-              <Link href="/login" className="rounded-lg bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800">
+            <div className="mt-9 flex flex-wrap gap-3">
+              <Link href="/login" className="rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition hover:scale-[1.03]">
                 Probar el panel
               </Link>
-              <a href="#como-funciona" className="rounded-lg border px-6 py-3 font-medium text-stone-700 hover:bg-stone-50">
-                Cómo funciona
+              <a href="#ventas" className="rounded-full border border-white/25 px-7 py-3 font-medium text-white hover:bg-white/10">
+                Ver cómo vende
               </a>
             </div>
           </div>
-
-          {/* WhatsApp mock */}
-          <div className="rounded-3xl border bg-[#ece5dd] p-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2 border-b border-stone-300/60 pb-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-700 text-sm font-bold text-white">S</div>
-              <div>
-                <p className="text-sm font-semibold">La Esquina · Sabi</p>
-                <p className="text-xs text-emerald-700">en línea</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {chat.map((m, i) => (
-                <div key={i} className={`max-w-[85%] rounded-lg px-3 py-2 text-sm shadow-sm ${
-                  m.who === "c" ? "ml-auto bg-[#dcf8c6]" : "bg-white"}`}>
-                  <p>{m.text}</p>
-                  <p className="mt-0.5 text-right text-[10px] text-stone-400">{m.time}</p>
-                </div>
-              ))}
-              <div className="ml-auto w-fit rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
-                Pedido enviado al dueño · pendiente de aprobación
-              </div>
-            </div>
+          <div className="flex justify-center md:justify-end">
+            <Phone animate msgs={heroChat}
+              footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Pedido enviado al dueño · pendiente de aprobación</div>} />
           </div>
         </div>
       </section>
@@ -143,6 +173,28 @@ export default function Landing() {
               <p className="mt-3 text-sm leading-relaxed text-stone-600">{f.desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Upsell / cross-sell / reservas */}
+      <section id="ventas" className="relative overflow-hidden bg-gradient-to-b from-white to-emerald-50">
+        <div className="mx-auto max-w-6xl px-6 py-24">
+          <h2 className="max-w-2xl text-3xl font-bold tracking-tight md:text-4xl">Lo que Sabi vende por ti mientras atiendes el local</h2>
+          <p className="mt-4 max-w-2xl text-stone-600">
+            Conversaciones de prueba con el menú de La Esquina. Cada sugerencia sale de tu carta y tus precios, una sola vez y sin presionar.
+          </p>
+          <div className="mt-14 grid justify-items-center gap-14 lg:grid-cols-3">
+            {demos.map((d) => (
+              <div key={d.title} className="flex flex-col items-center">
+                <Phone msgs={d.msgs} footer={d.footer} />
+                <div className="mt-8 w-[300px]">
+                  <h3 className="text-xl font-bold">{d.title}</h3>
+                  <p className="mt-1 text-sm text-stone-600">{d.desc}</p>
+                  <p className="mt-3 text-sm"><span className="text-stone-500">{d.from}</span> <span className="text-stone-400">→</span> <span className="text-lg font-bold text-emerald-700">{d.result}</span></p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
