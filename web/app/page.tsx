@@ -115,7 +115,7 @@ export default function Landing() {
               <span className="h-4 w-px bg-white/20" />
               <span className="flex items-center gap-2"><MetaLogo className="h-6 w-6" />API oficial de Meta</span>
             </div>
-            <h1 className="mt-8 text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl">
+            <h1 className="mt-8 text-4xl font-bold leading-[1.05] tracking-tight text-balance md:text-6xl">
               Tu mejor vendedor, atendiendo <span className="text-[#25D366]">WhatsApp</span> las 24 horas
             </h1>
             <p className="mt-6 max-w-xl text-lg text-emerald-50/80">
@@ -123,10 +123,10 @@ export default function Landing() {
               la sugerencia justa y cierra el pedido. Tú apruebas cada uno antes de que se confirme.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <Link href="/login" className="rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition hover:scale-[1.03]">
+              <Link href="/login" className="rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
                 Probar el panel
               </Link>
-              <a href="#ventas" className="rounded-full border border-white/25 px-7 py-3 font-medium text-white hover:bg-white/10">
+              <a href="#ventas" className="rounded-full border border-white/25 px-7 py-3 font-medium text-white transition duration-200 hover:bg-white/10 active:scale-[0.98]">
                 Ver cómo vende
               </a>
             </div>
@@ -155,11 +155,11 @@ export default function Landing() {
       {/* Problem */}
       <section className="bg-gradient-to-b from-emerald-950 to-[#04261c] text-white">
         <div className="mx-auto max-w-6xl px-6 py-20 text-center">
-          <svg viewBox="0 0 200 200" className="mx-auto h-44 w-44" aria-hidden="true">
+          <svg viewBox="0 0 200 200" className="mx-auto h-52 w-52 drop-shadow-[0_20px_40px_rgba(239,68,68,0.15)]" aria-hidden="true">
             <path d="M100 100 L176.08 75.28 A80 80 0 1 1 100 20 Z" fill="#1f4b5c" />
-            <path d="M105.88 91.91 L105.88 11.91 A80 80 0 0 1 181.96 67.19 Z" fill="#ef4444" />
+            <path d="M105.88 91.91 L105.88 11.91 A80 80 0 0 1 181.96 67.19 Z" fill="#ef4444" className="pie-slice" />
           </svg>
-          <p className="mt-8 text-3xl font-bold md:text-4xl">20% de las reservas</p>
+          <p className="mt-8 text-4xl font-bold tabular-nums tracking-tight md:text-5xl">20% de las reservas</p>
           <p className="mt-1 text-2xl text-emerald-100/80 md:text-3xl">se pierden por responder tarde</p>
           <div className="mt-12 grid gap-4 text-left sm:grid-cols-2 lg:grid-cols-4">
             {pains.map(([icon, text]) => (
@@ -178,15 +178,15 @@ export default function Landing() {
 
       {/* Features */}
       <section className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-3xl font-bold tracking-tight">Un agente que vende, no un chatbot que contesta</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-balance">Un agente que vende, no un chatbot que contesta</h2>
         <p className="mt-3 max-w-2xl text-stone-600">
           Sabi conversa como tu mejor mesonero: conoce el menú, recomienda y cierra la venta. Tú tienes la última palabra.
         </p>
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
+        <div className="mt-14 grid gap-x-16 gap-y-12 md:grid-cols-2">
           {features.map((f) => (
-            <div key={f.title} className="rounded-2xl border p-6">
-              <h3 className="text-lg font-semibold">{f.title}</h3>
-              <p className="mt-3 text-sm leading-relaxed text-stone-600">{f.desc}</p>
+            <div key={f.title} className="border-t border-stone-200 pt-6">
+              <h3 className="text-xl font-semibold tracking-tight">{f.title}</h3>
+              <p className="mt-3 max-w-[60ch] leading-relaxed text-stone-600">{f.desc}</p>
             </div>
           ))}
         </div>
@@ -195,7 +195,7 @@ export default function Landing() {
       {/* Upsell / cross-sell / reservas */}
       <section id="ventas" className="relative overflow-hidden bg-gradient-to-b from-white to-emerald-50">
         <div className="mx-auto max-w-6xl px-6 py-24">
-          <h2 className="max-w-2xl text-3xl font-bold tracking-tight md:text-4xl">Lo que Sabi vende por ti mientras atiendes el local</h2>
+          <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-4xl">Lo que Sabi vende por ti mientras atiendes el local</h2>
           <p className="mt-4 max-w-2xl text-stone-600">
             Conversaciones de prueba con el menú de La Esquina. Cada sugerencia sale de tu carta y tus precios, una sola vez y sin presionar.
           </p>
@@ -218,7 +218,7 @@ export default function Landing() {
       {/* Owner panel */}
       <section className="bg-[#06281e] text-white">
         <div className="mx-auto max-w-6xl px-6 py-24">
-          <h2 className="max-w-2xl text-3xl font-bold tracking-tight md:text-4xl">Tu panel de empresario</h2>
+          <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-4xl">Tu panel de empresario</h2>
           <p className="mt-4 max-w-2xl text-emerald-50/80">
             Desde el celular o la computadora ves lo que entra, apruebas con un toque y sabes cuánto vendiste hoy.
           </p>
@@ -279,7 +279,7 @@ export default function Landing() {
       <section className="border-t">
         <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Tu cliente ya está en WhatsApp</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-balance">Tu cliente ya está en WhatsApp</h2>
             <p className="mt-4 text-stone-600">
               Un solo link en tu Instagram, en Google Maps o en un QR sobre la mesa abre el chat con Sabi.
               Sin bajar apps, sin registrarse, sin formularios.
@@ -335,7 +335,7 @@ export default function Landing() {
       {/* How it works */}
       <section id="como-funciona" className="border-t bg-stone-50">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="text-3xl font-bold tracking-tight">Así funciona</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-balance">Así funciona</h2>
           <div className="mt-10 grid gap-8 md:grid-cols-3">
             {[
               ["Sabi asesora", "El cliente escribe por WhatsApp como siempre. Sabi le recomienda, le sugiere qué sumar y arma el pedido con dirección y total."],
@@ -353,26 +353,26 @@ export default function Landing() {
 
       {/* FAQ */}
       <section id="faq" className="border-t">
-        <div className="mx-auto max-w-3xl px-6 py-24">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Preguntas frecuentes</h2>
-          <div className="mt-10 divide-y rounded-2xl border">
-            {faqs.map(([q, a], i) => (
-              <details key={q} open={i === 0} className="group px-6 py-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
-                  {q}
-                  <span className="text-xl text-emerald-700 transition group-open:rotate-45">+</span>
-                </summary>
-                <p className="mt-3 text-stone-600">{a}</p>
-              </details>
-            ))}
+        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-24 md:grid-cols-[1fr_2fr]">
+          <div className="md:sticky md:top-10 md:self-start">
+            <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">Preguntas frecuentes</h2>
+            <p className="mt-4 text-stone-600">Lo que nos preguntan los dueños antes de dejar que Sabi venda por ellos.</p>
           </div>
+          <dl className="divide-y divide-stone-200">
+            {faqs.map(([q, a]) => (
+              <div key={q} className="py-6 first:pt-0">
+                <dt className="text-lg font-semibold tracking-tight">{q}</dt>
+                <dd className="mt-2 max-w-[62ch] leading-relaxed text-stone-600">{a}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
 
       {/* CTA */}
       <section className="border-t">
         <div className="mx-auto max-w-6xl px-6 py-20 text-center">
-          <h2 className="text-3xl font-bold tracking-tight">Deja que Sabi venda por ti, sin soltar el control</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-balance">Deja que Sabi venda por ti, sin soltar el control</h2>
           <p className="mx-auto mt-4 max-w-xl text-stone-600">
             Piloto para 1 a 3 restaurantes. Menú cargado, número de WhatsApp y listo.
           </p>

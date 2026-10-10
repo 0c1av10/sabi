@@ -2,10 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-stone-50 text-stone-900; }
+html { scroll-behavior: smooth; }
+body { @apply bg-stone-50 text-stone-900 antialiased; }
 
 @keyframes msgIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
 .msg-in { opacity: 0; animation: msgIn .45s ease-out forwards; }
 @keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px,-20px) scale(1.08); } }
 .blob { animation: drift 14s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .msg-in { opacity: 1; animation: none; } .blob { animation: none; } }
+
+@keyframes sliceOut { from { transform: translate(-5.88px, 8.09px); } to { transform: none; } }
+.pie-slice { animation: sliceOut .9s cubic-bezier(.2,.8,.2,1) .4s both; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .pie-slice { animation: none; } }
