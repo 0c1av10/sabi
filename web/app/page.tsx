@@ -2,28 +2,32 @@ import Link from "next/link";
 
 const chat = [
   { who: "c", text: "Hola! Quiero pedir 2 milanesas napolitanas y una gaseosa", time: "21:03" },
-  { who: "s", text: "Anoté: 2 x Milanesa napolitana, 1 x Gaseosa 1.5L. ¿Delivery o retiro?", time: "21:03" },
-  { who: "c", text: "Delivery, Av. Italia 1234", time: "21:04" },
-  { who: "s", text: "Tu pedido: 2 milanesas + 1 gaseosa. Total: $10,20 · €9,40 · Bs 372,30. ¿Está correcto?", time: "21:04" },
+  { who: "s", text: "Anoté 2 milanesas y una gaseosa. ¿Les sumo un flan con dulce de leche de postre? Es casero, $1,50. ¿Delivery o retiro?", time: "21:03" },
+  { who: "c", text: "Dale, súmalo. Delivery a Av. Francisco de Miranda, Chacao", time: "21:04" },
+  { who: "s", text: "Tu pedido: 2 milanesas + 1 gaseosa + 1 flan. Total: $11,70 · €10,78 · Bs 427,05. ¿Está correcto?", time: "21:04" },
   { who: "c", text: "Sí", time: "21:05" },
 ];
 
 const features = [
   {
-    title: "Atiende y toma pedidos 24/7",
-    desc: "Responde menú, precios y horarios al instante. Conversa hasta completar el pedido: ítems, cantidades, extras, delivery o retiro, dirección y total en dólares, euros y bolívares.",
+    title: "Asesora y vende, no solo responde",
+    desc: "Recomienda según lo que el cliente busca, sugiere la bebida o el postre antes de cerrar y ofrece un reemplazo cuando algo se agotó. Siempre con tu menú y tus precios, sin presionar.",
   },
   {
-    title: "Vos aprobás cada pedido",
-    desc: "Nada se confirma solo. Cada pedido llega a tu bandeja con el resumen completo y lo aprobás, editás o rechazás con un toque. Recién ahí el cliente recibe la confirmación.",
+    title: "Cierra el pedido completo",
+    desc: "Ítems, cantidades, extras, delivery o retiro, dirección y total en dólares, euros y bolívares. A cualquier hora, sin audios ni notas a mano.",
+  },
+  {
+    title: "Tú apruebas cada pedido",
+    desc: "Nada se confirma solo. Cada pedido llega a tu bandeja con el resumen completo y lo apruebas, editas o rechazas con un toque. Solo entonces el cliente recibe la confirmación.",
   },
   {
     title: "Dólares, euros y bolívares",
-    desc: "Cargás el menú en dólares y las tasas del día. Sabi le da a cada cliente el precio en las tres monedas, sin cuentas a mano ni tasas viejas.",
+    desc: "Cargas el menú en dólares y las tasas del día. Sabi le da a cada cliente el precio en las tres monedas, sin cuentas a mano ni tasas viejas.",
   },
   {
     title: "Todo queda registrado",
-    desc: "Cada conversación y pedido guardado. Vista del día con aprobados, rechazados y consultas sin cerrar. Sin audios que no se escucharon ni notas a mano.",
+    desc: "Cada conversación y pedido guardado. Vista del día con aprobados, rechazados y consultas sin cerrar.",
   },
 ];
 
@@ -35,11 +39,11 @@ export default function Landing() {
         <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center">
           <div>
             <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl">
-              El vendedor de WhatsApp que nunca pierde un pedido
+              Tu mejor vendedor, atendiendo WhatsApp las 24 horas
             </h1>
             <p className="mt-5 text-lg text-stone-600">
-              Sabi atiende a tus clientes las 24 horas, toma el pedido completo y
-              te lo manda para que lo apruebes. Vos decidís — la IA nunca confirma sola.
+              Sabi no es un chatbot que contesta preguntas: recomienda platos, sugiere
+              el acompañamiento justo y cierra el pedido. Tú apruebas cada uno antes de que se confirme.
             </p>
             <div className="mt-8 flex gap-3">
               <Link href="/login" className="rounded-lg bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800">
@@ -92,9 +96,9 @@ export default function Landing() {
 
       {/* Features */}
       <section className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-3xl font-bold tracking-tight">Todo lo que necesitás para vender por WhatsApp</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Un agente que vende, no un chatbot que contesta</h2>
         <p className="mt-3 max-w-2xl text-stone-600">
-          Un sistema completo: el agente conversa, estructura el pedido y vos tenés la última palabra.
+          Sabi conversa como tu mejor mesonero: conoce el menú, recomienda y cierra la venta. Tú tienes la última palabra.
         </p>
         <div className="mt-12 grid gap-6 md:grid-cols-2">
           {features.map((f) => (
@@ -112,9 +116,9 @@ export default function Landing() {
           <h2 className="text-3xl font-bold tracking-tight">Así funciona</h2>
           <div className="mt-10 grid gap-8 md:grid-cols-3">
             {[
-              ["El cliente pide", "Escribe por WhatsApp como siempre. Sabi le muestra el menú, responde precios y horarios, y arma el pedido con ítems, cantidades y dirección."],
-              ["Vos aprobás", "El pedido llega a tu bandeja con el resumen completo. Lo aprobás, lo editás o lo rechazás con motivo — desde el celular o la compu."],
-              ["El cliente recibe", "Recién cuando aprobás, el cliente recibe la confirmación por WhatsApp. Todo queda guardado en el registro del día."],
+              ["Sabi asesora", "El cliente escribe por WhatsApp como siempre. Sabi le recomienda, le sugiere qué sumar y arma el pedido con dirección y total."],
+              ["Tú apruebas", "El pedido llega a tu bandeja con el resumen completo. Lo apruebas, lo editas o lo rechazas con motivo, desde el celular o la computadora."],
+              ["El cliente recibe", "Cuando apruebas, el cliente recibe la confirmación por WhatsApp. Todo queda guardado en el registro del día."],
             ].map(([t, d]) => (
               <div key={t}>
                 <h3 className="text-lg font-semibold text-emerald-800">{t}</h3>
@@ -128,7 +132,7 @@ export default function Landing() {
       {/* CTA */}
       <section className="border-t">
         <div className="mx-auto max-w-6xl px-6 py-20 text-center">
-          <h2 className="text-3xl font-bold tracking-tight">Dejá que la IA tome los pedidos — sin soltar el control</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Deja que Sabi venda por ti, sin soltar el control</h2>
           <p className="mx-auto mt-4 max-w-xl text-stone-600">
             Piloto para 1 a 3 restaurantes. Menú cargado, número de WhatsApp y listo.
           </p>

@@ -10,8 +10,9 @@ PHONE = "59899123456"
 
 GUION = [
     "hola",
+    "qué me recomiendas?",
     "quiero 2 milanesa napolitana y una gaseosa 1.5l",
-    "delivery",
+    "dale, súmalo. delivery",
     "dirección: Av. Italia 1234, apto 5",
     "sí",
 ]

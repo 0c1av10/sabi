@@ -64,9 +64,13 @@ def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tupl
     return "\n".join(lines) + f"\n{tipo}{notes}\nTotal: {fmt_money(total, *rates)}", total
 
 
-SYSTEM_PROMPT = """Eres Sabi, el agente de ventas por WhatsApp de un restaurante.
+SYSTEM_PROMPT = """Eres Sabi, el agente de ventas por WhatsApp de un restaurante. No eres un bot de preguntas frecuentes: asesoras al cliente como el mejor mesonero de la casa y lo ayudas a elegir.
 Reglas:
 - Tono cercano, español neutro, mensajes cortos.
+- Si el cliente duda o pide recomendación, sugiere 1 o 2 opciones concretas del menú con su precio y una razón breve.
+- Antes de cerrar el pedido, ofrece una sola vez un complemento que falte (bebida o postre). Si dice que no, no insistas.
+- Si algo no está disponible, ofrece la alternativa más parecida del menú.
+- Nunca presiones, ni inventes promociones o descuentos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
 - Los precios se expresan en dólares, euros y bolívares a las tasas del día; usa exactamente los montos del menú.
 - Si el cliente pide algo fuera del menú o no sabes algo, dilo y ofrece pasar la conversación al dueño (action=handoff).
@@ -134,6 +138,31 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
 
 # ---------------- Mock engine (deterministic, no API key needed) ----------------
 
+_YES = r"\b(s[ií]|dale|ok|okay|sumal[oa]|agr[eé]gal[oa]|an[oó]tal[oa]|bueno|perfecto|claro)\b"
+_UPSELL_CATEGORIES = ("Bebidas", "Postres")
+
+
+def pick_upsell(draft_items: list[dict], available: list[MenuItem]) -> MenuItem | None:
+    in_order = {d["name"] for d in draft_items}
+    cats = {i.category for i in available if i.name in in_order}
+    for cat in _UPSELL_CATEGORIES:
+        if cat not in cats:
+            options = [i for i in available if i.category == cat]
+            if options:
+                return options[0]
+    return None
+
+
+def recommend(text: str, available: list[MenuItem]) -> list[MenuItem]:
+    if re.search(r"compartir|picar|entrada", text):
+        pool = [i for i in available if i.category == "Entradas"]
+    elif re.search(r"barat|econ[oó]mic", text):
+        pool = sorted((i for i in available if i.category == "Platos"), key=lambda i: i.price)
+    else:
+        pool = [i for i in available if i.category == "Platos"]
+    return pool[:2] or available[:2]
+
+
 _NUM = {"un": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6}
 
 
@@ -144,6 +173,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     text = incoming.lower()
     items_by_name = {i.name.lower(): i for i in items if i.available}
     available = [i for i in items if i.available]
+    rates = rates_of(restaurant)
 
     def matched_items() -> list[dict]:
         found = []
@@ -183,6 +213,33 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         return AgentResult(reply=f"Nuestro horario es: {restaurant.opening_hours}",
                            state={**state, "draft": draft})
 
+    requested = matched_items()
+
+    if not requested and re.search(
+            r"recomi[eé]nd|suger|qu[eé] me (das|ofreces)|no s[eé] qu[eé]|compartir|barat|econ[oó]mic", text):
+        recs = recommend(text, available)
+        lines = "\n".join(f"• {i.name} — {fmt_money(i.price, *rates)}"
+                          + (f". {i.description}" if i.description else "") for i in recs)
+        return AgentResult(reply=f"Te recomiendo:\n{lines}\n¿Te anoto alguno?",
+                           state={**state, "draft": draft})
+
+    sold_out = [i for i in items if not i.available and i.name.lower() in text]
+    if sold_out and not requested:
+        out = sold_out[0]
+        alt = next((i for i in available if i.category == out.category), None)
+        if alt:
+            state["offer"] = alt.name
+            return AgentResult(
+                reply=f"Hoy no tenemos {out.name}. Te puedo ofrecer {alt.name} por "
+                      f"{fmt_money(alt.price, *rates)}. ¿Te lo anoto?",
+                state={**state, "draft": draft})
+        return AgentResult(reply=f"Hoy no tenemos {out.name}. ¿Te muestro el menú?",
+                           state={**state, "draft": draft})
+
+    offer = state.pop("offer", None)
+    if offer and re.search(_YES, text) and not any(r["name"] == offer for r in requested):
+        requested.append({"name": offer, "quantity": 1, "extras": "", "notes": ""})
+
     if re.search(r"\b(delivery|domicilio|env[ií]o|enviar)\b", text):
         draft["order_type"] = "delivery"
     if re.search(r"\b(retiro|recoger|pickup|paso|retirar)\b", text):
@@ -191,7 +248,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     if draft["order_type"] == "delivery" and m:
         draft["address"] = m.group(1).strip()
 
-    new_items = matched_items()
+    new_items = requested
     for ni in new_items:
         existing = next((i for i in draft["items"] if i["name"] == ni["name"]), None)
         if existing:
@@ -205,12 +262,22 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     if new_items or draft["items"]:
         missing = []
         if not draft.get("order_type"):
-            missing.append("¿delivery o retiro en el local?")
+            missing.append("¿Delivery o retiro en el local?")
         elif draft["order_type"] == "delivery" and not draft.get("address"):
-            missing.append("¿a qué dirección lo enviamos?")
+            missing.append("¿A qué dirección lo enviamos?")
+        upsell = ""
+        if not state.get("upsold"):
+            extra = pick_upsell(draft["items"], available)
+            if extra:
+                state["upsold"] = True
+                state["offer"] = extra.name
+                upsell = f" ¿Le sumamos {extra.name} por {fmt_money(extra.price, *rates)}?"
+        got = ", ".join(f'{i["quantity"]} x {i["name"]}' for i in draft["items"])
         if missing:
-            got = ", ".join(f'{i["quantity"]} x {i["name"]}' for i in draft["items"])
-            return AgentResult(reply=f"Anoté: {got}. " + " ".join(missing),
+            return AgentResult(reply=f"Anoté: {got}.{upsell} " + " ".join(missing),
+                               state={**state, "draft": draft})
+        if upsell:
+            return AgentResult(reply=f"Anoté: {got}.{upsell} ¿O lo dejamos así?",
                                state={**state, "draft": draft})
         summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, rates_of(restaurant))
         return AgentResult(
@@ -222,6 +289,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                            action="handoff", state={**state, "draft": draft})
 
     return AgentResult(
-        reply="No tengo eso en el menú. Puedo mostrarte el menú, horarios o tomar tu pedido. "
-              "Si prefieres, te paso con el dueño.",
+        reply="No tengo eso en el menú. " + (
+            f"Si te provoca, te recomiendo {recommend(text, available)[0].name}. " if available else "")
+              + "Puedo mostrarte el menú o, si prefieres, te paso con el dueño.",
         state={**state, "draft": draft})
