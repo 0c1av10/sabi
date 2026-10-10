@@ -134,65 +134,120 @@ export default function Landing() {
               </a>
             </div>
           </div>
-          <div className="flex justify-center md:justify-end">
+          <div className="relative flex justify-center md:justify-end">
             <Phone animate height={640} msgs={heroChat}
               footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Pedido enviado al dueño · pendiente de aprobación</div>} />
-          </div>
-        </div>
-      </section>
-
-      {/* Metrics strip */}
-      <section className="border-y border-white/[0.06] bg-white/[0.02]">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-10 text-center md:grid-cols-3">
-          {[["24 h", "Atención todos los días"],
-            ["100%", "Pedidos que pasan por tu aprobación"],
-            ["0", "Pedidos confirmados sin tu ok"]].map(([n, l]) => (
-            <div key={l}>
-              <p className="text-4xl font-bold tabular-nums tracking-tight">{n}</p>
-              <p className="mt-1 text-sm text-emerald-50/60">{l}</p>
+            <div className="absolute -left-4 bottom-16 hidden w-64 -rotate-3 lg:block xl:-left-16">
+              <div className="msg-in" style={{ animationDelay: "6.6s" }}>
+                <div className="bezel"><div className="rounded-[calc(2rem-0.375rem)] bg-white p-4 text-stone-900 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)]">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold">Nuevo pedido · Lucía R.</p>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">Pendiente</span>
+                  </div>
+                  <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight">$11,70</p>
+                  <p className="text-[11px] text-stone-500">€10,78 · Bs 427,05 · Delivery</p>
+                  <div className="mt-3 flex gap-2 text-xs">
+                    <span className="rounded-full bg-emerald-700 px-4 py-1.5 font-medium text-white">Aprobar</span>
+                    <span className="rounded-full border border-stone-200 px-4 py-1.5">Editar</span>
+                  </div>
+                </div></div>
+              </div>
             </div>
-          ))}
+          </div>
         </div>
       </section>
 
       {/* Problem */}
-      <section className="relative">
-        <div className="pointer-events-none absolute left-1/2 top-10 h-[26rem] w-[40rem] -translate-x-1/2 rounded-full bg-red-500/[0.07] blur-3xl" />
-        <div className="reveal relative mx-auto max-w-6xl px-6 py-28 text-center">
-          <svg viewBox="0 0 200 200" className="mx-auto h-52 w-52 drop-shadow-[0_20px_40px_rgba(239,68,68,0.15)]" aria-hidden="true">
-            <path d="M100 100 L176.08 75.28 A80 80 0 1 1 100 20 Z" fill="#1f4b5c" />
-            <path d="M105.88 91.91 L105.88 11.91 A80 80 0 0 1 181.96 67.19 Z" fill="#ef4444" className="pie-slice" />
-          </svg>
-          <p className="mt-8 text-4xl font-bold tabular-nums tracking-tight md:text-5xl">20% de las reservas</p>
-          <p className="mt-1 text-2xl text-emerald-100/80 md:text-3xl">se pierden por responder tarde</p>
-          <div className="mt-12 grid gap-4 text-left sm:grid-cols-2 lg:grid-cols-4">
-            {pains.map(([icon, text]) => (
-              <div key={text} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d={icon} />
-                  </svg>
-                </span>
-                <span className="text-sm text-emerald-50">{text}</span>
-              </div>
-            ))}
+      <section className="relative border-t border-white/[0.06]">
+        <div className="pointer-events-none absolute -left-20 top-20 h-[26rem] w-[30rem] rounded-full bg-red-500/[0.08] blur-3xl" />
+        <div className="reveal relative mx-auto grid max-w-6xl items-center gap-14 px-6 py-28 md:grid-cols-[1fr_1.1fr]">
+          <div>
+            <svg viewBox="0 0 200 200" className="h-48 w-48 drop-shadow-[0_20px_40px_rgba(239,68,68,0.18)] md:h-56 md:w-56" aria-hidden="true">
+              <path d="M100 100 L176.08 75.28 A80 80 0 1 1 100 20 Z" fill="#1f4b5c" />
+              <path d="M105.88 91.91 L105.88 11.91 A80 80 0 0 1 181.96 67.19 Z" fill="#ef4444" className="pie-slice" />
+            </svg>
+            <p className="mt-10 text-5xl font-bold tabular-nums tracking-tight md:text-6xl">20% de las reservas</p>
+            <p className="mt-2 text-2xl text-emerald-50/70 md:text-3xl">se pierden por responder tarde</p>
           </div>
+          <ul className="divide-y divide-white/10 border-y border-white/10">
+            {pains.map(([icon, text]) => (
+              <li key={text} className="flex items-center gap-5 py-6">
+                <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-red-400" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d={icon} />
+                </svg>
+                <span className="text-xl font-medium tracking-tight">{text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features bento */}
       <section className="reveal mx-auto max-w-6xl px-6 py-28">
-        <h2 className="text-3xl font-bold tracking-tight text-balance">Un agente que vende, no un chatbot que contesta</h2>
-        <p className="mt-3 max-w-2xl text-emerald-50/70">
-          Sabi conversa como tu mejor mesonero: conoce el menú, recomienda y cierra la venta. Tú tienes la última palabra.
-        </p>
-        <div className="mt-14 grid gap-x-16 gap-y-12 md:grid-cols-2">
-          {features.map((f) => (
-            <div key={f.title} className="border-t border-white/10 pt-6">
-              <h3 className="text-xl font-semibold tracking-tight">{f.title}</h3>
-              <p className="mt-3 max-w-[60ch] leading-relaxed text-emerald-50/70">{f.desc}</p>
+        <div className="grid gap-6 md:grid-cols-2 md:items-end">
+          <h2 className="text-3xl font-bold tracking-tight text-balance md:text-5xl">Un agente que vende, no un chatbot que contesta</h2>
+          <p className="max-w-md text-emerald-50/70 md:justify-self-end">
+            Sabi conversa como tu mejor mesonero: conoce el menú, recomienda y cierra la venta. Tú tienes la última palabra.
+          </p>
+        </div>
+        <div className="mt-14 grid gap-4 md:grid-cols-6">
+          <div className="bezel h-full md:col-span-4 md:row-span-2"><div className="bezel-core flex h-full flex-col p-7">
+            <h3 className="text-2xl font-semibold tracking-tight">Asesora y vende, no solo responde</h3>
+            <p className="mt-3 max-w-[52ch] leading-relaxed text-emerald-50/70">{features[0].desc}</p>
+            <div className="mt-auto space-y-2 pt-10 text-sm">
+              <p className="ml-auto w-fit max-w-[80%] rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-2.5 text-stone-900">¿Qué tienen para compartir?</p>
+              <p className="w-fit max-w-[85%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-stone-900">Las empanadas de carne, {m(3.6)} la docena, o la provoleta, {m(2.2)}. ¿Te sumo una gaseosa para acompañar?</p>
+              <p className="ml-auto w-fit rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-2.5 text-stone-900">Dale, empanadas y gaseosa</p>
             </div>
-          ))}
+          </div></div>
+          <div className="bezel h-full md:col-span-2"><div className="bezel-core flex h-full flex-col p-7">
+            <h3 className="text-xl font-semibold tracking-tight">Tú apruebas cada pedido</h3>
+            <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Nada se confirma solo. Apruebas, editas o rechazas con un toque.</p>
+            <div className="mt-auto flex flex-wrap gap-2 pt-6 text-sm">
+              <span className="rounded-full bg-[#25D366] px-4 py-1.5 font-semibold text-[#04140f]">Aprobar</span>
+              <span className="rounded-full border border-white/15 px-4 py-1.5">Editar</span>
+              <span className="rounded-full border border-white/15 px-4 py-1.5 text-red-300">Rechazar</span>
+            </div>
+          </div></div>
+          <div className="bezel h-full md:col-span-2"><div className="bezel-core flex h-full flex-col p-7">
+            <p className="text-6xl font-bold tabular-nums tracking-tight text-[#25D366]">24 h</p>
+            <h3 className="mt-3 text-xl font-semibold tracking-tight">Cierra el pedido completo</h3>
+            <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Ítems, extras, delivery o retiro, dirección y total. También con el local cerrado.</p>
+          </div></div>
+          <div className="bezel h-full md:col-span-3"><div className="bezel-core flex h-full flex-col p-7">
+            <h3 className="text-xl font-semibold tracking-tight">Dólares, euros y bolívares</h3>
+            <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Cargas el menú en dólares y las tasas BCV del día. Cada precio sale en las tres monedas.</p>
+            <dl className="mt-auto grid grid-cols-3 gap-3 pt-8">
+              {[["Dólares", "$11,70"], ["Euros", "€10,78"], ["Bolívares", "Bs 427,05"]].map(([k, v]) => (
+                <div key={k}>
+                  <dd className="text-2xl font-bold tabular-nums tracking-tight">{v}</dd>
+                  <dt className="mt-1 text-xs text-emerald-50/50">{k}</dt>
+                </div>
+              ))}
+            </dl>
+          </div></div>
+          <div className="bezel h-full md:col-span-3"><div className="bezel-core flex h-full flex-col p-7">
+            <h3 className="text-xl font-semibold tracking-tight">Un copiloto para ti</h3>
+            <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Ticket promedio, lo más pedido y qué conviene ofrecer hoy, en tu panel.</p>
+            <div className="mt-auto flex items-end justify-between gap-6 pt-8">
+              <div>
+                <p className="text-3xl font-bold tabular-nums tracking-tight">$9,85</p>
+                <p className="text-xs text-emerald-50/50">Ticket promedio de la semana</p>
+              </div>
+              <div className="flex h-16 items-end gap-1.5" aria-hidden="true">
+                {[38, 52, 44, 61, 57, 73, 88].map((h, i) => (
+                  <span key={i} style={{ height: `${h}%` }} className={`w-3 rounded-sm ${i === 6 ? "bg-[#25D366]" : "bg-white/20"}`} />
+                ))}
+              </div>
+            </div>
+          </div></div>
+          <div className="bezel h-full md:col-span-6"><div className="bezel-core flex h-full flex-col gap-4 p-7 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-xl font-semibold tracking-tight">Reservas sin cruces</h3>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-emerald-50/70">El cliente pide mesa por el mismo chat y Sabi la agenda según tus horarios y mesas libres.</p>
+            </div>
+            <span className="w-fit shrink-0 rounded-full border border-[#25D366]/40 px-4 py-1.5 text-sm text-[#25D366]">Llega con el piloto</span>
+          </div></div>
         </div>
       </section>
 
@@ -205,9 +260,9 @@ export default function Landing() {
             Conversaciones de prueba con el menú de La Esquina. Cada sugerencia sale de tu carta y tus precios, una sola vez y sin presionar.
           </p>
           <div className="mt-14 grid justify-items-center gap-14 lg:grid-cols-3">
-            {demos.map((d) => (
-              <div key={d.title} className="flex flex-col items-center">
-                <Phone msgs={d.msgs} footer={d.footer} />
+            {demos.map((d, i) => (
+              <div key={d.title} className={`flex flex-col items-center ${i === 1 ? "lg:-translate-y-10" : "lg:translate-y-6"}`}>
+                <Phone msgs={d.msgs} footer={d.footer} className={i === 0 ? "lg:-rotate-2" : i === 2 ? "lg:rotate-2" : ""} />
                 <div className="mt-8 w-[300px]">
                   <h3 className="text-xl font-bold">{d.title}</h3>
                   <p className="mt-1 text-sm text-emerald-50/70">{d.desc}</p>
@@ -224,10 +279,12 @@ export default function Landing() {
       <section className="relative">
         <div className="pointer-events-none absolute left-0 top-1/3 h-[30rem] w-[30rem] rounded-full bg-emerald-400/[0.10] blur-3xl" />
         <div className="reveal relative mx-auto max-w-6xl px-6 py-28">
-          <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-4xl">Tu panel de empresario</h2>
-          <p className="mt-4 max-w-2xl text-emerald-50/80">
-            Desde el celular o la computadora ves lo que entra, apruebas con un toque y sabes cuánto vendiste hoy.
-          </p>
+          <div className="grid gap-6 md:grid-cols-2 md:items-end">
+            <h2 className="text-3xl font-bold tracking-tight text-balance md:text-5xl">Tu panel de empresario</h2>
+            <p className="max-w-md text-emerald-50/70 md:justify-self-end">
+              Desde el celular o la computadora ves lo que entra, apruebas con un toque y sabes cuánto vendiste hoy.
+            </p>
+          </div>
           <div className="bezel mt-12"><div className="overflow-hidden rounded-[calc(2rem-0.375rem)] bg-stone-50 text-stone-900 shadow-[0_40px_80px_-20px_rgba(37,211,102,0.18)]">
             <div className="flex items-center gap-2 border-b bg-white px-4 py-2.5">
               <span className="h-3 w-3 rounded-full bg-red-400" /><span className="h-3 w-3 rounded-full bg-amber-400" /><span className="h-3 w-3 rounded-full bg-emerald-400" />
@@ -283,7 +340,7 @@ export default function Landing() {
 
       {/* WhatsApp link + ticket */}
       <section className="border-t border-white/[0.06]">
-        <div className="reveal mx-auto grid max-w-6xl gap-12 px-6 py-28 md:grid-cols-2 md:items-center">
+        <div className="reveal mx-auto grid max-w-6xl gap-14 px-6 py-28 md:grid-cols-[1fr_1.1fr] md:items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">Tu cliente ya está en WhatsApp</h2>
             <p className="mt-4 text-emerald-50/70">
@@ -300,7 +357,7 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 md:order-first md:-rotate-1">
             <div className="bezel"><div className="bezel-core p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600 p-[2px]">
@@ -341,19 +398,21 @@ export default function Landing() {
       {/* How it works */}
       <section id="como-funciona" className="border-t border-white/[0.06] bg-white/[0.02]">
         <div className="reveal mx-auto max-w-6xl px-6 py-28">
-          <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">Así funciona</h2>
-          <div className="mt-10 grid gap-8 md:grid-cols-3">
+          <h2 className="text-3xl font-bold tracking-tight text-balance md:text-5xl">Así funciona</h2>
+          <ol className="relative mt-14 grid gap-12 md:grid-cols-3 md:gap-10">
+            <span className="absolute left-0 right-0 top-[7px] hidden h-px bg-gradient-to-r from-[#25D366]/70 via-white/15 to-[#25D366]/70 md:block" aria-hidden="true" />
             {[
               ["Sabi asesora", "El cliente escribe por WhatsApp como siempre. Sabi le recomienda, le sugiere qué sumar y arma el pedido con dirección y total."],
               ["Tú apruebas", "El pedido llega a tu bandeja con el resumen completo. Lo apruebas, lo editas o lo rechazas con motivo, desde el celular o la computadora."],
               ["El cliente recibe", "Cuando apruebas, el cliente recibe la confirmación por WhatsApp. Todo queda guardado en el registro del día."],
             ].map(([t, d]) => (
-              <div key={t}>
-                <h3 className="text-lg font-semibold text-[#25D366]">{t}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">{d}</p>
-              </div>
+              <li key={t} className="relative">
+                <span className="block h-[15px] w-[15px] rounded-full bg-[#25D366] shadow-[0_0_0_6px_rgba(37,211,102,0.15),0_0_24px_rgba(37,211,102,0.6)]" aria-hidden="true" />
+                <h3 className="mt-6 text-2xl font-semibold tracking-tight">{t}</h3>
+                <p className="mt-3 max-w-[38ch] leading-relaxed text-emerald-50/70">{d}</p>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </section>
 
