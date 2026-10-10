@@ -10,14 +10,15 @@ from app.models import Conversation, MenuItem, Restaurant  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
 MENU = [
-    ("Milanesa napolitana", 4.50, "Platos", "Con salsa y mozzarella, guarnición incluida"),
-    ("Hamburguesa completa", 3.80, "Platos", "Medallón casero, queso, huevo, papas"),
-    ("Ensalada César", 2.90, "Platos", "Pollo grillado, crutones, parmesano"),
-    ("Empanadas de carne (docena)", 3.60, "Entradas", "Fritas u horno"),
-    ("Provoleta", 2.20, "Entradas", "Con orégano y tomate"),
-    ("Flan con dulce de leche", 1.50, "Postres", "Casero"),
-    ("Gaseosa 1.5L", 1.20, "Bebidas", "Coca-Cola o Sprite"),
-    ("Agua mineral 500ml", 0.80, "Bebidas", "Con o sin gas"),
+    ("Pollo entero a la brasa", 21.00, "Platos", "Jugoso y dorado, la especialidad de la casa"),
+    ("Medio pollo a la brasa", 11.00, "Platos", "Con arroz o yuca"),
+    ("Pabellón criollo", 13.00, "Platos", "Carne mechada, arroz, caraotas y tajadas"),
+    ("Cachapa con queso de mano", 9.00, "Platos", "Masa de maíz tierno"),
+    ("Tequeños", 6.00, "Entradas", "5 unidades, con salsa de ajo"),
+    ("Tostones playeros", 5.00, "Entradas", "Con queso rallado y salsa rosada"),
+    ("Quesillo", 5.00, "Postres", "Casero"),
+    ("Papelón con limón", 2.50, "Bebidas", "Natural, bien frío"),
+    ("Jugo natural", 3.50, "Bebidas", "Parchita, fresa o melón"),
 ]
 
 
@@ -33,10 +34,10 @@ async def seed() -> bool:
             pin="1234",
             owner_phone="59911111111",
             welcome_message="¡Hola! 👋 Soy Sabi de *La Esquina*. ¿Qué te provoca hoy?",
-            opening_hours="Lun-Dom 12:00-15:00 y 19:00-23:30",
+            opening_hours="Lun-Dom 7:00-23:00",
             currency="USD",
-            exchange_rate=36.5,
-            eur_rate=39.6,
+            exchange_rate=875.65,
+            eur_rate=980.61,
         )
         db.add(r)
         await db.flush()
@@ -48,11 +49,11 @@ async def seed() -> bool:
 
 
 DEMO_CHATS = [
-    ("59890000001", "Lucía R.", ["hola", "quiero 2 milanesa napolitana y una gaseosa 1.5l",
-                                 "delivery", "dirección: Av. Italia 1234, apto 5", "sí"]),
-    ("59890000002", "Martín P.", ["hola", "quiero 1 hamburguesa completa y 2 agua mineral 500ml",
+    ("59890000001", "Lucía R.", ["hola", "quiero 1 pollo entero a la brasa y 2 papelón con limón",
+                                 "delivery", "dirección: Av. Principal de Lechería, edificio Mar Azul, apto 5", "sí"]),
+    ("59890000002", "Martín P.", ["hola", "quiero 1 pabellón criollo y 1 jugo natural",
                                   "retiro", "sí"]),
-    ("59890000003", "María G.", ["hola", "quiero 1 provoleta y 1 flan con dulce de leche"]),
+    ("59890000003", "María G.", ["hola", "quiero 1 tequeños y 1 quesillo"]),
 ]
 
 

@@ -55,7 +55,7 @@ Con `AGENT_MOCK_MODE=true` y `WHATSAPP_MOCK_MODE=true`:
 cd backend && python -m scripts.simulate_e2e
 ```
 
-Simula: cliente saluda → pide 2 milanesas + gaseosa → delivery → dirección →
+Simula: cliente saluda → pide pollo entero a la brasa + 2 papelones → delivery → dirección →
 confirma → pedido queda pendiente → dueño aprueba por API → confirmación al
 cliente queda registrada en el log de WhatsApp y en la conversación.
 

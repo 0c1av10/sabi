@@ -4,43 +4,44 @@ import RevealObserver from "../components/RevealObserver";
 import { WhatsAppLogo, MetaLogo } from "../components/Brand";
 import { usd, eur, bs } from "../lib/money";
 
-const R = { usd: 36.5, eur: 39.6 };
+// Tasas BCV oficiales del 09/10/2026 (ve.dolarapi.com), solo para la demo.
+const R = { usd: 875.65, eur: 980.61 };
 const m = (v: number) => `${usd(v)} · ${eur(v, R)} · ${bs(v, R)}`;
 
 const heroChat: Msg[] = [
   { who: "c", text: "Hola! qué me recomiendas para 2?", time: "21:02" },
-  { who: "s", text: `La milanesa napolitana es la favorita de la casa: salsa, mozzarella y guarnición, ${m(4.5)}. ¿Te anoto 2?`, time: "21:02" },
-  { who: "c", text: "Dale, 2 milanesas y una gaseosa", time: "21:03" },
-  { who: "s", text: `¿Les sumo un flan casero de postre? ${m(1.5)}`, time: "21:03" },
-  { who: "c", text: "Sí, súmalo. Delivery a Chacao", time: "21:04" },
-  { who: "s", text: "Total: $11,70 · €10,78 · Bs 427,05\n¿Está correcto?", time: "21:04" },
+  { who: "s", text: `El pollo entero a la brasa es la especialidad de la casa y alcanza para 2: ${m(21)}. ¿Te lo anoto?`, time: "21:02" },
+  { who: "c", text: "Dale, el pollo y 2 papelones con limón", time: "21:03" },
+  { who: "s", text: `¿Les sumo un quesillo casero de postre? ${m(5)}`, time: "21:03" },
+  { who: "c", text: "Sí, súmalo. Delivery en Lechería", time: "21:04" },
+  { who: "s", text: `Total: ${m(31)}\n¿Está correcto?`, time: "21:04" },
 ];
 
 const demos: { title: string; desc: string; from: string; result: string; gain?: number; msgs: Msg[]; footer?: React.ReactNode }[] = [
   {
     title: "Upselling",
     desc: "Sabi ofrece la versión más completa del plato cuando vale la pena.",
-    from: "$7,60",
-    result: "$9,00 · +$1,40",
-    gain: 1.4,
+    from: "$11,00",
+    result: "$21,00 · +$10,00",
+    gain: 10,
     msgs: [
-      { who: "c", text: "Quiero 2 hamburguesas completas", time: "13:10" },
-      { who: "s", text: `¡Buena elección! Por ${usd(0.7)} más cada una (${bs(0.7, R)}), la milanesa napolitana viene con salsa, mozzarella y guarnición incluida. ¿Te las cambio?`, time: "13:10" },
-      { who: "c", text: "Sí, mejor las milanesas", time: "13:11" },
-      { who: "s", text: "Listo: 2 x Milanesa napolitana.\nTotal: $9,00 · €8,30 · Bs 328,50", time: "13:11" },
+      { who: "c", text: "Quiero un medio pollo a la brasa", time: "13:10" },
+      { who: "s", text: `¡Buena elección! Por ${usd(10)} más (${eur(10, R)} · ${bs(10, R)}) te llevas el pollo entero: el doble de pollo. ¿Te lo cambio?`, time: "13:10" },
+      { who: "c", text: "Sí, mejor el entero", time: "13:11" },
+      { who: "s", text: `Listo: 1 x Pollo entero a la brasa.\nTotal: ${m(21)}`, time: "13:11" },
     ],
   },
   {
     title: "Cross-selling",
     desc: "Sugiere lo que combina con el pedido: la bebida, la entrada o el postre.",
-    from: "$3,60",
-    result: "$4,80 · +$1,20",
-    gain: 1.2,
+    from: "$6,00",
+    result: "$8,50 · +$2,50",
+    gain: 2.5,
     msgs: [
-      { who: "c", text: "Una docena de empanadas para retirar", time: "19:42" },
-      { who: "s", text: `Anotado. ¿Le sumamos una Gaseosa 1.5L bien fría para acompañar? ${m(1.2)}`, time: "19:42" },
+      { who: "c", text: "Unos tequeños para retirar", time: "19:42" },
+      { who: "s", text: `Anotado. ¿Le sumamos un papelón con limón bien frío para acompañar? ${m(2.5)}`, time: "19:42" },
       { who: "c", text: "Dale", time: "19:43" },
-      { who: "s", text: "1 x Empanadas de carne (docena)\n1 x Gaseosa 1.5L\nTotal: $4,80 · €4,42 · Bs 175,20", time: "19:43" },
+      { who: "s", text: `1 x Tequeños\n1 x Papelón con limón\nTotal: ${m(8.5)}`, time: "19:43" },
     ],
   },
   {
@@ -144,8 +145,8 @@ export default function Landing() {
                     <p className="text-xs font-semibold">Nuevo pedido · Lucía R.</p>
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">Pendiente</span>
                   </div>
-                  <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight">$11,70</p>
-                  <p className="text-[11px] text-stone-500">€10,78 · Bs 427,05 · Delivery</p>
+                  <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight">{usd(31)}</p>
+                  <p className="text-[11px] text-stone-500">{eur(31, R)} · {bs(31, R)} · Delivery</p>
                   <div className="mt-3 flex gap-2 text-xs">
                     <span className="rounded-full bg-emerald-700 px-4 py-1.5 font-medium text-white">Aprobar</span>
                     <span className="rounded-full border border-stone-200 px-4 py-1.5">Editar</span>
@@ -196,8 +197,8 @@ export default function Landing() {
             <p className="mt-3 max-w-[52ch] leading-relaxed text-emerald-50/70">{features[0].desc}</p>
             <div className="mt-auto space-y-2 pt-10 text-sm">
               <p className="ml-auto w-fit max-w-[80%] rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-2.5 text-stone-900">¿Qué tienen para compartir?</p>
-              <p className="w-fit max-w-[85%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-stone-900">Las empanadas de carne, {m(3.6)} la docena, o la provoleta, {m(2.2)}. ¿Te sumo una gaseosa para acompañar?</p>
-              <p className="ml-auto w-fit rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-2.5 text-stone-900">Dale, empanadas y gaseosa</p>
+              <p className="w-fit max-w-[85%] rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-stone-900">Los tequeños, {m(6)} los 5, o los tostones playeros, {m(5)}. ¿Te sumo un papelón con limón?</p>
+              <p className="ml-auto w-fit rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-2.5 text-stone-900">Dale, tequeños y papelón</p>
             </div>
           </div></div>
           <div className="bezel h-full md:col-span-2"><div className="bezel-core flex h-full flex-col p-7">
@@ -218,7 +219,7 @@ export default function Landing() {
             <h3 className="text-xl font-semibold tracking-tight">Dólares, euros y bolívares</h3>
             <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Cargas el menú en dólares y las tasas BCV del día. Cada precio sale en las tres monedas.</p>
             <dl className="mt-auto grid grid-cols-3 gap-3 pt-8">
-              {[["Dólares", "$11,70"], ["Euros", "€10,78"], ["Bolívares", "Bs 427,05"]].map(([k, v]) => (
+              {[["Dólares", usd(31)], ["Euros", eur(31, R)], ["Bolívares", bs(31, R)]].map(([k, v]) => (
                 <div key={k}>
                   <dd className="text-2xl font-bold tabular-nums tracking-tight">{v}</dd>
                   <dt className="mt-1 text-xs text-emerald-50/50">{k}</dt>
@@ -231,7 +232,7 @@ export default function Landing() {
             <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">Ticket promedio, lo más pedido y qué conviene ofrecer hoy, en tu panel.</p>
             <div className="mt-auto flex items-end justify-between gap-6 pt-8">
               <div>
-                <p className="text-3xl font-bold tabular-nums tracking-tight">$9,85</p>
+                <p className="text-3xl font-bold tabular-nums tracking-tight">{usd(24.6)}</p>
                 <p className="text-xs text-emerald-50/50">Ticket promedio de la semana</p>
               </div>
               <div className="flex h-16 items-end gap-1.5" aria-hidden="true">
@@ -292,7 +293,7 @@ export default function Landing() {
             </div>
             <div className="flex items-center gap-6 border-b bg-white px-6 py-3 text-sm">
               <span className="font-bold text-emerald-700">Sabi</span>
-              <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800 md:inline">Tasa BCV hoy: $1 = Bs 36,50 · €1 = Bs 39,60</span>
+              <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800 md:inline">Tasa BCV hoy: $1 = Bs 875,65 · €1 = Bs 980,61</span>
               <span className="ml-auto font-medium text-stone-900">Pedidos</span>
               <span className="text-stone-500">Menú</span><span className="text-stone-500">Registro</span><span className="text-stone-500">Configuración</span>
             </div>
@@ -311,12 +312,12 @@ export default function Landing() {
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Pendiente</span>
                   </div>
                   <ul className="mt-3 space-y-1 text-sm text-stone-700">
-                    <li className="flex justify-between"><span>2 x Milanesa napolitana</span><span className="text-right">$9,00<span className="block text-[11px] text-stone-400">{eur(9, R)} · {bs(9, R)}</span></span></li>
-                    <li className="flex justify-between"><span>1 x Gaseosa 1.5L</span><span className="text-right">$1,20<span className="block text-[11px] text-stone-400">{eur(1.2, R)} · {bs(1.2, R)}</span></span></li>
-                    <li className="flex justify-between"><span>1 x Flan con dulce de leche <span className="ml-1 rounded bg-emerald-100 px-1.5 text-[10px] font-medium text-emerald-800">sugerido por Sabi</span></span><span className="text-right">$1,50<span className="block text-[11px] text-stone-400">{eur(1.5, R)} · {bs(1.5, R)}</span></span></li>
+                    <li className="flex justify-between"><span>1 x Pollo entero a la brasa</span><span className="text-right">$21,00<span className="block text-[11px] text-stone-400">{eur(21, R)} · {bs(21, R)}</span></span></li>
+                    <li className="flex justify-between"><span>2 x Papelón con limón</span><span className="text-right">$5,00<span className="block text-[11px] text-stone-400">{eur(5, R)} · {bs(5, R)}</span></span></li>
+                    <li className="flex justify-between"><span>1 x Quesillo <span className="ml-1 rounded bg-emerald-100 px-1.5 text-[10px] font-medium text-emerald-800">sugerido por Sabi</span></span><span className="text-right">$5,00<span className="block text-[11px] text-stone-400">{eur(5, R)} · {bs(5, R)}</span></span></li>
                   </ul>
-                  <p className="mt-2 text-xs text-stone-500">Delivery · Av. Francisco de Miranda, Chacao</p>
-                  <p className="mt-3 border-t pt-3 text-sm font-semibold">Total: $11,70 · €10,78 · Bs 427,05</p>
+                  <p className="mt-2 text-xs text-stone-500">Delivery · Av. Principal de Lechería</p>
+                  <p className="mt-3 border-t pt-3 text-sm font-semibold">Total: {m(31)}</p>
                   <div className="mt-4 flex gap-2">
                     <span className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white">Aprobar</span>
                     <span className="rounded-lg border px-4 py-2 text-sm">Editar</span>
@@ -327,9 +328,9 @@ export default function Landing() {
               <div className="rounded-xl border bg-white p-5">
                 <p className="font-semibold">Copiloto</p>
                 <div className="mt-4 space-y-4 text-sm">
-                  <div><p className="text-xs text-stone-500">Ticket promedio</p><p className="text-2xl font-bold">$9,85</p><p className="text-xs text-stone-500">€9,08 · Bs 359,52</p></div>
-                  <div><p className="text-xs text-stone-500">Lo más pedido</p><p className="font-semibold">Milanesa napolitana · 11 unidades</p></div>
-                  <div><p className="text-xs text-stone-500">Qué conviene ofrecer</p><p>Solo 2 de 7 pedidos llevaron postre. Sabi ya ofrece el flan; destácalo en tu historia de hoy.</p></div>
+                  <div><p className="text-xs text-stone-500">Ticket promedio</p><p className="text-2xl font-bold">{usd(24.6)}</p><p className="text-xs text-stone-500">{eur(24.6, R)} · {bs(24.6, R)}</p></div>
+                  <div><p className="text-xs text-stone-500">Lo más pedido</p><p className="font-semibold">Pollo entero a la brasa · 11 unidades</p></div>
+                  <div><p className="text-xs text-stone-500">Qué conviene ofrecer</p><p>Solo 2 de 7 pedidos llevaron postre. Sabi ya ofrece el quesillo; destácalo en tu historia de hoy.</p></div>
                   <div className="rounded-lg bg-stone-100 px-3 py-2 text-xs text-stone-600">Tu link de pedidos: wa.me/laesquina</div>
                 </div>
               </div>
@@ -364,8 +365,8 @@ export default function Landing() {
                   <div className="flex h-full w-full items-center justify-center rounded-full bg-[#04140f] text-sm font-bold text-white">LE</div>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">laesquina.ccs</p>
-                  <p className="text-xs text-emerald-50/50">Milanesas, empanadas y flan casero · Chacao</p>
+                  <p className="text-sm font-semibold">laesquina.lecheria</p>
+                  <p className="text-xs text-emerald-50/50">Pollo a la brasa, cachapas y quesillo casero · Lechería</p>
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between rounded-xl bg-[#25D366] px-4 py-3 text-white">
@@ -377,19 +378,19 @@ export default function Landing() {
             <div className="bezel"><div className="bezel-core p-5">
               <div className="flex items-baseline justify-between text-sm">
                 <span className="text-emerald-50/70">Lo que el cliente pidió</span>
-                <span className="font-medium">$10,20</span>
+                <span className="font-medium">$26,00</span>
               </div>
               <div className="mt-2 h-2 rounded-full bg-white/10">
-                <div className="h-2 rounded-full bg-white/40" style={{ width: "87%" }} />
+                <div className="h-2 rounded-full bg-white/40" style={{ width: "84%" }} />
               </div>
               <div className="mt-5 flex items-baseline justify-between text-sm">
-                <span className="text-emerald-50/70">Con el flan que sugirió Sabi</span>
-                <span className="font-semibold text-[#25D366]">$11,70</span>
+                <span className="text-emerald-50/70">Con el quesillo que sugirió Sabi</span>
+                <span className="font-semibold text-[#25D366]">$31,00</span>
               </div>
               <div className="mt-2 h-2 rounded-full bg-white/10">
                 <div className="h-2 rounded-full bg-[#25D366] shadow-[0_0_20px_rgba(37,211,102,0.5)]" style={{ width: "100%" }} />
               </div>
-              <p className="mt-4 text-xs text-emerald-50/50">Mismo cliente, misma conversación: 15% más de ticket.</p>
+              <p className="mt-4 text-xs text-emerald-50/50">Mismo cliente, misma conversación: 19% más de ticket.</p>
             </div></div>
           </div>
         </div>
