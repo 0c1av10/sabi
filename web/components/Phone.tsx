@@ -2,15 +2,15 @@ import { WhatsAppLogo } from "./Brand";
 
 export type Msg = { who: "c" | "s"; text: string; time?: string };
 
-export default function Phone({ msgs, footer, animate = false, step = 0.9, className = "" }: {
-  msgs: Msg[]; footer?: React.ReactNode; animate?: boolean; step?: number; className?: string;
+export default function Phone({ msgs, footer, animate = false, step = 0.9, height = 560, className = "" }: {
+  msgs: Msg[]; footer?: React.ReactNode; animate?: boolean; step?: number; height?: number; className?: string;
 }) {
   const delay = (i: number) => (animate ? { animationDelay: `${0.4 + i * step}s` } : undefined);
   const cls = animate ? "msg-in" : "";
   return (
     <div className={`relative w-[300px] shrink-0 rounded-[2.75rem] border-[10px] border-stone-900 bg-stone-900 shadow-2xl shadow-emerald-950/40 ${className}`}>
       <div className="absolute left-1/2 top-0 z-10 h-5 w-24 -translate-x-1/2 rounded-b-2xl bg-stone-900" />
-      <div className="flex h-[560px] flex-col overflow-hidden rounded-[2.1rem] bg-[#efeae2]">
+      <div style={{ height }} className="flex flex-col overflow-hidden rounded-[2.1rem] bg-[#efeae2]">
         <div className="flex items-center gap-2 bg-[#075E54] px-4 pb-3 pt-7 text-white">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold">LE</div>
           <div className="leading-tight">
@@ -19,7 +19,7 @@ export default function Phone({ msgs, footer, animate = false, step = 0.9, class
           </div>
           <WhatsAppLogo className="ml-auto h-5 w-5" fill="#ffffff" />
         </div>
-        <div className="flex-1 space-y-2 overflow-hidden px-3 py-4">
+        <div className="flex flex-1 flex-col justify-end gap-2 overflow-hidden px-3 py-4">
           {msgs.map((m, i) => (
             <div key={i} style={delay(i)}
               className={`${cls} max-w-[85%] rounded-lg px-3 py-2 text-[13px] leading-snug text-stone-800 shadow-sm ${

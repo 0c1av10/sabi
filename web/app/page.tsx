@@ -116,7 +116,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="flex justify-center md:justify-end">
-            <Phone animate msgs={heroChat}
+            <Phone animate height={640} msgs={heroChat}
               footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Pedido enviado al dueño · pendiente de aprobación</div>} />
           </div>
         </div>
