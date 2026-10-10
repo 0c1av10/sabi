@@ -25,6 +25,21 @@ const features = [
     title: "Dólares, euros y bolívares",
     desc: "Cargas el menú en dólares y las tasas del día. Sabi le da a cada cliente el precio en las tres monedas, sin cuentas a mano ni tasas viejas.",
   },
+  {
+    title: "Reservas sin cruces",
+    desc: "El cliente pide mesa por el mismo chat y Sabi la agenda según tus horarios y mesas libres. Llega con el piloto.",
+  },
+  {
+    title: "Un copiloto para ti",
+    desc: "Ticket promedio, lo más pedido y qué conviene ofrecer hoy, en tu panel. Además, tu link de pedidos listo para compartir.",
+  },
+];
+
+const pains: [string, string][] = [
+  ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2", "Respuesta lenta = pedido perdido"],
+  ["M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z", "Mensajes que llegan con el local cerrado"],
+  ["M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM19 11a7 7 0 0 1-14 0M12 18v3", "Pedidos mal anotados de audios"],
+  ["M8 3v3M16 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "Reservas cruzadas"],
 ];
 
 export default function Landing() {
@@ -38,8 +53,9 @@ export default function Landing() {
               Tu mejor vendedor, atendiendo WhatsApp las 24 horas
             </h1>
             <p className="mt-5 text-lg text-stone-600">
-              Sabi no es un chatbot que contesta preguntas: recomienda platos, sugiere
-              el acompañamiento justo y cierra el pedido. Tú apruebas cada uno antes de que se confirme.
+              Tu cliente ordena, pregunta y reserva desde WhatsApp. Sabi no es un chatbot que contesta
+              preguntas: recomienda platos, sugiere el acompañamiento justo y cierra el pedido. Tú apruebas
+              cada uno antes de que se confirme.
             </p>
             <div className="mt-8 flex gap-3">
               <Link href="/login" className="rounded-lg bg-emerald-700 px-6 py-3 font-medium text-white hover:bg-emerald-800">
@@ -87,6 +103,30 @@ export default function Landing() {
               <p className="mt-1 text-sm text-emerald-200">{l}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Problem */}
+      <section className="bg-gradient-to-b from-emerald-950 to-[#04261c] text-white">
+        <div className="mx-auto max-w-6xl px-6 py-20 text-center">
+          <svg viewBox="0 0 200 200" className="mx-auto h-44 w-44" aria-hidden="true">
+            <path d="M100 100 L176.08 75.28 A80 80 0 1 1 100 20 Z" fill="#1f4b5c" />
+            <path d="M105.88 91.91 L105.88 11.91 A80 80 0 0 1 181.96 67.19 Z" fill="#ef4444" />
+          </svg>
+          <p className="mt-8 text-3xl font-bold md:text-4xl">20% de las reservas</p>
+          <p className="mt-1 text-2xl text-emerald-100/80 md:text-3xl">se pierden por responder tarde</p>
+          <div className="mt-12 grid gap-4 text-left sm:grid-cols-2 lg:grid-cols-4">
+            {pains.map(([icon, text]) => (
+              <div key={text} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-4">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/15">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={icon} />
+                  </svg>
+                </span>
+                <span className="text-sm text-emerald-50">{text}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
