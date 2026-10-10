@@ -106,6 +106,63 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* WhatsApp link + ticket */}
+      <section className="border-t">
+        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Tu cliente ya está en WhatsApp</h2>
+            <p className="mt-4 text-stone-600">
+              Un solo link en tu Instagram, en Google Maps o en un QR sobre la mesa abre el chat con Sabi.
+              Sin bajar apps, sin registrarse, sin formularios.
+            </p>
+            <p className="mt-4 text-stone-600">
+              Menos pasos es más pedidos cerrados. Y como Sabi sugiere la bebida o el postre que falta,
+              cada pedido sale con un ticket más alto.
+            </p>
+            <h3 className="mt-10 text-lg font-semibold">Conexión con tu POS y tu sistema, sin fricción</h3>
+            <p className="mt-2 text-stone-600">
+              Los pedidos aprobados pasan a tu caja sin volver a tipearlos. Llega con el piloto.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border p-5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600 p-[2px]">
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-sm font-bold text-stone-800">LE</div>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">laesquina.ccs</p>
+                  <p className="text-xs text-stone-500">Milanesas, empanadas y flan casero · Chacao</p>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-xl bg-[#25D366] px-4 py-3 text-white">
+                <span className="text-sm font-medium">Pide por WhatsApp</span>
+                <span className="text-xs opacity-90">wa.me/laesquina</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border p-5 shadow-sm">
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="text-stone-600">Lo que el cliente pidió</span>
+                <span className="font-medium">$10,20</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-stone-100">
+                <div className="h-2 rounded-full bg-stone-400" style={{ width: "87%" }} />
+              </div>
+              <div className="mt-5 flex items-baseline justify-between text-sm">
+                <span className="text-stone-600">Con el flan que sugirió Sabi</span>
+                <span className="font-semibold text-emerald-700">$11,70</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-stone-100">
+                <div className="h-2 rounded-full bg-emerald-600" style={{ width: "100%" }} />
+              </div>
+              <p className="mt-4 text-xs text-stone-500">Mismo cliente, misma conversación: 15% más de ticket.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
       <section id="como-funciona" className="border-t bg-stone-50">
         <div className="mx-auto max-w-6xl px-6 py-20">
