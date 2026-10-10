@@ -85,6 +85,16 @@ const pains: [string, string][] = [
   ["M8 3v3M16 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", "Reservas cruzadas"],
 ];
 
+const faqs: [string, string][] = [
+  ["¿Necesito otro número de WhatsApp?", "Sabi funciona con la API oficial de WhatsApp Business de Meta. Puedes usar un número nuevo para pedidos o el del local; en el piloto te ayudamos a elegir y a dejarlo configurado."],
+  ["¿La IA puede inventar precios o promociones?", "No. Sabi solo vende lo que está en tu menú, con tus precios, y no inventa descuentos. Además, ningún pedido se confirma sin tu aprobación."],
+  ["¿Cómo apruebo los pedidos?", "Cada pedido llega a la bandeja de tu panel con ítems, total, tipo de entrega y dirección. Lo apruebas, lo editas o lo rechazas con un motivo, y solo entonces el cliente recibe la respuesta por WhatsApp."],
+  ["¿Qué pasa si el cliente quiere hablar con una persona?", "Si el cliente pide algo fuera del menú o prefiere hablar contigo, Sabi se lo dice y te pasa la conversación."],
+  ["¿Cómo maneja dólares, euros y bolívares?", "Cargas el menú en dólares y pones las tasas BCV del día en Configuración. Sabi muestra cada precio y cada total en las tres monedas."],
+  ["¿Toma reservas y se conecta con mi POS?", "Las reservas por WhatsApp y la conexión con tu POS llegan con el piloto. Hoy Sabi toma pedidos de delivery y retiro."],
+  ["¿Qué necesito para empezar?", "Tu menú con precios, tus horarios y un número de WhatsApp. Estamos abriendo el piloto para 1 a 3 restaurantes."],
+];
+
 export default function Landing() {
   return (
     <div className="bg-white">
@@ -198,6 +208,65 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Owner panel */}
+      <section className="bg-[#06281e] text-white">
+        <div className="mx-auto max-w-6xl px-6 py-24">
+          <h2 className="max-w-2xl text-3xl font-bold tracking-tight md:text-4xl">Tu panel de empresario</h2>
+          <p className="mt-4 max-w-2xl text-emerald-50/80">
+            Desde el celular o la computadora ves lo que entra, apruebas con un toque y sabes cuánto vendiste hoy.
+          </p>
+          <div className="mt-12 overflow-hidden rounded-2xl border border-white/10 bg-stone-50 text-stone-900 shadow-2xl shadow-black/40">
+            <div className="flex items-center gap-2 border-b bg-white px-4 py-2.5">
+              <span className="h-3 w-3 rounded-full bg-red-400" /><span className="h-3 w-3 rounded-full bg-amber-400" /><span className="h-3 w-3 rounded-full bg-emerald-400" />
+              <span className="ml-4 rounded-md bg-stone-100 px-3 py-1 text-xs text-stone-500">sabi-ecru.vercel.app/pedidos</span>
+            </div>
+            <div className="flex items-center gap-6 border-b bg-white px-6 py-3 text-sm">
+              <span className="font-bold text-emerald-700">Sabi</span>
+              <span className="ml-auto font-medium text-stone-900">Pedidos</span>
+              <span className="text-stone-500">Menú</span><span className="text-stone-500">Registro</span><span className="text-stone-500">Configuración</span>
+            </div>
+            <div className="grid gap-6 p-6 lg:grid-cols-[1.4fr_1fr]">
+              <div className="space-y-4">
+                <div className="grid grid-cols-4 gap-3">
+                  {[["8", "Pedidos hoy"], ["6", "Aprobados"], ["1", "Rechazado"], ["1", "Pendiente"]].map(([n, l]) => (
+                    <div key={l} className="rounded-xl border bg-white p-3 text-center">
+                      <p className="text-2xl font-bold">{n}</p><p className="text-[11px] text-stone-500">{l}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-xl border-2 border-amber-300 bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold">Pedido #9 · Lucía R.</p>
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Pendiente</span>
+                  </div>
+                  <ul className="mt-3 space-y-1 text-sm text-stone-700">
+                    <li className="flex justify-between"><span>2 x Milanesa napolitana</span><span>$9,00</span></li>
+                    <li className="flex justify-between"><span>1 x Gaseosa 1.5L</span><span>$1,20</span></li>
+                    <li className="flex justify-between"><span>1 x Flan con dulce de leche <span className="ml-1 rounded bg-emerald-100 px-1.5 text-[10px] font-medium text-emerald-800">sugerido por Sabi</span></span><span>$1,50</span></li>
+                  </ul>
+                  <p className="mt-2 text-xs text-stone-500">Delivery · Av. Francisco de Miranda, Chacao</p>
+                  <p className="mt-3 border-t pt-3 text-sm font-semibold">Total: $11,70 · €10,78 · Bs 427,05</p>
+                  <div className="mt-4 flex gap-2">
+                    <span className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white">Aprobar</span>
+                    <span className="rounded-lg border px-4 py-2 text-sm">Editar</span>
+                    <span className="rounded-lg border px-4 py-2 text-sm text-red-600">Rechazar</span>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-white p-5">
+                <p className="font-semibold">Copiloto</p>
+                <div className="mt-4 space-y-4 text-sm">
+                  <div><p className="text-xs text-stone-500">Ticket promedio</p><p className="text-2xl font-bold">$9,85</p><p className="text-xs text-stone-500">€9,08 · Bs 359,52</p></div>
+                  <div><p className="text-xs text-stone-500">Lo más pedido</p><p className="font-semibold">Milanesa napolitana · 11 unidades</p></div>
+                  <div><p className="text-xs text-stone-500">Qué conviene ofrecer</p><p>Solo 2 de 7 pedidos llevaron postre. Sabi ya ofrece el flan; destácalo en tu historia de hoy.</p></div>
+                  <div className="rounded-lg bg-stone-100 px-3 py-2 text-xs text-stone-600">Tu link de pedidos: wa.me/laesquina</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* WhatsApp link + ticket */}
       <section className="border-t">
         <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center">
@@ -269,6 +338,24 @@ export default function Landing() {
                 <h3 className="text-lg font-semibold text-emerald-800">{t}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-stone-600">{d}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="border-t">
+        <div className="mx-auto max-w-3xl px-6 py-24">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Preguntas frecuentes</h2>
+          <div className="mt-10 divide-y rounded-2xl border">
+            {faqs.map(([q, a], i) => (
+              <details key={q} open={i === 0} className="group px-6 py-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+                  {q}
+                  <span className="text-xl text-emerald-700 transition group-open:rotate-45">+</span>
+                </summary>
+                <p className="mt-3 text-stone-600">{a}</p>
+              </details>
             ))}
           </div>
         </div>
