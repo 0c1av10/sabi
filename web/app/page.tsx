@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Phone, { Msg } from "../components/Phone";
+import RevealObserver from "../components/RevealObserver";
 import { WhatsAppLogo, MetaLogo } from "../components/Brand";
 import { usd, eur, bs } from "../lib/money";
 
@@ -103,12 +104,14 @@ const faqs: [string, string][] = [
 
 export default function Landing() {
   return (
-    <div className="bg-white">
+    <div className="relative overflow-hidden bg-[#04140f] text-white">
+      <div className="grain" aria-hidden="true" />
+      <RevealObserver />
       {/* Hero */}
-      <section className="relative overflow-hidden bg-[#06281e] text-white">
+      <section className="relative overflow-hidden">
         <div className="blob pointer-events-none absolute -left-32 -top-32 h-[28rem] w-[28rem] rounded-full bg-[#25D366]/30 blur-3xl" />
         <div className="blob pointer-events-none absolute -bottom-40 right-0 h-[30rem] w-[30rem] rounded-full bg-emerald-400/20 blur-3xl" style={{ animationDelay: "-7s" }} />
-        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-[1.1fr_1fr] md:items-center">
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 pb-24 pt-36 md:grid-cols-[1.1fr_1fr] md:items-center">
           <div>
             <div className="flex items-center gap-4 text-sm text-emerald-100/90">
               <span className="flex items-center gap-2"><WhatsAppLogo className="h-6 w-6" />WhatsApp</span>
@@ -139,22 +142,23 @@ export default function Landing() {
       </section>
 
       {/* Metrics strip */}
-      <section className="border-b bg-emerald-900 text-white">
+      <section className="border-y border-white/[0.06] bg-white/[0.02]">
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-6 py-10 text-center md:grid-cols-3">
           {[["24 h", "Atención todos los días"],
             ["100%", "Pedidos que pasan por tu aprobación"],
             ["0", "Pedidos confirmados sin tu ok"]].map(([n, l]) => (
             <div key={l}>
-              <p className="text-3xl font-bold">{n}</p>
-              <p className="mt-1 text-sm text-emerald-200">{l}</p>
+              <p className="text-4xl font-bold tabular-nums tracking-tight">{n}</p>
+              <p className="mt-1 text-sm text-emerald-50/60">{l}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Problem */}
-      <section className="bg-gradient-to-b from-emerald-950 to-[#04261c] text-white">
-        <div className="mx-auto max-w-6xl px-6 py-20 text-center">
+      <section className="relative">
+        <div className="pointer-events-none absolute left-1/2 top-10 h-[26rem] w-[40rem] -translate-x-1/2 rounded-full bg-red-500/[0.07] blur-3xl" />
+        <div className="reveal relative mx-auto max-w-6xl px-6 py-28 text-center">
           <svg viewBox="0 0 200 200" className="mx-auto h-52 w-52 drop-shadow-[0_20px_40px_rgba(239,68,68,0.15)]" aria-hidden="true">
             <path d="M100 100 L176.08 75.28 A80 80 0 1 1 100 20 Z" fill="#1f4b5c" />
             <path d="M105.88 91.91 L105.88 11.91 A80 80 0 0 1 181.96 67.19 Z" fill="#ef4444" className="pie-slice" />
@@ -177,26 +181,27 @@ export default function Landing() {
       </section>
 
       {/* Features */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
+      <section className="reveal mx-auto max-w-6xl px-6 py-28">
         <h2 className="text-3xl font-bold tracking-tight text-balance">Un agente que vende, no un chatbot que contesta</h2>
-        <p className="mt-3 max-w-2xl text-stone-600">
+        <p className="mt-3 max-w-2xl text-emerald-50/70">
           Sabi conversa como tu mejor mesonero: conoce el menú, recomienda y cierra la venta. Tú tienes la última palabra.
         </p>
         <div className="mt-14 grid gap-x-16 gap-y-12 md:grid-cols-2">
           {features.map((f) => (
-            <div key={f.title} className="border-t border-stone-200 pt-6">
+            <div key={f.title} className="border-t border-white/10 pt-6">
               <h3 className="text-xl font-semibold tracking-tight">{f.title}</h3>
-              <p className="mt-3 max-w-[60ch] leading-relaxed text-stone-600">{f.desc}</p>
+              <p className="mt-3 max-w-[60ch] leading-relaxed text-emerald-50/70">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* Upsell / cross-sell / reservas */}
-      <section id="ventas" className="relative overflow-hidden bg-gradient-to-b from-white to-emerald-50">
-        <div className="mx-auto max-w-6xl px-6 py-24">
+      <section id="ventas" className="relative overflow-hidden">
+        <div className="pointer-events-none absolute -right-40 top-40 h-[32rem] w-[32rem] rounded-full bg-[#25D366]/[0.12] blur-3xl" />
+        <div className="reveal relative mx-auto max-w-6xl px-6 py-28">
           <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-4xl">Lo que Sabi vende por ti mientras atiendes el local</h2>
-          <p className="mt-4 max-w-2xl text-stone-600">
+          <p className="mt-4 max-w-2xl text-emerald-50/70">
             Conversaciones de prueba con el menú de La Esquina. Cada sugerencia sale de tu carta y tus precios, una sola vez y sin presionar.
           </p>
           <div className="mt-14 grid justify-items-center gap-14 lg:grid-cols-3">
@@ -205,9 +210,9 @@ export default function Landing() {
                 <Phone msgs={d.msgs} footer={d.footer} />
                 <div className="mt-8 w-[300px]">
                   <h3 className="text-xl font-bold">{d.title}</h3>
-                  <p className="mt-1 text-sm text-stone-600">{d.desc}</p>
-                  <p className="mt-3 text-sm"><span className="text-stone-500">{d.from}</span> <span className="text-stone-400">→</span> <span className="text-lg font-bold text-emerald-700">{d.result}</span></p>
-                  {d.gain && <p className="mt-1 text-xs text-stone-500">Suma {m(d.gain)} en cada pedido</p>}
+                  <p className="mt-1 text-sm text-emerald-50/70">{d.desc}</p>
+                  <p className="mt-3 text-sm"><span className="text-emerald-50/50">{d.from}</span> <span className="text-emerald-50/40">→</span> <span className="text-lg font-bold text-[#25D366]">{d.result}</span></p>
+                  {d.gain && <p className="mt-1 text-xs text-emerald-50/50">Suma {m(d.gain)} en cada pedido</p>}
                 </div>
               </div>
             ))}
@@ -216,13 +221,14 @@ export default function Landing() {
       </section>
 
       {/* Owner panel */}
-      <section className="bg-[#06281e] text-white">
-        <div className="mx-auto max-w-6xl px-6 py-24">
+      <section className="relative">
+        <div className="pointer-events-none absolute left-0 top-1/3 h-[30rem] w-[30rem] rounded-full bg-emerald-400/[0.10] blur-3xl" />
+        <div className="reveal relative mx-auto max-w-6xl px-6 py-28">
           <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-4xl">Tu panel de empresario</h2>
           <p className="mt-4 max-w-2xl text-emerald-50/80">
             Desde el celular o la computadora ves lo que entra, apruebas con un toque y sabes cuánto vendiste hoy.
           </p>
-          <div className="mt-12 overflow-hidden rounded-2xl border border-white/10 bg-stone-50 text-stone-900 shadow-2xl shadow-black/40">
+          <div className="bezel mt-12"><div className="overflow-hidden rounded-[calc(2rem-0.375rem)] bg-stone-50 text-stone-900 shadow-[0_40px_80px_-20px_rgba(37,211,102,0.18)]">
             <div className="flex items-center gap-2 border-b bg-white px-4 py-2.5">
               <span className="h-3 w-3 rounded-full bg-red-400" /><span className="h-3 w-3 rounded-full bg-amber-400" /><span className="h-3 w-3 rounded-full bg-emerald-400" />
               <span className="ml-4 rounded-md bg-stone-100 px-3 py-1 text-xs text-stone-500">sabi-ecru.vercel.app/pedidos</span>
@@ -271,71 +277,71 @@ export default function Landing() {
                 </div>
               </div>
             </div>
-          </div>
+          </div></div>
         </div>
       </section>
 
       {/* WhatsApp link + ticket */}
-      <section className="border-t">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 md:grid-cols-2 md:items-center">
+      <section className="border-t border-white/[0.06]">
+        <div className="reveal mx-auto grid max-w-6xl gap-12 px-6 py-28 md:grid-cols-2 md:items-center">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight text-balance">Tu cliente ya está en WhatsApp</h2>
-            <p className="mt-4 text-stone-600">
+            <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">Tu cliente ya está en WhatsApp</h2>
+            <p className="mt-4 text-emerald-50/70">
               Un solo link en tu Instagram, en Google Maps o en un QR sobre la mesa abre el chat con Sabi.
               Sin bajar apps, sin registrarse, sin formularios.
             </p>
-            <p className="mt-4 text-stone-600">
+            <p className="mt-4 text-emerald-50/70">
               Menos pasos es más pedidos cerrados. Y como Sabi sugiere la bebida o el postre que falta,
               cada pedido sale con un ticket más alto.
             </p>
             <h3 className="mt-10 text-lg font-semibold">Conexión con tu POS y tu sistema, sin fricción</h3>
-            <p className="mt-2 text-stone-600">
+            <p className="mt-2 text-emerald-50/70">
               Los pedidos aprobados pasan a tu caja sin volver a tipearlos. Llega con el piloto.
             </p>
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border p-5 shadow-sm">
+            <div className="bezel"><div className="bezel-core p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600 p-[2px]">
-                  <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-sm font-bold text-stone-800">LE</div>
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-[#04140f] text-sm font-bold text-white">LE</div>
                 </div>
                 <div>
                   <p className="text-sm font-semibold">laesquina.ccs</p>
-                  <p className="text-xs text-stone-500">Milanesas, empanadas y flan casero · Chacao</p>
+                  <p className="text-xs text-emerald-50/50">Milanesas, empanadas y flan casero · Chacao</p>
                 </div>
               </div>
               <div className="mt-4 flex items-center justify-between rounded-xl bg-[#25D366] px-4 py-3 text-white">
                 <span className="text-sm font-medium">Pide por WhatsApp</span>
                 <span className="text-xs opacity-90">wa.me/laesquina</span>
               </div>
-            </div>
+            </div></div>
 
-            <div className="rounded-2xl border p-5 shadow-sm">
+            <div className="bezel"><div className="bezel-core p-5">
               <div className="flex items-baseline justify-between text-sm">
-                <span className="text-stone-600">Lo que el cliente pidió</span>
+                <span className="text-emerald-50/70">Lo que el cliente pidió</span>
                 <span className="font-medium">$10,20</span>
               </div>
-              <div className="mt-2 h-2 rounded-full bg-stone-100">
-                <div className="h-2 rounded-full bg-stone-400" style={{ width: "87%" }} />
+              <div className="mt-2 h-2 rounded-full bg-white/10">
+                <div className="h-2 rounded-full bg-white/40" style={{ width: "87%" }} />
               </div>
               <div className="mt-5 flex items-baseline justify-between text-sm">
-                <span className="text-stone-600">Con el flan que sugirió Sabi</span>
-                <span className="font-semibold text-emerald-700">$11,70</span>
+                <span className="text-emerald-50/70">Con el flan que sugirió Sabi</span>
+                <span className="font-semibold text-[#25D366]">$11,70</span>
               </div>
-              <div className="mt-2 h-2 rounded-full bg-stone-100">
-                <div className="h-2 rounded-full bg-emerald-600" style={{ width: "100%" }} />
+              <div className="mt-2 h-2 rounded-full bg-white/10">
+                <div className="h-2 rounded-full bg-[#25D366] shadow-[0_0_20px_rgba(37,211,102,0.5)]" style={{ width: "100%" }} />
               </div>
-              <p className="mt-4 text-xs text-stone-500">Mismo cliente, misma conversación: 15% más de ticket.</p>
-            </div>
+              <p className="mt-4 text-xs text-emerald-50/50">Mismo cliente, misma conversación: 15% más de ticket.</p>
+            </div></div>
           </div>
         </div>
       </section>
 
       {/* How it works */}
-      <section id="como-funciona" className="border-t bg-stone-50">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="text-3xl font-bold tracking-tight text-balance">Así funciona</h2>
+      <section id="como-funciona" className="border-t border-white/[0.06] bg-white/[0.02]">
+        <div className="reveal mx-auto max-w-6xl px-6 py-28">
+          <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">Así funciona</h2>
           <div className="mt-10 grid gap-8 md:grid-cols-3">
             {[
               ["Sabi asesora", "El cliente escribe por WhatsApp como siempre. Sabi le recomienda, le sugiere qué sumar y arma el pedido con dirección y total."],
@@ -343,8 +349,8 @@ export default function Landing() {
               ["El cliente recibe", "Cuando apruebas, el cliente recibe la confirmación por WhatsApp. Todo queda guardado en el registro del día."],
             ].map(([t, d]) => (
               <div key={t}>
-                <h3 className="text-lg font-semibold text-emerald-800">{t}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-stone-600">{d}</p>
+                <h3 className="text-lg font-semibold text-[#25D366]">{t}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-emerald-50/70">{d}</p>
               </div>
             ))}
           </div>
@@ -352,17 +358,17 @@ export default function Landing() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="border-t">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-24 md:grid-cols-[1fr_2fr]">
+      <section id="faq" className="border-t border-white/[0.06]">
+        <div className="reveal mx-auto grid max-w-6xl gap-12 px-6 py-28 md:grid-cols-[1fr_2fr]">
           <div className="md:sticky md:top-10 md:self-start">
             <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">Preguntas frecuentes</h2>
-            <p className="mt-4 text-stone-600">Lo que nos preguntan los dueños antes de dejar que Sabi venda por ellos.</p>
+            <p className="mt-4 text-emerald-50/70">Lo que nos preguntan los dueños antes de dejar que Sabi venda por ellos.</p>
           </div>
-          <dl className="divide-y divide-stone-200">
+          <dl className="divide-y divide-white/10">
             {faqs.map(([q, a]) => (
               <div key={q} className="py-6 first:pt-0">
                 <dt className="text-lg font-semibold tracking-tight">{q}</dt>
-                <dd className="mt-2 max-w-[62ch] leading-relaxed text-stone-600">{a}</dd>
+                <dd className="mt-2 max-w-[62ch] leading-relaxed text-emerald-50/70">{a}</dd>
               </div>
             ))}
           </dl>
@@ -370,13 +376,14 @@ export default function Landing() {
       </section>
 
       {/* CTA */}
-      <section className="border-t">
-        <div className="mx-auto max-w-6xl px-6 py-20 text-center">
+      <section className="relative border-t border-white/[0.06]">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-[24rem] w-[44rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#25D366]/[0.14] blur-3xl" />
+        <div className="reveal relative mx-auto max-w-6xl px-6 py-32 text-center">
           <h2 className="text-3xl font-bold tracking-tight text-balance">Deja que Sabi venda por ti, sin soltar el control</h2>
-          <p className="mx-auto mt-4 max-w-xl text-stone-600">
+          <p className="mx-auto mt-4 max-w-xl text-emerald-50/70">
             Piloto para 1 a 3 restaurantes. Menú cargado, número de WhatsApp y listo.
           </p>
-          <Link href="/login" className="mt-8 inline-block rounded-lg bg-emerald-700 px-8 py-3 font-medium text-white hover:bg-emerald-800">
+          <Link href="/login" className="mt-10 inline-block rounded-full bg-[#25D366] px-8 py-3.5 font-semibold text-[#04140f] shadow-lg shadow-[#25D366]/30 transition duration-300 ease-[cubic-bezier(.32,.72,0,1)] hover:scale-[1.03] active:scale-[0.98]">
             Entrar al panel
           </Link>
         </div>
