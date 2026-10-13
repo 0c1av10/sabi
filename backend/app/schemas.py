@@ -15,6 +15,7 @@ class MenuItemIn(BaseModel):
     category: str = "General"
     available: bool = True
     description: str = ""
+    image_url: str = ""
 
 
 class MenuItemOut(MenuItemIn):
@@ -32,6 +33,11 @@ class RestaurantSettingsIn(BaseModel):
     exchange_rate: Optional[float] = None
     eur_rate: Optional[float] = None
     bcv_auto: Optional[bool] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    tagline: Optional[str] = None
+    logo_url: Optional[str] = None
+    brand_color: Optional[str] = None
 
 
 class RestaurantOut(BaseModel):
@@ -47,6 +53,11 @@ class RestaurantOut(BaseModel):
     bcv_auto: Optional[bool] = None
     rates_date: Optional[str] = None
     rates_updated_at: Optional[datetime] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    tagline: Optional[str] = None
+    logo_url: Optional[str] = None
+    brand_color: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -81,6 +92,7 @@ class OrderOut(BaseModel):
     decided_at: Optional[datetime] = None
     customer_phone: str = ""
     customer_name: str = ""
+    source: str = "whatsapp"
     items: list[OrderItemOut] = []
 
 

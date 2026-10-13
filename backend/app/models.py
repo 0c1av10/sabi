@@ -37,6 +37,11 @@ class Restaurant(Base):
     bcv_auto: Mapped[bool] = mapped_column(Boolean, default=True)
     rates_date: Mapped[str] = mapped_column(String(10), default="")
     rates_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    email: Mapped[str] = mapped_column(String(200), default="")
+    website: Mapped[str] = mapped_column(String(300), default="")
+    tagline: Mapped[str] = mapped_column(Text, default="")
+    logo_url: Mapped[str] = mapped_column(String(500), default="")
+    brand_color: Mapped[str] = mapped_column(String(20), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     menu_items: Mapped[list["MenuItem"]] = relationship(back_populates="restaurant")
@@ -52,6 +57,7 @@ class MenuItem(Base):
     category: Mapped[str] = mapped_column(String(100), default="General")
     available: Mapped[bool] = mapped_column(Boolean, default=True)
     description: Mapped[str] = mapped_column(Text, default="")
+    image_url: Mapped[str] = mapped_column(String(500), default="")
 
     restaurant: Mapped[Restaurant] = relationship(back_populates="menu_items")
 
@@ -111,6 +117,7 @@ class Order(Base):
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.pending, index=True)
     order_type: Mapped[str] = mapped_column(String(20), default="retiro")  # delivery | retiro
+    source: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp | tienda
     address: Mapped[str] = mapped_column(String(300), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     total: Mapped[float] = mapped_column(Float, default=0.0)

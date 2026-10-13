@@ -58,7 +58,8 @@ async def sync_bcv(restaurant: Restaurant = Depends(current_restaurant),
 async def update_settings(data: RestaurantSettingsIn,
                           restaurant: Restaurant = Depends(current_restaurant),
                           db: AsyncSession = Depends(get_db)):
-    for f in ("welcome_message", "opening_hours", "owner_phone", "name", "bcv_auto"):
+    for f in ("welcome_message", "opening_hours", "owner_phone", "name", "bcv_auto",
+              "email", "website", "tagline", "logo_url", "brand_color"):
         v = getattr(data, f)
         if v is not None:
             setattr(restaurant, f, v)
@@ -128,6 +129,7 @@ def order_out(order: Order, customer: Customer | None) -> OrderOut:
         created_at=order.created_at, decided_at=order.decided_at,
         customer_phone=customer.phone if customer else "",
         customer_name=customer.name if customer else "",
+        source=order.source or "whatsapp",
         items=[OrderItemOut.model_validate(i) for i in order.items],
     )
 

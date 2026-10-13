@@ -2,6 +2,7 @@ import Link from "next/link";
 import Phone, { Msg } from "../components/Phone";
 import RevealObserver from "../components/RevealObserver";
 import Mascot from "../components/Mascot";
+import CreateStore from "../components/CreateStore";
 import { WhatsAppLogo, MetaLogo } from "../components/Brand";
 import { usd, eur, bs, type Rates } from "../lib/money";
 
@@ -457,6 +458,22 @@ export default async function Landing() {
               </div>
             ))}
           </dl>
+        </div>
+      </section>
+
+      {/* Store onboarding */}
+      <section id="tienda" className="relative overflow-hidden border-t border-white/[0.06]">
+        <div className="pointer-events-none absolute -left-40 top-20 h-[26rem] w-[26rem] rounded-full bg-[#25D366]/[0.08] blur-3xl" />
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-28 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div className="reveal">
+            <h2 className="text-3xl font-bold tracking-tight text-balance md:text-4xl">Tu tienda online, armada con tu propia web</h2>
+            <p className="mt-4 max-w-md text-emerald-50/70">
+              Déjanos tu correo y tu página. Sabi lee tu carta, tu logo y tus colores y te arma una tienda con carrito,
+              delivery o retiro y precios en $, € y Bs. Cada pedido cae en tu panel y lo apruebas tú.
+            </p>
+            <p className="mt-6 text-sm text-emerald-50/50">¿No tienes web? Igual te la armamos y cargas la carta en el panel.</p>
+          </div>
+          <div className="reveal"><CreateStore /></div>
         </div>
       </section>
 

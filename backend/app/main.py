@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_db
-from .routers import panel, webhook
+from .routers import panel, store, webhook
 
 
 _ready = False
@@ -47,6 +47,7 @@ async def init_on_first_request(request: Request, call_next):
 
 app.include_router(webhook.router)
 app.include_router(panel.router)
+app.include_router(store.router)
 
 
 @app.get("/health")

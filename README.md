@@ -91,3 +91,11 @@ POS, pagos, multi-sucursal, reservas, analítica avanzada.
 ## Multimoneda (USD / EUR / Bs)
 
 Los precios del menú se cargan en dólares. El dueño fija las tasas del día (Bs por 1 USD y Bs por 1 EUR, como las publica el BCV) en **Configuración**; el agente, la bandeja y el menú muestran cada monto en las tres monedas (`$10,20 · €9,40 · Bs 372,30`).
+
+## Tienda online por local
+
+- **Alta:** el formulario "Crea tu tienda" de la landing llama a `POST /api/onboarding` (nombre, correo, WhatsApp y web opcional). Crea el restaurante con su slug y un PIN de 4 dígitos que se muestra en pantalla (todavía no se envía por correo).
+- **Lectura de la web** (`backend/app/importer.py`, sin IA): nombre, frase, logo, color (`theme-color`) y platos con precio desde JSON-LD, objetos de menú en el HTML o en los JS del mismo dominio, y líneas de texto con precio. Solo URLs públicas (bloquea IPs privadas). Si no encuentra la carta, arranca con un menú base editable.
+- **Tienda pública:** `/tienda/<slug>` (`GET /api/store/<slug>`), con carrito, delivery o retiro y precios en $, € y Bs.
+- **Checkout:** `POST /api/store/<slug>/orders` valida los platos contra el menú y crea el pedido `pending` con `source="tienda"`. Llega a la misma bandeja y se confirma al cliente por WhatsApp solo cuando el dueño lo aprueba.
+- **Panel → Tienda:** link para compartir, releer la carta desde la web (`POST /api/store/import`, agrega platos y actualiza precios sin borrar) y editar logo, color, frase y correo.

@@ -38,6 +38,8 @@ async def seed() -> bool:
             currency="USD",
             exchange_rate=875.65,
             eur_rate=980.61,
+            tagline="Pollo a la brasa y cocina criolla en Lechería",
+            email="hola@laesquina.example",
         )
         db.add(r)
         await db.flush()

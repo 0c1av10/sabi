@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Mascot from "../../../components/Mascot";
 
@@ -8,6 +8,7 @@ export default function Login() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
+  useEffect(() => { setSlug(new URLSearchParams(window.location.search).get("slug") || ""); }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
