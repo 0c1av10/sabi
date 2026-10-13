@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Base(DeclarativeBase):
@@ -77,7 +77,7 @@ class Conversation(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id"), index=True)
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
     # open | handed_to_owner | closed
     status: Mapped[str] = mapped_column(String(30), default="open")
     # JSON scratchpad for the agent (draft order, stage)
@@ -113,8 +113,8 @@ class Order(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     restaurant_id: Mapped[int] = mapped_column(ForeignKey("restaurants.id"), index=True)
-    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"))
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"))
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), index=True)
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.pending, index=True)
     order_type: Mapped[str] = mapped_column(String(20), default="retiro")  # delivery | retiro
     source: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp | tienda
@@ -134,7 +134,7 @@ class OrderItem(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"), index=True)
-    menu_item_id: Mapped[int | None] = mapped_column(ForeignKey("menu_items.id"), nullable=True)
+    menu_item_id: Mapped[int | None] = mapped_column(ForeignKey("menu_items.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
     quantity: Mapped[int] = mapped_column(Integer, default=1)
     unit_price: Mapped[float] = mapped_column(Float, default=0.0)

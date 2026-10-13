@@ -223,7 +223,7 @@ async def list_conversations(restaurant: Restaurant = Depends(current_restaurant
 @router.get("/today")
 async def today(restaurant: Restaurant = Depends(current_restaurant),
                 db: AsyncSession = Depends(get_db)):
-    start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = datetime.now(timezone.utc).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
     orders = (await db.execute(select(Order).where(
         Order.restaurant_id == restaurant.id, Order.created_at >= start))).scalars().all()
     convs = (await db.execute(select(Conversation).where(

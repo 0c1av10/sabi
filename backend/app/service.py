@@ -125,7 +125,7 @@ async def get_customer_phone(db: AsyncSession, order: Order) -> str:
 async def approve_order(db: AsyncSession, restaurant: Restaurant, order: Order,
                         edited: bool = False) -> None:
     order.status = OrderStatus.edited if edited else OrderStatus.approved
-    order.decided_at = datetime.now(timezone.utc)
+    order.decided_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.refresh(order, ["items"])
     items = ", ".join(f"{i.quantity}x {i.name}" for i in order.items)
     extra = f" (con ajustes: {order.edit_summary})" if edited and order.edit_summary else ""
@@ -141,7 +141,7 @@ async def approve_order(db: AsyncSession, restaurant: Restaurant, order: Order,
 async def reject_order(db: AsyncSession, restaurant: Restaurant, order: Order, reason: str) -> None:
     order.status = OrderStatus.rejected
     order.rejection_reason = reason
-    order.decided_at = datetime.now(timezone.utc)
+    order.decided_at = datetime.now(timezone.utc).replace(tzinfo=None)
     phone = await get_customer_phone(db, order)
     msg = (f"Lo sentimos, tu pedido no pudo confirmarse en {restaurant.name}."
            + (f" Motivo: {reason}" if reason else ""))

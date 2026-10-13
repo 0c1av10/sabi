@@ -19,7 +19,7 @@ Copiá `.env.example` a `backend/.env`:
 
 | Variable | Descripción |
 |---|---|
-| `DATABASE_URL` | `sqlite+aiosqlite:///./sabi.db` local o `postgresql+asyncpg://...` (Supabase) |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./sabi.db` local, o la URI de Supabase (Connect → Session pooler, `postgresql://postgres.<ref>:<password>@...pooler.supabase.com:5432/postgres`; se convierte sola a asyncpg) |
 | `ANTHROPIC_API_KEY` | API key de Anthropic |
 | `ANTHROPIC_MODEL` | Modelo Claude (default: claude-sonnet-4-5) |
 | `AGENT_MOCK_MODE` | `true` = agente determinista sin LLM (pruebas sin key) |
@@ -99,3 +99,7 @@ Los precios del menú se cargan en dólares. El dueño fija las tasas del día (
 - **Tienda pública:** `/tienda/<slug>` (`GET /api/store/<slug>`), con carrito, delivery o retiro y precios en $, € y Bs.
 - **Checkout:** `POST /api/store/<slug>/orders` valida los platos contra el menú y crea el pedido `pending` con `source="tienda"`. Llega a la misma bandeja y se confirma al cliente por WhatsApp solo cuando el dueño lo aprueba.
 - **Panel → Tienda:** link para compartir, releer la carta desde la web (`POST /api/store/import`, agrega platos y actualiza precios sin borrar) y editar logo, color, frase y correo.
+
+## Supabase (Postgres)
+
+Con `DATABASE_URL` apuntando a Supabase, el backend crea las tablas al arrancar, usa `NullPool` y desactiva el caché de prepared statements de asyncpg (compatible con el pooler en modo session o transaction) y activa RLS en todas las tablas de `public`. Sin políticas, los roles `anon`/`authenticated` de la Data API no ven nada; el backend se conecta como dueño de las tablas. Con `DEMO_AUTOSEED=true` solo se crea "La Esquina" si no existe: los datos ya no se borran.
