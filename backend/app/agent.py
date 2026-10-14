@@ -34,10 +34,9 @@ def rates_of(restaurant: Restaurant) -> tuple[float, float]:
     return restaurant.exchange_rate, restaurant.eur_rate
 
 
-def fmt_money(usd: float, rate: float, eur_rate: float) -> str:
+def fmt_money(usd: float, rate: float, _eur_rate: float) -> str:
     bs = usd * rate
-    eur = bs / eur_rate if eur_rate else 0.0
-    return f"${_num(usd)} · €{_num(eur)} · Bs {_num(bs)}"
+    return f"${_num(usd)} · Bs {_num(bs)}"
 
 
 def menu_text(items: list[MenuItem], rates: tuple[float, float]) -> str:
@@ -106,7 +105,8 @@ Reglas:
 - Si algo no está disponible, ofrece la alternativa más parecida del menú.
 - Nunca presiones, ni inventes promociones o descuentos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
-- Los precios se expresan en dólares, euros y bolívares a las tasas del día; usa exactamente los montos del menú.
+- Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
+- Mantén los precios compactos en una sola línea: "$X · Bs Y".
 - Si el cliente pide algo fuera del menú o no sabes algo, dilo y ofrece pasar la conversación al dueño (action=handoff).
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
