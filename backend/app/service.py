@@ -63,7 +63,7 @@ async def handle_inbound_message(db: AsyncSession, restaurant: Restaurant,
     sent = await recent_inbound_count(db, conv.customer_id)
     db.add(Message(conversation_id=conv.id, direction="inbound", body=body,
                    external_id=external_id))
-    await db.flush()
+    await db.commit()  # visible to concurrent webhook retries (dedupe)
     if sent >= settings.rate_limit_per_phone_hour:
         if sent == settings.rate_limit_per_phone_hour:
             db.add(Message(conversation_id=conv.id, direction="outbound", body=RATE_LIMIT_REPLY))

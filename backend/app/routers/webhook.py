@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import restaurant_for_webhook
 from ..config import settings
 from ..db import get_db
+from ..whatsapp import digits, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 
 router = APIRouter(tags=["whatsapp"])
@@ -88,3 +89,30 @@ async def simulate_message(body_in: dict, db: AsyncSession = Depends(get_db)):
     name = body_in.get("name", "Cliente Test")
     reply = await handle_inbound_message(db, restaurant, phone, text, name)
     return {"reply": reply}
+
+
+@router.post("/webhook/zernio")
+async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
+    raw = await request.body()
+    secret = settings.zernio_webhook_secret
+    expected = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest() if secret else ""
+    if not secret or not hmac.compare_digest(expected, request.headers.get("X-Zernio-Signature", "")):
+        return Response(status_code=401)
+    data = json.loads(raw)
+    if data.get("event") != "message.received":
+        return {"status": "ignored"}
+    msg = data.get("message") or {}
+    sender = msg.get("sender") or {}
+    if (msg.get("direction") != "incoming" or msg.get("platform") != "whatsapp"
+            or (data.get("metadata") or {}).get("standby")):
+        return {"status": "ignored"}
+    phone = digits(sender.get("phoneNumber") or sender.get("id") or "")
+    body = msg.get("text") or ""
+    restaurant = await restaurant_for_webhook(db)
+    if not (restaurant and phone and body):
+        return {"status": "ignored"}
+    if msg.get("conversationId"):
+        zernio_conversations[phone] = msg["conversationId"]
+    await handle_inbound_message(db, restaurant, phone, body, sender.get("name") or "",
+                                 external_id=msg.get("platformMessageId") or msg.get("id"))
+    return {"status": "ok"}

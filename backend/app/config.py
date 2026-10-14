@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # When true, outbound WhatsApp messages are only logged (no HTTP calls).
     whatsapp_mock_mode: bool = True
 
+    whatsapp_provider: str = ""  # zernio | kapso | meta; empty = first configured
+
+    zernio_api_key: str = ""
+    zernio_account_id: str = ""
+    zernio_webhook_secret: str = ""
+
     kapso_api_key: str = ""
     kapso_phone_number_id: str = ""
     kapso_webhook_secret: str = ""
