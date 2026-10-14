@@ -1,16 +1,17 @@
 """Core flow: inbound WhatsApp message -> agent -> (maybe) pending order -> owner notification.
 And: owner approves/edits/rejects -> customer confirmation via WhatsApp."""
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .bcv import refresh_rates
+from .config import settings
 from .agent import fmt_money, rates_of, run_agent, summarize_order
 from .models import (Conversation, Customer, MenuItem, Message, Order,
-                     OrderItem, OrderStatus, Restaurant)
+                     OrderItem, OrderStatus, Restaurant, utcnow)
 from .whatsapp import send_whatsapp_message
 
 
@@ -37,13 +38,34 @@ async def get_or_create_conversation(db: AsyncSession, restaurant: Restaurant,
     return conv
 
 
+RATE_LIMIT_REPLY = ("Recibimos muchos mensajes tuyos en poco tiempo. "
+                    "Espera un rato y vuelve a escribirnos, por favor 🙏")
+
+
+async def recent_inbound_count(db: AsyncSession, customer_id: int | None = None) -> int:
+    q = select(func.count(Message.id)).join(
+        Conversation, Message.conversation_id == Conversation.id).where(
+        Message.direction == "inbound", Message.created_at >= utcnow() - timedelta(hours=1))
+    if customer_id is not None:
+        q = q.where(Conversation.customer_id == customer_id)
+    return (await db.execute(q)).scalar_one()
+
+
 async def handle_inbound_message(db: AsyncSession, restaurant: Restaurant,
                                  phone: str, body: str, name: str = "") -> str:
     """Process one inbound customer message. Returns the reply text sent."""
-    await refresh_rates(restaurant)
+    body = body[:settings.max_message_chars]
     conv = await get_or_create_conversation(db, restaurant, phone, name)
+    sent = await recent_inbound_count(db, conv.customer_id)
     db.add(Message(conversation_id=conv.id, direction="inbound", body=body))
     await db.flush()
+    if sent >= settings.rate_limit_per_phone_hour:
+        if sent == settings.rate_limit_per_phone_hour:
+            db.add(Message(conversation_id=conv.id, direction="outbound", body=RATE_LIMIT_REPLY))
+            await send_whatsapp_message(phone, RATE_LIMIT_REPLY)
+        await db.commit()
+        return RATE_LIMIT_REPLY
+    await refresh_rates(restaurant)
 
     if conv.status == "handed_to_owner":
         return ""  # human is handling it; just log

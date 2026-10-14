@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import restaurant_for_webhook
 from ..config import settings
 from ..db import get_db
-from ..service import handle_inbound_message
+from ..service import handle_inbound_message, recent_inbound_count
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -48,6 +48,10 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 @router.post("/webhook/simulate")
 async def simulate_message(body_in: dict, db: AsyncSession = Depends(get_db)):
     restaurant = await restaurant_for_webhook(db)
+    if not restaurant:
+        return {"reply": ""}
+    if await recent_inbound_count(db) >= settings.simulate_limit_hour:
+        return {"reply": "La demo recibió muchos mensajes en la última hora. Prueba de nuevo más tarde."}
     phone = body_in.get("phone", "59912345678")
     text = body_in.get("text", "")
     name = body_in.get("name", "Cliente Test")

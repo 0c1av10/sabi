@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     whatsapp_mock_mode: bool = True
 
     # Panel auth
+    rate_limit_per_phone_hour: int = 20
+    simulate_limit_hour: int = 300
+    max_message_chars: int = 1000
+
     session_secret: str = "change-me-in-production"
 
     backend_base_url: str = "http://localhost:8000"
