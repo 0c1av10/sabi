@@ -69,7 +69,9 @@ export default function Tienda({ params }: { params: { slug: string } }) {
     setCart({});
   }
 
-  const wa = store.whatsapp ? `https://wa.me/${store.whatsapp}` : "";
+  const wa = store.whatsapp
+    ? `https://wa.me/${store.whatsapp}?text=${encodeURIComponent(`Hola, quiero pedir en ${store.name}. [sabi:${store.slug}]`)}`
+    : "";
 
   const cartPanel = (
     <div className="flex h-full flex-col">

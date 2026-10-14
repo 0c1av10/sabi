@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_restaurant
 from ..bcv import refresh_rates
+from ..config import settings
 from ..db import get_db
 from ..importer import BASE_MENU, import_site, normalize_url
 from ..models import Message, MenuItem, Order, OrderItem, Restaurant
@@ -127,7 +128,8 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
     return {
         "name": r.name, "slug": r.slug, "tagline": r.tagline, "logo_url": r.logo_url,
         "brand_color": r.brand_color or "#25D366", "opening_hours": r.opening_hours,
-        "whatsapp": r.owner_phone, "rates": {"usd": r.exchange_rate, "eur": r.eur_rate},
+        "whatsapp": settings.shared_whatsapp_number or r.owner_phone,
+        "rates": {"usd": r.exchange_rate, "eur": r.eur_rate},
         "menu": [{"id": i.id, "name": i.name, "price": i.price, "category": i.category,
                   "description": i.description, "image_url": i.image_url} for i in items],
     }

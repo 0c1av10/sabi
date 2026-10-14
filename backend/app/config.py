@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     whatsapp_mock_mode: bool = True
 
     whatsapp_provider: str = ""  # zernio | kapso | meta; empty = first configured
+    shared_whatsapp_number: str = ""
+    frontend_base_url: str = "https://sabi-ecru.vercel.app"
 
     zernio_api_key: str = ""
     zernio_account_id: str = ""
