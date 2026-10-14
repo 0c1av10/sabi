@@ -48,7 +48,7 @@ export default function CreateStore() {
             <div className="rounded-xl bg-white/[0.05] px-4 py-3">Usuario <span className="ml-2 font-mono text-base text-white">{result.slug}</span></div>
             <div className="rounded-xl bg-white/[0.05] px-4 py-3">PIN <span className="ml-2 font-mono text-base text-white">{result.pin}</span></div>
           </div>
-          <p className="mt-3 text-xs text-emerald-50/50">Guarda tu PIN: por ahora no lo enviamos por correo.</p>
+          <p className="mt-3 text-xs text-emerald-50/50">Tu interfaz, menú, marca y agente quedan personalizados para este negocio. Guarda tu PIN: por ahora no lo enviamos por correo.</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <a href={result.store_path} target="_blank" className="rounded-full bg-[#25D366] px-6 py-3 font-semibold text-[#04140f] transition hover:scale-[1.03] active:scale-[0.98]">
               Ver mi tienda
