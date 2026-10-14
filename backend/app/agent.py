@@ -52,21 +52,52 @@ def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tupl
     total = 0.0
     lines = []
     for oi in order.get("items", []):
-        mi = items_by_name.get(oi["name"].strip().lower())
-        price = mi.price if mi else float(oi.get("unit_price", 0))
+        mi = items_by_name.get(str(oi.get("name", "")).strip().lower())
+        if not mi:
+            continue
         qty = int(oi.get("quantity", 1))
-        total += price * qty
+        total += mi.price * qty
         extra = f" ({oi['extras']})" if oi.get("extras") else ""
-        lines.append(f"• {qty} x {mi.name if mi else oi['name']}{extra} — {fmt_money(price * qty, *rates)}")
+        lines.append(f"• {qty} x {mi.name}{extra} — {fmt_money(mi.price * qty, *rates)}")
     tipo = "Delivery" + (f" a {order.get('address','')}" if order.get("address") else "") \
         if order.get("order_type") == "delivery" else "Retiro en local"
     notes = f"\nNotas: {order['notes']}" if order.get("notes") else ""
     return "\n".join(lines) + f"\n{tipo}{notes}\nTotal: {fmt_money(total, *rates)}", total
 
 
+def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dict | None, list[str]]:
+    """Keep only available menu items with menu names; return (order, rejected names)."""
+    if not isinstance(order, dict):
+        return None, []
+    items, rejected = [], []
+    for oi in order.get("items") or []:
+        if not isinstance(oi, dict):
+            continue
+        name = str(oi.get("name", "")).strip()
+        mi = available.get(name.lower())
+        if not mi:
+            if name:
+                rejected.append(name)
+            continue
+        try:
+            qty = max(1, min(int(oi.get("quantity", 1)), 50))
+        except (TypeError, ValueError):
+            qty = 1
+        items.append({"name": mi.name, "quantity": qty,
+                      "extras": str(oi.get("extras") or "")[:200],
+                      "notes": str(oi.get("notes") or "")[:200]})
+    order_type = order.get("order_type")
+    return {
+        "items": items,
+        "order_type": order_type if order_type in ("delivery", "retiro") else None,
+        "address": str(order.get("address") or "")[:300],
+        "notes": str(order.get("notes") or "")[:500],
+    }, rejected
+
+
 SYSTEM_PROMPT = """Eres Sabi, el agente de ventas por WhatsApp de un restaurante. No eres un bot de preguntas frecuentes: asesoras al cliente como el mejor mesonero de la casa y lo ayudas a elegir.
 Reglas:
-- Tono cercano, español neutro, mensajes cortos.
+- Tono cercano y venezolano, tutea al cliente (nunca uses voseo), mensajes cortos para WhatsApp.
 - Si el cliente duda o pide recomendación, sugiere 1 o 2 opciones concretas del menú con su precio y una razón breve.
 - Antes de cerrar el pedido, ofrece una sola vez un complemento que falte (bebida o postre). Si dice que no, no insistas.
 - Si algo no está disponible, ofrece la alternativa más parecida del menú.
@@ -77,9 +108,41 @@ Reglas:
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
 - Si el cliente valida el resumen (sí, ok, confirmo), action=submit_order.
-- Responde SOLO con JSON válido:
-{"reply": "texto para el cliente", "action": "continue|ask_confirm|submit_order|handoff", "order": {"items": [{"name": "nombre exacto del menú", "quantity": 1, "extras": "", "notes": ""}], "order_type": "delivery|retiro", "address": "", "notes": ""} | null}
+- En "order" manda siempre el pedido completo acumulado hasta ahora (no solo lo nuevo), con el nombre exacto del menú.
+- Responde siempre usando la herramienta "responder".
 """
+
+RESPONDER_TOOL = {
+    "name": "responder",
+    "description": "Envía la respuesta al cliente y el estado del pedido.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "reply": {"type": "string", "description": "Texto para el cliente por WhatsApp."},
+            "action": {"type": "string", "enum": ["continue", "ask_confirm", "submit_order", "handoff"]},
+            "order": {
+                "type": ["object", "null"],
+                "properties": {
+                    "items": {"type": "array", "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Nombre exacto del menú."},
+                            "quantity": {"type": "integer", "minimum": 1},
+                            "extras": {"type": "string"},
+                            "notes": {"type": "string"},
+                        },
+                        "required": ["name", "quantity"],
+                    }},
+                    "order_type": {"type": ["string", "null"], "enum": ["delivery", "retiro", None]},
+                    "address": {"type": "string"},
+                    "notes": {"type": "string"},
+                },
+                "required": ["items"],
+            },
+        },
+        "required": ["reply", "action"],
+    },
+}
 
 
 async def run_agent(db: AsyncSession, restaurant: Restaurant, conversation: Conversation,
@@ -93,47 +156,85 @@ async def run_agent(db: AsyncSession, restaurant: Restaurant, conversation: Conv
     return await run_llm_agent(restaurant, items, conversation, history, incoming)
 
 
+def _llm_messages(history: list[tuple[str, str]], incoming: str) -> list[dict]:
+    turns = list(history[-20:]) or [("inbound", incoming)]
+    msgs: list[dict] = []
+    for direction, body in turns:
+        role = "user" if direction == "inbound" else "assistant"
+        if msgs and msgs[-1]["role"] == role:
+            msgs[-1]["content"] += "\n" + body
+        else:
+            msgs.append({"role": role, "content": body})
+    if msgs[0]["role"] == "assistant":
+        msgs.insert(0, {"role": "user", "content": "(inicio de la conversación)"})
+    if msgs[-1]["role"] == "assistant":
+        msgs.append({"role": "user", "content": incoming})
+    return msgs
+
+
 async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
                         conversation: Conversation,
                         history: list[tuple[str, str]], incoming: str) -> AgentResult:
     import anthropic
 
     state = json.loads(conversation.state_json or "{}")
-    menu = menu_text(items, rates_of(restaurant))
-    msgs = [{"role": "user", "content": f"Menú actual:\n{menu}\n\nHorarios: {restaurant.opening_hours}"}]
-    for direction, body in history[-20:]:
-        msgs.append({"role": "user" if direction == "inbound" else "assistant", "content": body})
-    msgs.append({"role": "user", "content":
-                 f"Estado guardado: {json.dumps(state, ensure_ascii=False)}\nMensaje del cliente: {incoming}"})
+    rates = rates_of(restaurant)
+    available = {i.name.lower(): i for i in items if i.available}
+    sold_out = [i.name for i in items if not i.available]
+    context = (
+        f"\nRestaurante: {restaurant.name}\nHorarios: {restaurant.opening_hours}\n"
+        f"Menú disponible hoy:\n{menu_text(items, rates)}\n"
+        f"Agotado hoy: {', '.join(sold_out) or 'nada'}\n"
+        f"Pedido en curso: {json.dumps(state.get('draft'), ensure_ascii=False)}\n"
+        f"Ya ofreciste complemento: {'sí' if state.get('upsell_offered') else 'no'}"
+    )
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    resp = await client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=1000,
-        system=SYSTEM_PROMPT,
-        messages=msgs,
-    )
-    raw = "".join(b.text for b in resp.content if b.type == "text")
     try:
-        data = json.loads(re.search(r"\{.*\}", raw, re.S).group(0))
-    except Exception:
-        logger.warning("LLM non-JSON reply: %s", raw)
-        return AgentResult(reply=raw[:1000] or "¿Me repites, por favor?")
+        resp = await client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=1000,
+            system=SYSTEM_PROMPT + context,
+            messages=_llm_messages(history, incoming),
+            tools=[RESPONDER_TOOL],
+            tool_choice={"type": "tool", "name": "responder"},
+        )
+    except anthropic.APIError as exc:
+        logger.error("Anthropic error: %s", exc)
+        return AgentResult(reply="Disculpa, tuve un problema. ¿Me repites tu mensaje en un momento?",
+                           state=state)
 
-    items_by_name = {i.name.lower(): i for i in items}
-    order = data.get("order")
-    action = data.get("action", "continue")
-    reply = data.get("reply", "")
+    data = next((b.input for b in resp.content if b.type == "tool_use"), None)
+    if not isinstance(data, dict):
+        logger.warning("LLM sin tool_use: %s", resp.content)
+        return AgentResult(reply="¿Me repites, por favor?", state=state)
 
-    if action == "submit_order" and order:
-        reply, _ = summarize_order(order, items_by_name, rates_of(restaurant))
-        reply = "¡Perfecto! Tu pedido fue enviado al restaurante para aprobación. Te confirmo enseguida. 🙌"
-    elif action == "ask_confirm" and order:
-        summary, _ = summarize_order(order, items_by_name, rates_of(restaurant))
-        reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
+    action = data.get("action") if data.get("action") in (
+        "continue", "ask_confirm", "submit_order", "handoff") else "continue"
+    reply = str(data.get("reply") or "")
+    order, rejected = clean_order(data.get("order"), available)
+    if order is None:
+        order = state.get("draft")
 
-    return AgentResult(reply=reply, action=action, order=order,
-                       state={**state, "draft": order or state.get("draft")})
+    if action in ("ask_confirm", "submit_order"):
+        complete = bool(order and order["items"] and order["order_type"]
+                        and (order["order_type"] != "delivery" or order["address"]))
+        if rejected or not complete:
+            action = "continue"
+            if rejected:
+                reply = (f"No tenemos {', '.join(rejected)} en el menú de hoy. "
+                         "¿Te recomiendo algo parecido?")
+        elif action == "submit_order":
+            reply = "¡Perfecto! Tu pedido fue enviado al restaurante para aprobación. Te confirmo enseguida. 🙌"
+        else:
+            summary, _ = summarize_order(order, available, rates)
+            reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
+
+    new_state = {**state, "draft": order}
+    if re.search(r"bebida|postre|tomar|dulce", reply, re.I) and action == "continue":
+        new_state["upsell_offered"] = True
+    return AgentResult(reply=reply or "¿Me repites, por favor?", action=action,
+                       order=order, state=new_state)
 
 
 # ---------------- Mock engine (deterministic, no API key needed) ----------------

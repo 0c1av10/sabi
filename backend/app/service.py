@@ -88,13 +88,15 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
     await db.flush()
     new_items = []
     for oi in draft.get("items", []):
-        mi = items_by_name.get(oi["name"].strip().lower())
+        mi = items_by_name.get(str(oi.get("name", "")).strip().lower())
+        if not mi:
+            continue
         new_items.append(OrderItem(
             order_id=order.id,
-            menu_item_id=mi.id if mi else None,
-            name=mi.name if mi else oi["name"],
+            menu_item_id=mi.id,
+            name=mi.name,
             quantity=int(oi.get("quantity", 1)),
-            unit_price=mi.price if mi else float(oi.get("unit_price", 0)),
+            unit_price=mi.price,
             extras=oi.get("extras", ""),
             notes=oi.get("notes", ""),
         ))
