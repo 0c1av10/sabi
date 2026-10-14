@@ -92,6 +92,8 @@ def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dic
         "order_type": order_type if order_type in ("delivery", "retiro") else None,
         "address": str(order.get("address") or "")[:300],
         "notes": str(order.get("notes") or "")[:500],
+        "payment_method": str(order.get("payment_method") or "")[:40],
+        "payment_reference": str(order.get("payment_reference") or "")[:160],
     }, rejected
 
 
@@ -109,6 +111,8 @@ Reglas:
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
 - Si el cliente valida el resumen (sí, ok, confirmo), action=submit_order.
+- Antes de enviarlo al restaurante, pregunta cómo va a pagar: pago móvil, Zelle, transferencia o efectivo al retirar.
+- Si el cliente ya indicó un método de pago, inclúyelo en order.payment_method. El comercio verifica el pago antes de aprobar.
 - En "order" manda siempre el pedido completo acumulado hasta ahora (no solo lo nuevo), con el nombre exacto del menú.
 - Responde siempre usando la herramienta "responder".
 """
@@ -137,6 +141,8 @@ RESPONDER_TOOL = {
                     "order_type": {"type": ["string", "null"], "enum": ["delivery", "retiro", None]},
                     "address": {"type": "string"},
                     "notes": {"type": "string"},
+                    "payment_method": {"type": "string"},
+                    "payment_reference": {"type": "string"},
                 },
                 "required": ["items"],
             },
@@ -233,7 +239,12 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
                 reply = (f"No tenemos {', '.join(rejected)} en el menú de hoy. "
                          "¿Te recomiendo algo parecido?")
         elif action == "submit_order":
-            reply = "¡Perfecto! Tu pedido fue enviado al restaurante para aprobación. Te confirmo enseguida. 🙌"
+            if not order.get("payment_method"):
+                action = "continue"
+                reply = ("Perfecto. Antes de enviarlo al restaurante, ¿cómo vas a pagar? "
+                         "Puedes usar pago móvil, Zelle, transferencia o efectivo al retirar.")
+            else:
+                reply = "¡Perfecto! Tu pedido fue enviado al restaurante. El comercio verificará el pago y lo aprobará; te confirmo enseguida. 🙌"
         else:
             summary, _ = summarize_order(order, available, rates)
             reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
@@ -280,7 +291,10 @@ _NUM = {"un": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis":
 def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                    conversation: Conversation, incoming: str) -> AgentResult:
     state = json.loads(conversation.state_json or "{}")
-    draft = state.get("draft") or {"items": [], "order_type": None, "address": "", "notes": ""}
+    draft = state.get("draft") or {
+        "items": [], "order_type": None, "address": "", "notes": "",
+        "payment_method": "", "payment_reference": "",
+    }
     text = incoming.lower()
     items_by_name = {i.name.lower(): i for i in items if i.available}
     available = [i for i in items if i.available]
@@ -306,12 +320,34 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     if state.get("stage") == "confirming":
         if re.search(r"\b(s[ií]|ok|confirmo|dale|correcto|vale|listo)\b", text):
             return AgentResult(
-                reply="¡Perfecto! Tu pedido fue enviado al restaurante para aprobación. Te confirmo enseguida. 🙌",
-                action="submit_order", order=draft, state={"stage": "submitted", "draft": draft})
+                reply=("Perfecto. ¿Cómo vas a pagar? Puedes usar pago móvil, Zelle, "
+                       "transferencia o efectivo al retirar."),
+                state={"stage": "payment", "draft": draft})
         draft["items"] = []
         state["stage"] = "chat"
         return AgentResult(reply="Entendido, descarté ese pedido. ¿Qué deseas ordenar?",
                            state=state)
+
+    if state.get("stage") == "payment":
+        methods = (
+            ("pago móvil", "pago_movil"), ("pago movil", "pago_movil"),
+            ("zelle", "zelle"), ("transferencia", "transferencia"),
+            ("efectivo", "efectivo"),
+        )
+        chosen = next((value for label, value in methods if label in text), "")
+        if chosen:
+            draft["payment_method"] = chosen
+            ref = re.search(r"(?:referencia|ref\.?|comprobante)\s*[:#-]?\s*([a-z0-9-]+)", text)
+            if ref:
+                draft["payment_reference"] = ref.group(1)
+            return AgentResult(
+                reply=("¡Listo! Envié tu pedido al restaurante. El comercio verificará el "
+                       "pago y lo aprobará; te confirmo enseguida. 🙌"),
+                action="submit_order", order=draft,
+                state={"stage": "submitted", "draft": draft})
+        return AgentResult(
+            reply="Indícame cómo vas a pagar: pago móvil, Zelle, transferencia o efectivo al retirar.",
+            state={"stage": "payment", "draft": draft})
 
     if re.search(r"\b(hola|buenas|buenos d[ií]as|buenas tardes|buenas noches)\b", text) and not draft["items"]:
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})

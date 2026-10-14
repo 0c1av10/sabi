@@ -9,10 +9,10 @@ from ..bcv import fetch_bcv, refresh_rates
 from ..auth import COOKIE_NAME, current_restaurant, make_token
 from ..db import get_db
 from ..models import (Conversation, Customer, MenuItem, Message, Order,
-                      OrderItem, Restaurant)
+                      OrderItem, PaymentStatus, Restaurant)
 from ..schemas import (ConversationOut, LoginIn, MenuItemIn, MenuItemOut,
                        OrderEditIn, OrderItemOut, OrderOut, RejectIn,
-                       RestaurantOut, RestaurantSettingsIn)
+                       RestaurantOut, RestaurantSettingsIn, PaymentConfirmIn)
 from ..service import approve_order, reject_order
 
 router = APIRouter(prefix="/api", tags=["panel"])
@@ -123,7 +123,11 @@ async def delete_menu_item(item_id: int,
 
 def order_out(order: Order, customer: Customer | None) -> OrderOut:
     return OrderOut(
-        id=order.id, status=order.status.value, order_type=order.order_type,
+        id=order.id, status=order.status.value,
+        payment_status=order.payment_status.value,
+        payment_method=order.payment_method,
+        payment_reference=order.payment_reference,
+        order_type=order.order_type,
         address=order.address, notes=order.notes, total=order.total,
         rejection_reason=order.rejection_reason, edit_summary=order.edit_summary,
         created_at=order.created_at, decided_at=order.decided_at,
@@ -165,7 +169,22 @@ async def _get_order(db: AsyncSession, restaurant: Restaurant, order_id: int) ->
 async def approve(order_id: int, restaurant: Restaurant = Depends(current_restaurant),
                   db: AsyncSession = Depends(get_db)):
     order = await _get_order(db, restaurant, order_id)
-    await approve_order(db, restaurant, order)
+    try:
+        await approve_order(db, restaurant, order)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    return order_out(order, await db.get(Customer, order.customer_id))
+
+
+@router.post("/orders/{order_id}/confirm-payment", response_model=OrderOut)
+async def confirm_payment(order_id: int, data: PaymentConfirmIn = PaymentConfirmIn(),
+                          restaurant: Restaurant = Depends(current_restaurant),
+                          db: AsyncSession = Depends(get_db)):
+    order = await _get_order(db, restaurant, order_id)
+    order.payment_status = PaymentStatus.confirmed
+    if data.payment_reference:
+        order.payment_reference = data.payment_reference[:160]
+    await db.commit()
     return order_out(order, await db.get(Customer, order.customer_id))
 
 
@@ -187,7 +206,10 @@ async def edit(order_id: int, data: OrderEditIn,
         await db.flush()
         await db.refresh(order, ["items"])
         order.total = sum(i.unit_price * i.quantity for i in order.items)
-    await approve_order(db, restaurant, order, edited=True)
+    try:
+        await approve_order(db, restaurant, order, edited=True)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
     return order_out(order, await db.get(Customer, order.customer_id))
 
 

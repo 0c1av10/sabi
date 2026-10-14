@@ -109,6 +109,13 @@ class OrderStatus(str, enum.Enum):
     edited = "edited"  # approved after owner edits
 
 
+class PaymentStatus(str, enum.Enum):
+    pending = "pending"
+    submitted = "submitted"
+    confirmed = "confirmed"
+    rejected = "rejected"
+
+
 class Order(Base):
     __tablename__ = "orders"
 
@@ -117,6 +124,11 @@ class Order(Base):
     conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), index=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.pending, index=True)
+    payment_status: Mapped[PaymentStatus] = mapped_column(
+        Enum(PaymentStatus), default=PaymentStatus.pending, index=True
+    )
+    payment_method: Mapped[str] = mapped_column(String(40), default="")
+    payment_reference: Mapped[str] = mapped_column(String(160), default="")
     order_type: Mapped[str] = mapped_column(String(20), default="retiro")  # delivery | retiro
     source: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp | tienda
     address: Mapped[str] = mapped_column(String(300), default="")

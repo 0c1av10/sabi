@@ -18,7 +18,7 @@ export default function Tienda({ params }: { params: { slug: string } }) {
   const [cart, setCart] = useState<Record<number, number>>({});
   const [open, setOpen] = useState(false);
   const [checkout, setCheckout] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", order_type: "delivery", address: "", notes: "" });
+  const [form, setForm] = useState({ name: "", phone: "", order_type: "delivery", address: "", notes: "", payment_method: "pago_movil", payment_reference: "" });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<number | null>(null);
@@ -114,6 +114,13 @@ export default function Tienda({ params }: { params: { slug: string } }) {
                 <input required className={input} placeholder="Dirección de entrega" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
               )}
               <input className={input} placeholder="Notas (opcional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <select className={input} value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })}>
+                <option value="pago_movil">Pago móvil</option>
+                <option value="zelle">Zelle</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="efectivo">Efectivo al retirar</option>
+              </select>
+              <input className={input} placeholder="Referencia o comprobante (opcional)" value={form.payment_reference} onChange={(e) => setForm({ ...form, payment_reference: e.target.value })} />
               {error && <p className="text-sm text-red-600">{error}</p>}
             </form>
           )}
@@ -132,7 +139,7 @@ export default function Tienda({ params }: { params: { slug: string } }) {
                 Continuar
               </button>
             )}
-            <p className="mt-2 text-center text-xs text-stone-400">El local confirma tu pedido por WhatsApp.</p>
+            <p className="mt-2 text-center text-xs text-stone-400">El local verifica el pago y confirma tu pedido por WhatsApp.</p>
           </div>
         </>
       )}

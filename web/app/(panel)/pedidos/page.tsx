@@ -8,6 +8,7 @@ type OrderItem = { id: number; name: string; quantity: number; unit_price: numbe
 type Order = {
   id: number; status: string; order_type: string; address: string; notes: string;
   total: number; source?: string; customer_phone: string; customer_name: string; created_at: string;
+  payment_status: string; payment_method: string; payment_reference: string;
   items: OrderItem[];
 };
 
@@ -40,6 +41,10 @@ export default function Pedidos() {
     load();
   }
 
+  const paymentLabel: Record<string, string> = {
+    pago_movil: "Pago móvil", zelle: "Zelle", transferencia: "Transferencia", efectivo: "Efectivo",
+  };
+
   return (
     <div>
       <h1 className="mb-4 text-xl font-semibold">Bandeja de aprobación</h1>
@@ -61,6 +66,14 @@ export default function Pedidos() {
                   {o.source === "tienda" ? "Tienda web · " : "WhatsApp · "}{o.customer_name || o.customer_phone} · {o.order_type}
                   {o.address ? ` · ${o.address}` : ""}
                 </p>
+                <p className="mt-1 text-sm">
+                  Pago: <strong>{paymentLabel[o.payment_method] || o.payment_method || "No indicado"}</strong>
+                  {o.payment_reference && <span className="text-stone-500"> · Ref. {o.payment_reference}</span>}
+                  {" · "}
+                  <span className={o.payment_status === "confirmed" ? "text-emerald-700" : "text-amber-700"}>
+                    {o.payment_status === "confirmed" ? "pago confirmado" : "por verificar"}
+                  </span>
+                </p>
               </div>
               <span className="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
                 pendiente
@@ -77,6 +90,12 @@ export default function Pedidos() {
             </ul>
             {o.notes && <p className="mt-1 text-sm text-stone-500">Notas: {o.notes}</p>}
             <div className="mt-3 flex gap-2">
+              {o.payment_status !== "confirmed" && (
+                <button onClick={() => act(o.id, "confirm-payment")}
+                  className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">
+                  Confirmar pago
+                </button>
+              )}
               <button onClick={() => act(o.id, "approve")}
                 className="rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white">
                 Aprobar

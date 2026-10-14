@@ -38,6 +38,8 @@ class CheckoutIn(BaseModel):
     order_type: Literal["delivery", "retiro"] = "retiro"
     address: str = Field(default="", max_length=300)
     notes: str = Field(default="", max_length=500)
+    payment_method: Literal["pago_movil", "zelle", "transferencia", "efectivo"] = "pago_movil"
+    payment_reference: str = Field(default="", max_length=160)
     items: list[CartItemIn] = Field(min_length=1, max_length=40)
 
 
@@ -154,7 +156,9 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
     order = Order(restaurant_id=r.id, conversation_id=conv.id, customer_id=conv.customer_id,
                   order_type=data.order_type, source="tienda",
                   address=data.address.strip() if data.order_type == "delivery" else "",
-                  notes=data.notes.strip(), total=sum(mi.price * q for mi, q in lines))
+                  notes=data.notes.strip(), total=sum(mi.price * q for mi, q in lines),
+                  payment_method=data.payment_method, payment_reference=data.payment_reference.strip(),
+                  payment_status="submitted")
     db.add(order)
     await db.flush()
     for mi, q in lines:

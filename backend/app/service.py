@@ -11,7 +11,7 @@ from .bcv import refresh_rates
 from .config import settings
 from .agent import fmt_money, rates_of, run_agent, summarize_order
 from .models import (Conversation, Customer, MenuItem, Message, Order,
-                     OrderItem, OrderStatus, Restaurant, utcnow)
+                     OrderItem, OrderStatus, PaymentStatus, Restaurant, utcnow)
 from .whatsapp import send_whatsapp_message
 
 
@@ -110,6 +110,9 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
         address=draft.get("address") or "",
         notes=draft.get("notes") or "",
         total=total,
+        payment_method=draft.get("payment_method") or "",
+        payment_reference=draft.get("payment_reference") or "",
+        payment_status=PaymentStatus.submitted if draft.get("payment_method") else PaymentStatus.pending,
     )
     db.add(order)
     await db.flush()
@@ -141,8 +144,8 @@ async def notify_owner_new_order(db: AsyncSession, restaurant: Restaurant, order
     items = ", ".join(f"{i.quantity}x {i.name}" for i in order.items)
     await send_whatsapp_message(
         restaurant.owner_phone,
-        f"🔔 Nuevo pedido #{order.id} pendiente de aprobación: {items} — "
-        f"total {fmt_money(order.total, *rates_of(restaurant))}. Apruébalo en el panel de Sabi.",
+        f"🔔 Nuevo pedido #{order.id} pendiente de pago y aprobación: {items} — "
+        f"total {fmt_money(order.total, *rates_of(restaurant))}. Confirma el pago y apruébalo en el panel de Sabi.",
     )
 
 
@@ -153,6 +156,8 @@ async def get_customer_phone(db: AsyncSession, order: Order) -> str:
 
 async def approve_order(db: AsyncSession, restaurant: Restaurant, order: Order,
                         edited: bool = False) -> None:
+    if order.payment_status != PaymentStatus.confirmed:
+        raise ValueError("Primero confirma el pago del cliente.")
     order.status = OrderStatus.edited if edited else OrderStatus.approved
     order.decided_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.refresh(order, ["items"])

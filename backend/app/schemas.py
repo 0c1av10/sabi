@@ -82,6 +82,9 @@ class OrderItemOut(OrderItemIn):
 class OrderOut(BaseModel):
     id: int
     status: str
+    payment_status: str = "pending"
+    payment_method: str = ""
+    payment_reference: str = ""
     order_type: str
     address: str
     notes: str
@@ -106,6 +109,10 @@ class OrderEditIn(BaseModel):
 
 class RejectIn(BaseModel):
     reason: str = ""
+
+
+class PaymentConfirmIn(BaseModel):
+    payment_reference: Optional[str] = None
 
 
 class MessageOut(BaseModel):

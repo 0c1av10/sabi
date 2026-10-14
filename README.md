@@ -1,3 +1,7 @@
+## Pagos y aprobación
+
+Los pedidos pueden indicar pago móvil, Zelle, transferencia o efectivo. Sabi registra el método y la referencia; el comercio confirma manualmente que recibió el pago en el panel y luego pulsa **Aprobar**. Solo después de esas dos acciones se envía la confirmación automática al cliente. El MVP no cobra tarjetas ni verifica transferencias por API.
+
 # Sabi (MVP)
 
 Agente de ventas por WhatsApp con IA para restaurantes. Atiende 24 horas, toma
