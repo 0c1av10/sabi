@@ -43,7 +43,7 @@ Copiá `.env.example` a `backend/.env`:
 cd backend
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python -m scripts.seed          # crea restaurante "La Esquina" (slug: la-esquina, PIN: 1234)
+python -m scripts.seed          # crea "NACIONAL Restaurante" (slug: nacional, PIN: 1234)
 uvicorn app.main:app --reload   # http://localhost:8000
 ```
 
@@ -53,7 +53,7 @@ npm install
 npm run dev                     # http://localhost:3000 (proxy a :8000)
 ```
 
-Login del panel: slug `la-esquina`, PIN `1234`.
+Login del panel: slug `nacional`, PIN `1234`.
 
 ## Guion de prueba (sin credenciales reales)
 
@@ -110,4 +110,4 @@ Los precios del menú se cargan en dólares. El dueño fija las tasas del día (
 
 ## Supabase (Postgres)
 
-Con `DATABASE_URL` apuntando a Supabase, el backend crea las tablas al arrancar, usa `NullPool` y desactiva el caché de prepared statements de asyncpg (compatible con el pooler en modo session o transaction) y activa RLS en todas las tablas de `public`. Sin políticas, los roles `anon`/`authenticated` de la Data API no ven nada; el backend se conecta como dueño de las tablas. Con `DEMO_AUTOSEED=true` solo se crea "La Esquina" si no existe: los datos ya no se borran.
+Con `DATABASE_URL` apuntando a Supabase, el backend crea las tablas al arrancar, usa `NullPool` y desactiva el caché de prepared statements de asyncpg (compatible con el pooler en modo session o transaction) y activa RLS en todas las tablas de `public`. Sin políticas, los roles `anon`/`authenticated` de la Data API no ven nada; el backend se conecta como dueño de las tablas. Con `DEMO_AUTOSEED=true` solo se crea "NACIONAL Restaurante" si no existe: los datos ya no se borran.

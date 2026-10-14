@@ -284,7 +284,7 @@ export default async function Landing() {
         <div className="reveal relative mx-auto max-w-6xl px-6 py-28">
           <h2 className="max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-4xl">Lo que Sabi vende por ti mientras atiendes el local</h2>
           <p className="mt-4 max-w-2xl text-emerald-50/70">
-            Conversaciones de prueba con el menú de La Esquina. Cada sugerencia sale de tu carta y tus precios, una sola vez y sin presionar.
+            Conversaciones de prueba con el menú de NACIONAL Restaurante. Cada sugerencia sale de tu carta y tus precios, una sola vez y sin presionar.
           </p>
           <div className="mt-14 grid justify-items-center gap-14 lg:grid-cols-3">
             {demos().map((d, i) => (

@@ -1,5 +1,5 @@
 """Guion de prueba E2E (modo mock):
-cliente pide por WhatsApp -> pedido pendiente -> dueño aprueba -> confirmación al cliente.
+cliente pide -> indica pago -> dueño confirma pago -> aprueba -> confirmación.
 Run: python -m scripts.simulate_e2e  (requiere seed y el backend corriendo en :8000)"""
 import sys
 
@@ -15,6 +15,7 @@ GUION = [
     "dale, súmalo. delivery",
     "dirección: Av. Principal de Lechería, apto 5",
     "sí",
+    "zelle referencia 12345",
 ]
 
 
@@ -27,7 +28,7 @@ def main():
             print(f"\nCliente: {text}\nSabi:    {reply}")
 
         # Owner login and approval
-        r = c.post("/api/auth/login", json={"slug": "la-esquina", "pin": "1234"})
+        r = c.post("/api/auth/login", json={"slug": "nacional", "pin": "1234"})
         r.raise_for_status()
         token = r.json()["token"]
         h = {"X-Sabi-Token": token}
@@ -37,8 +38,12 @@ def main():
         print(f"\n== Panel del dueño ==\nPedido #{order['id']} pendiente: "
               + ", ".join(f"{i['quantity']}x {i['name']}" for i in order["items"])
               + f" — total ${order['total']:.2f}")
+        blocked = c.post(f"/api/orders/{order['id']}/approve", headers=h)
+        assert blocked.status_code == 409, "Aprobar sin confirmar pago debería devolver 409"
+        c.post(f"/api/orders/{order['id']}/confirm-payment",
+               headers=h, json={"payment_reference": "12345"}).raise_for_status()
         c.post(f"/api/orders/{order['id']}/approve", headers=h).raise_for_status()
-        print(f"Dueño aprobó el pedido #{order['id']}.")
+        print(f"Dueño confirmó el pago y aprobó el pedido #{order['id']}.")
 
         today = c.get("/api/today", headers=h).json()
         print("\n== Vista del día ==", today)

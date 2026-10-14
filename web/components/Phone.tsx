@@ -12,9 +12,9 @@ export default function Phone({ msgs, footer, animate = false, step = 0.9, heigh
       <div className="absolute left-1/2 top-0 z-10 h-5 w-24 -translate-x-1/2 rounded-b-2xl bg-stone-900" />
       <div style={{ height }} className="flex flex-col overflow-hidden rounded-[2.1rem] bg-[#efeae2]">
         <div className="flex items-center gap-2 bg-[#075E54] px-4 pb-3 pt-7 text-white">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold">LE</div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold">N</div>
           <div className="leading-tight">
-            <p className="text-sm font-semibold">La Esquina</p>
+            <p className="text-sm font-semibold">NACIONAL Restaurante</p>
             <p className="text-[11px] text-emerald-100">en línea</p>
           </div>
           <WhatsAppLogo className="ml-auto h-5 w-5" fill="#ffffff" />

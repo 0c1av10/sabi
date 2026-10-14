@@ -25,21 +25,24 @@ MENU = [
 async def seed() -> bool:
     async with SessionLocal() as db:
         existing = (await db.execute(
-            select(Restaurant).where(Restaurant.slug == "la-esquina"))).scalar_one_or_none()
+            select(Restaurant).where(Restaurant.slug == "nacional"))).scalar_one_or_none()
         if existing:
             return False
         r = Restaurant(
-            name="La Esquina",
-            slug="la-esquina",
+            name="NACIONAL Restaurante",
+            slug="nacional",
             pin="1234",
             owner_phone="59911111111",
-            welcome_message="¡Hola! 👋 Soy Sabi de *La Esquina*. ¿Qué te provoca hoy?",
+            welcome_message="¡Hola! 👋 Soy Sabi de *NACIONAL Restaurante*. ¿Qué te provoca hoy?",
             opening_hours="Lun-Dom 7:00-23:00",
             currency="USD",
             exchange_rate=875.65,
             eur_rate=980.61,
-            tagline="Pollo a la brasa y cocina criolla en Lechería",
-            email="hola@laesquina.example",
+            tagline="Pollo asado a la brasa, cachapas, parrillas, arepas y desayunos criollos en Lechería",
+            email="hola@nacionalrestaurant.com",
+            website="https://nacionalrestaurant.com/",
+            logo_url="https://nacionalrestaurant.com/favicon.svg",
+            brand_color="#1A1714",
         )
         db.add(r)
         await db.flush()
@@ -64,7 +67,7 @@ async def seed_demo_conversations() -> None:
 
     async with SessionLocal() as db:
         r = (await db.execute(
-            select(Restaurant).where(Restaurant.slug == "la-esquina"))).scalar_one()
+            select(Restaurant).where(Restaurant.slug == "nacional"))).scalar_one()
         if (await db.execute(select(Conversation).limit(1))).first():
             return
         for phone, name, lines in DEMO_CHATS:
@@ -75,9 +78,9 @@ async def seed_demo_conversations() -> None:
 async def main():
     await init_db()
     if not await seed():
-        print("Seed ya aplicado (restaurante 'la-esquina' existe).")
+        print("Seed ya aplicado (restaurante 'nacional' existe).")
     else:
-        print("Seed listo: restaurante 'La Esquina' (slug: la-esquina, PIN: 1234) "
+        print("Seed listo: restaurante 'NACIONAL Restaurante' (slug: nacional, PIN: 1234) "
               f"con {len(MENU)} ítems de menú.")
 
 
