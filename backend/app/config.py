@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # When true, outbound WhatsApp messages are only logged (no HTTP calls).
     whatsapp_mock_mode: bool = True
 
+    kapso_api_key: str = ""
+    kapso_phone_number_id: str = ""
+    kapso_webhook_secret: str = ""
+    kapso_api_version: str = "v24.0"
+
     # Panel auth
     rate_limit_per_phone_hour: int = 20
     simulate_limit_hour: int = 300

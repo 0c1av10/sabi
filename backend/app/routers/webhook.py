@@ -1,3 +1,7 @@
+import hashlib
+import hmac
+import json
+
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +44,34 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                     if c.get("wa_id") == phone:
                         name = c.get("profile", {}).get("name", "")
                 if phone and body:
-                    await handle_inbound_message(db, restaurant, phone, body, name)
+                    await handle_inbound_message(db, restaurant, phone, body, name,
+                                                 external_id=msg.get("id"))
+    return {"status": "ok"}
+
+
+@router.post("/webhook/kapso")
+async def receive_kapso(request: Request, db: AsyncSession = Depends(get_db)):
+    raw = await request.body()
+    secret = settings.kapso_webhook_secret
+    expected = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest() if secret else ""
+    if not secret or not hmac.compare_digest(expected, request.headers.get("X-Webhook-Signature", "")):
+        return Response(status_code=401)
+    if request.headers.get("X-Webhook-Event") != "whatsapp.message.received":
+        return {"status": "ignored"}
+    restaurant = await restaurant_for_webhook(db)
+    if not restaurant:
+        return {"status": "no_restaurant"}
+    data = json.loads(raw)
+    for item in data.get("data", []) if data.get("batch") else [data]:
+        msg = item.get("message") or {}
+        conv = item.get("conversation") or {}
+        if msg.get("type") != "text" or (msg.get("kapso") or {}).get("direction", "inbound") != "inbound":
+            continue
+        phone = msg.get("from") or conv.get("phone_number") or ""
+        body = (msg.get("text") or {}).get("body", "")
+        if phone and body:
+            await handle_inbound_message(db, restaurant, phone, body, conv.get("contact_name") or "",
+                                         external_id=msg.get("id"))
     return {"status": "ok"}
 
 

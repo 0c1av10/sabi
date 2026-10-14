@@ -96,6 +96,7 @@ class Message(Base):
     # inbound (customer), outbound (agent/system)
     direction: Mapped[str] = mapped_column(String(10))
     body: Mapped[str] = mapped_column(Text)
+    external_id: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")

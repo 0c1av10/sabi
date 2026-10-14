@@ -52,12 +52,17 @@ async def recent_inbound_count(db: AsyncSession, customer_id: int | None = None)
 
 
 async def handle_inbound_message(db: AsyncSession, restaurant: Restaurant,
-                                 phone: str, body: str, name: str = "") -> str:
+                                 phone: str, body: str, name: str = "",
+                                 external_id: str | None = None) -> str:
     """Process one inbound customer message. Returns the reply text sent."""
     body = body[:settings.max_message_chars]
+    if external_id and (await db.execute(select(Message.id).where(
+            Message.external_id == external_id))).first():
+        return ""
     conv = await get_or_create_conversation(db, restaurant, phone, name)
     sent = await recent_inbound_count(db, conv.customer_id)
-    db.add(Message(conversation_id=conv.id, direction="inbound", body=body))
+    db.add(Message(conversation_id=conv.id, direction="inbound", body=body,
+                   external_id=external_id))
     await db.flush()
     if sent >= settings.rate_limit_per_phone_hour:
         if sent == settings.rate_limit_per_phone_hour:

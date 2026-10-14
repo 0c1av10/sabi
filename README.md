@@ -27,6 +27,8 @@ Copiá `.env.example` a `backend/.env`:
 | `WHATSAPP_PHONE_NUMBER_ID` | phone_number_id del número de Meta |
 | `WHATSAPP_VERIFY_TOKEN` | Token de verificación del webhook (elegilo vos) |
 | `WHATSAPP_MOCK_MODE` | `true` = mensajes salientes solo se loguean |
+| `KAPSO_API_KEY` / `KAPSO_PHONE_NUMBER_ID` | Envío por Kapso (`api.kapso.ai/meta/whatsapp`); tiene prioridad sobre `WHATSAPP_TOKEN` |
+| `KAPSO_WEBHOOK_SECRET` | Secreto HMAC del webhook de Kapso (`POST /webhook/kapso`, evento `whatsapp.message.received`) |
 | `SESSION_SECRET` | Secreto para firmar sesiones del panel |
 
 ## Correr en local
