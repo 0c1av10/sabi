@@ -198,7 +198,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
             system=SYSTEM_PROMPT + context,
             messages=_llm_messages(history, incoming),
             tools=[RESPONDER_TOOL],
-            tool_choice={"type": "tool", "name": "responder"},
+            tool_choice={"type": "auto"},
         )
     except anthropic.APIError as exc:
         logger.error("Anthropic error: %s", exc)
@@ -207,8 +207,15 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
 
     data = next((b.input for b in resp.content if b.type == "tool_use"), None)
     if not isinstance(data, dict):
-        logger.warning("LLM sin tool_use: %s", resp.content)
-        return AgentResult(reply="¿Me repites, por favor?", state=state)
+        raw = "".join(b.text for b in resp.content if b.type == "text").strip()
+        match = re.search(r"\{.*\}", raw, re.S)
+        try:
+            data = json.loads(match.group(0)) if match else None
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            logger.warning("LLM sin tool_use: %s", raw[:500])
+            data = {"reply": raw[:1000], "action": "continue"}
 
     action = data.get("action") if data.get("action") in (
         "continue", "ask_confirm", "submit_order", "handoff") else "continue"
