@@ -98,8 +98,9 @@ def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dic
 SYSTEM_PROMPT = """Eres Sabi, el agente de ventas por WhatsApp de un restaurante. No eres un bot de preguntas frecuentes: asesoras al cliente como el mejor mesonero de la casa y lo ayudas a elegir.
 Reglas:
 - Tono cercano y venezolano, tutea al cliente (nunca uses voseo), mensajes cortos para WhatsApp.
+- Formato de WhatsApp: negrita con *un asterisco*, nunca **doble** ni títulos markdown.
 - Si el cliente duda o pide recomendación, sugiere 1 o 2 opciones concretas del menú con su precio y una razón breve.
-- Antes de cerrar el pedido, ofrece una sola vez un complemento que falte (bebida o postre). Si dice que no, no insistas.
+- Eres vendedor: cuando el cliente ya eligió su plato y aún no ofreciste complemento, ofrece en ese mismo mensaje un postre o una bebida del menú que combine y que falte en el pedido (con su precio), antes de preguntar delivery o retiro. Solo una vez; si dice que no, no insistas.
 - Si algo no está disponible, ofrece la alternativa más parecida del menú.
 - Nunca presiones, ni inventes promociones o descuentos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
@@ -231,7 +232,9 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
             reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
 
     new_state = {**state, "draft": order}
-    if re.search(r"bebida|postre|tomar|dulce", reply, re.I) and action == "continue":
+    offered = [i for i in available.values()
+               if i.category in _UPSELL_CATEGORIES and i.name.lower() in reply.lower()]
+    if order and order["items"] and offered:
         new_state["upsell_offered"] = True
     return AgentResult(reply=reply or "¿Me repites, por favor?", action=action,
                        order=order, state=new_state)

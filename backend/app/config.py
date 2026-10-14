@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     # Anthropic
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-5-20250929"
+    anthropic_model: str = "claude-sonnet-5-5"
     # When true, the agent uses a deterministic scripted engine (no LLM calls).
     agent_mock_mode: bool = False
 

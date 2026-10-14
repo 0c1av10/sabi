@@ -21,7 +21,7 @@ Copiá `.env.example` a `backend/.env`:
 |---|---|
 | `DATABASE_URL` | `sqlite+aiosqlite:///./sabi.db` local, o la URI de Supabase (Connect → Session pooler, `postgresql://postgres.<ref>:<password>@...pooler.supabase.com:5432/postgres`; se convierte sola a asyncpg) |
 | `ANTHROPIC_API_KEY` | API key de Anthropic |
-| `ANTHROPIC_MODEL` | Modelo Claude (default: claude-sonnet-4-5) |
+| `ANTHROPIC_MODEL` | Modelo Claude (default: claude-sonnet-5-5) |
 | `AGENT_MOCK_MODE` | `true` = agente determinista sin LLM (pruebas sin key) |
 | `WHATSAPP_TOKEN` | Token permanente de WhatsApp Cloud API |
 | `WHATSAPP_PHONE_NUMBER_ID` | phone_number_id del número de Meta |
