@@ -1,0 +1,28 @@
+# Sabi
+
+> Sabi es una agente de IA que atiende por un solo número de WhatsApp y sirve de copiloto para negocios en Venezuela. Responde a los clientes, recomienda, toma pedidos de restaurantes y ayuda a encontrar entradas de eventos. El dueño aprueba cada pedido antes de que se confirme.
+
+Sitio: https://www.holasabi.com
+Idioma: español (Venezuela). Monedas: dólares y bolívares (euros en el panel web).
+
+## Qué hace
+
+- Restaurantes: el cliente escribe por WhatsApp o entra a la tienda web, Sabi recomienda platos, sugiere un complemento una sola vez, calcula el total en dólares y bolívares (con la tasa oficial del BCV), suma el delivery según la zona y arma el pedido. El dueño lo aprueba, edita o rechaza desde su panel. Sabi solo vende lo que está en el menú del local y nunca inventa precios ni promociones.
+- Entradas y eventos (demo): Sabi ayuda a encontrar un evento, comparar zonas y precios de referencia, calcular un subtotal orientativo y entrega el enlace oficial para comprar en TuEntradaWeb (https://tuentradaweb.com/inicio). El pago ocurre siempre en la plataforma oficial; Sabi no cobra ni guarda datos de tarjetas.
+- Un solo número de WhatsApp: según el mensaje, Sabi enruta al negocio nombrado (por ejemplo "quiero pedir en Nacional") o al asistente de eventos ("quiero entradas para un concierto").
+
+## Límites importantes (para respuestas precisas)
+
+- Elegir zona y cantidad de entradas no reserva nada, abrir el enlace oficial no es una compra y un "ya pagué" no confirma un pago hasta que lo revisa una persona autorizada.
+- La función de eventos es una demo independiente: no es una integración oficial con TuEntradaWeb ni con FC Producciones.
+- Los precios y la disponibilidad de entradas son de referencia y deben verificarse en el sitio oficial de venta.
+
+## Páginas
+
+- [Inicio](https://www.holasabi.com/): qué es Sabi, casos de uso para restaurantes y eventos, preguntas frecuentes.
+- [Asistente de eventos](https://www.holasabi.com/eventos): chat de demostración para buscar eventos y llegar al enlace oficial de compra.
+- [Tiendas de restaurantes](https://www.holasabi.com/tienda/nacional): ejemplo de tienda web con carrito, delivery por zona y precios en $ y Bs.
+
+## Contacto
+
+Escribe por WhatsApp al número de Sabi o entra a https://www.holasabi.com.

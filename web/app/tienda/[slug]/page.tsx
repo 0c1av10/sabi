@@ -8,6 +8,7 @@ type Item = { id: number; name: string; price: number; category: string; descrip
 type Store = {
   name: string; slug: string; tagline: string; logo_url: string; brand_color: string;
   opening_hours: string; whatsapp: string; rates: Rates; menu: Item[];
+  delivery_fee: number | null; delivery_info: string; delivery_zones: { name: string; fee: number }[];
 };
 
 const input = "w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-stone-400";
@@ -18,7 +19,7 @@ export default function Tienda({ params }: { params: { slug: string } }) {
   const [cart, setCart] = useState<Record<number, number>>({});
   const [open, setOpen] = useState(false);
   const [checkout, setCheckout] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", order_type: "delivery", address: "", notes: "", payment_method: "pago_movil", payment_reference: "" });
+  const [form, setForm] = useState({ name: "", phone: "", order_type: "delivery", delivery_zone: "", address: "", notes: "", payment_method: "pago_movil", payment_reference: "" });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<number | null>(null);
@@ -47,7 +48,12 @@ export default function Tienda({ params }: { params: { slug: string } }) {
   const R = store.rates;
   const lines = store.menu.filter((i) => cart[i.id]).map((i) => ({ ...i, qty: cart[i.id] }));
   const count = lines.reduce((s, l) => s + l.qty, 0);
-  const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const isDelivery = form.order_type === "delivery";
+  const zones = store.delivery_zones || [];
+  const zone = zones.find((z) => z.name === form.delivery_zone);
+  const fee = !isDelivery ? 0 : zones.length ? (zone ? zone.fee : 0) : (store.delivery_fee ?? 0);
+  const total = subtotal + fee;
   const add = (id: number, d: number) =>
     setCart((c) => { const n = { ...c, [id]: Math.max(0, (c[id] || 0) + d) }; if (!n[id]) delete n[id]; return n; });
 
@@ -112,6 +118,20 @@ export default function Tienda({ params }: { params: { slug: string } }) {
                   </button>
                 ))}
               </div>
+              {form.order_type === "delivery" && zones.length > 0 && (
+                <div>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    {zones.map((z) => (
+                      <button type="button" key={z.name} onClick={() => setForm({ ...form, delivery_zone: z.name })}
+                        className="rounded-xl border px-3 py-2 transition"
+                        style={form.delivery_zone === z.name ? { background: brand, color: onBrand, borderColor: brand } : { borderColor: "#e7e5e4" }}>
+                        {z.name} · {z.fee === 0 ? "gratis" : `+${usd(z.fee)}`}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-stone-500">Selecciona tu zona para incluir el delivery en el total.</p>
+                </div>
+              )}
               {form.order_type === "delivery" && (
                 <input required className={input} placeholder="Dirección de entrega" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
               )}
@@ -127,6 +147,16 @@ export default function Tienda({ params }: { params: { slug: string } }) {
             </form>
           )}
           <div className="border-t border-stone-100 p-5">
+            {isDelivery && checkout && (
+              <div className="mb-3 space-y-1 text-sm text-stone-500">
+                <div className="flex justify-between tabular-nums"><span>Pedido</span><span>{usd(subtotal)}</span></div>
+                <div className="flex justify-between tabular-nums">
+                  <span>Delivery</span>
+                  <span>{zones.length ? (zone ? (zone.fee === 0 ? "Gratis" : usd(zone.fee)) : "Elige tu zona") : store.delivery_fee === null ? "Lo confirma el local" : store.delivery_fee === 0 ? "Gratis" : usd(store.delivery_fee)}</span>
+                </div>
+                {store.delivery_info && <p className="whitespace-pre-line text-xs text-stone-400">{store.delivery_info}</p>}
+              </div>
+            )}
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-stone-500">Total</span>
               <span className="text-xl font-semibold tabular-nums">{usd(total)}</span>

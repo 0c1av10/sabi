@@ -14,6 +14,7 @@ from ..auth import current_restaurant
 from ..bcv import refresh_rates
 from ..config import settings
 from ..db import get_db
+from .. import delivery
 from ..importer import BASE_MENU, import_site, normalize_url
 from ..models import Message, MenuItem, Order, OrderItem, Restaurant
 from ..service import get_or_create_conversation, notify_owner_new_order
@@ -37,6 +38,7 @@ class CheckoutIn(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     phone: str = Field(min_length=7, max_length=30)
     order_type: Literal["delivery", "retiro"] = "retiro"
+    delivery_zone: str = ""
     address: str = Field(default="", max_length=300)
     notes: str = Field(default="", max_length=500)
     payment_method: Literal["pago_movil", "zelle", "transferencia", "efectivo"] = "pago_movil"
@@ -81,6 +83,13 @@ async def _apply_import(db: AsyncSession, restaurant: Restaurant, data: dict) ->
     restaurant.logo_url = restaurant.logo_url or data["logo_url"]
     restaurant.brand_color = restaurant.brand_color or _color(data["brand_color"])
     restaurant.tagline = restaurant.tagline or data["tagline"]
+    # Delivery price read from the site; never overwrite what the owner already set.
+    if restaurant.delivery_fee is None and data.get("delivery_fee") is not None:
+        restaurant.delivery_fee = data["delivery_fee"]
+    if not restaurant.delivery_zones and data.get("delivery_zones"):
+        restaurant.delivery_zones = delivery.dump_zones(data["delivery_zones"])
+    if not restaurant.delivery_info and data.get("delivery_info"):
+        restaurant.delivery_info = data["delivery_info"]
     return len(data["items"])
 
 
@@ -111,6 +120,8 @@ async def onboarding(data: OnboardingIn, db: AsyncSession = Depends(get_db)):
     return {
         "slug": r.slug, "pin": r.pin, "name": r.name,
         "imported": count, "site_read": bool(imported),
+        "delivery_fee": r.delivery_fee, "delivery_info": r.delivery_info,
+        "delivery_zones": delivery.zones_of(r),
         "store_path": f"/tienda/{r.slug}",
     }
 
@@ -130,6 +141,8 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
         "brand_color": r.brand_color or "#25D366", "opening_hours": r.opening_hours,
         "whatsapp": settings.shared_whatsapp_number or r.owner_phone,
         "rates": {"usd": r.exchange_rate, "eur": r.eur_rate},
+        "delivery_fee": r.delivery_fee, "delivery_info": r.delivery_info,
+        "delivery_zones": delivery.zones_of(r),
         "menu": [{"id": i.id, "name": i.name, "price": i.price, "category": i.category,
                   "description": i.description, "image_url": i.image_url} for i in items],
     }
@@ -142,6 +155,10 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
         raise HTTPException(404, "Tienda no encontrada")
     if data.order_type == "delivery" and not data.address.strip():
         raise HTTPException(422, "Falta la dirección de entrega")
+    zones = delivery.zones_of(r)
+    zone = delivery.find_zone(zones, data.delivery_zone) if data.order_type == "delivery" and zones else None
+    if data.order_type == "delivery" and zones and not zone:
+        raise HTTPException(422, "Elige tu zona de delivery")
     menu = {i.id: i for i in (await db.execute(select(MenuItem).where(
         MenuItem.restaurant_id == r.id, MenuItem.available.is_(True)))).scalars().all()}
     lines = []
@@ -155,10 +172,12 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
     summary = ", ".join(f"{q}x {mi.name}" for mi, q in lines)
     db.add(Message(conversation_id=conv.id, direction="inbound",
                    body=f"🛒 Pedido desde la tienda web: {summary}"))
+    fee = delivery.fee_for(r, data.order_type, zone["name"] if zone else "")
     order = Order(restaurant_id=r.id, conversation_id=conv.id, customer_id=conv.customer_id,
-                  order_type=data.order_type, source="tienda",
+                  order_type=data.order_type, source="tienda", delivery_fee=fee,
+                  delivery_zone=zone["name"] if zone else "",
                   address=data.address.strip() if data.order_type == "delivery" else "",
-                  notes=data.notes.strip(), total=sum(mi.price * q for mi, q in lines),
+                  notes=data.notes.strip(), total=sum(mi.price * q for mi, q in lines) + fee,
                   payment_method=data.payment_method, payment_reference=data.payment_reference.strip(),
                   payment_status="submitted")
     db.add(order)

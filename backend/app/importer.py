@@ -9,6 +9,8 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from .delivery import extract_zones
+
 UA = "Mozilla/5.0 (compatible; SabiBot/0.1; +https://www.holasabi.com)"
 MAX_BYTES = 3_000_000
 MAX_SCRIPTS = 6
@@ -172,6 +174,68 @@ def _from_text(doc: str, items: dict) -> None:
         _add(items, m.group(1) or m.group(3), m.group(2) or m.group(4))
 
 
+# ---- delivery price -------------------------------------------------------------------
+
+_DELIVERY_WORDS = re.compile(r"\b(delivery|envio|envios|domicilio|despacho)\b")
+_FEE_KEY = re.compile(
+    r"[\"']?(?:delivery|envio|domicilio|shipping)[_-]?(?:fee|cost|price|costo|precio|tarifa)[\"']?\s*:\s*"
+    r"[\"'`]?\$?\s?(\d{1,3}(?:[.,]\d{1,2})?)", re.I)
+_MONEY = re.compile(r"(?:\$|usd)\s?(\d{1,3}(?:[.,]\d{1,2})?)\b|\b(\d{1,3}(?:[.,]\d{1,2})?)\s?(?:\$|usd|dolares)", re.I)
+_FREE = re.compile(r"\b(?:delivery|envio|domicilio)\s+(?:es\s+)?(?:gratis|gratuito|sin costo)\b|\bsin costo de (?:envio|delivery)\b")
+_CONDITION = re.compile(r"minimo|a partir de|desde|zona|sector|urbanizacion|gratis|hasta")
+
+
+def _plain(text: str) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
+
+
+def _visible_lines(doc: str) -> list[str]:
+    body = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", doc, flags=re.S | re.I)
+    body = re.sub(r"<br\s*/?>|</(p|li|div|h\d|tr|td|span)>", "\n", body, flags=re.I)
+    body = html.unescape(re.sub(r"<[^>]+>", " ", body))
+    return [re.sub(r"\s+", " ", ln).strip() for ln in body.splitlines() if ln.strip()]
+
+
+def extract_delivery(texts: list[str]) -> dict:
+    """Delivery cost from page text and script bundles.
+
+    Returns {"fee": float|None, "info": str}. `fee` is set only when every explicit price found
+    agrees (one flat fee). Several different prices (zones, tiers) leave `fee` None and are kept in
+    `info`, so the agent quotes them as written instead of guessing. Amounts are read as USD,
+    like the menu; lines priced in bolívares are ignored for the fee.
+    """
+    fees: list[float] = []
+    info: list[str] = []
+    free = False
+    for doc in texts:
+        for m in _FEE_KEY.finditer(doc):
+            fees.append(float(m.group(1).replace(",", ".")))
+        for line in _visible_lines(doc):
+            plain = _plain(line)
+            if len(line) > 160 or not _DELIVERY_WORDS.search(plain):
+                continue
+            if _FREE.search(plain):
+                free = True
+            if re.search(r"\bbs\b|bolivar", plain):
+                continue
+            amounts = [float((m.group(1) or m.group(2)).replace(",", ".")) for m in _MONEY.finditer(line)]
+            amounts = [a for a in amounts if 0 < a < 100]
+            if amounts or _CONDITION.search(plain):
+                if line not in info and len(info) < 6:
+                    info.append(line)
+            if amounts and not _CONDITION.search(plain.replace("delivery", "")):
+                fees.extend(amounts)
+    distinct = sorted({round(f, 2) for f in fees if 0 < f < 100})
+    fee: Optional[float] = None
+    if len(distinct) == 1:
+        fee = distinct[0]
+    elif not distinct and free:
+        fee = 0.0
+    return {"fee": fee, "info": "\n".join(info)[:600],
+            "zones": extract_zones(texts, _visible_lines)}
+
+
 async def import_site(url: str) -> Optional[dict]:
     url = normalize_url(url)
     if not url:
@@ -181,6 +245,7 @@ async def import_site(url: str) -> Optional[dict]:
         if not doc:
             return None
         items: dict = {}
+        bundles: list[str] = []
         _from_jsonld(doc, items)
         _from_objects(doc, items, url)
         _from_text(doc, items)
@@ -188,12 +253,25 @@ async def import_site(url: str) -> Optional[dict]:
             host = urlparse(url).hostname
             srcs = [urljoin(url, s) for s in re.findall(r'<script[^>]+src=["\']([^"\']+)', doc, re.I)]
             for src in [s for s in srcs if urlparse(s).hostname == host][:MAX_SCRIPTS]:
-                _from_objects(await _get(client, src), items, url)
+                bundle = await _get(client, src)
+                bundles.append(bundle)
+                _from_objects(bundle, items, url)
+        delivery = extract_delivery([doc])
+        if delivery["fee"] is None and not delivery["info"] and not delivery["zones"]:
+            if not bundles:  # the delivery price often lives in the JS bundle of single-page sites
+                host = urlparse(url).hostname
+                srcs = [urljoin(url, s) for s in re.findall(r'<script[^>]+src=["\']([^"\']+)', doc, re.I)]
+                for src in [s for s in srcs if urlparse(s).hostname == host][:MAX_SCRIPTS]:
+                    bundles.append(await _get(client, src))
+            delivery = extract_delivery(bundles) if bundles else delivery
     return {
         "name": _title(doc),
         "tagline": _meta(doc, "og:description", "description")[:200],
         "logo_url": _logo(doc, url),
         "brand_color": _meta(doc, "theme-color"),
         "items": list(items.values()),
+        "delivery_fee": delivery["fee"],
+        "delivery_info": delivery["info"],
+        "delivery_zones": delivery["zones"],
         "website": url,
     }

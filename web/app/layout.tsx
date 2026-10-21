@@ -5,11 +5,15 @@ import Nav from "../components/Nav";
 const outfit = Outfit({ subsets: ["latin"], display: "swap" });
 
 export const metadata = {
-  title: "Sabi · Agente de ventas por WhatsApp para restaurantes",
-  description: "Sabi recomienda, sube el ticket y cierra pedidos por WhatsApp las 24 horas. Tú apruebas cada uno. Precios en dólares, euros y bolívares.",
+  metadataBase: new URL("https://www.holasabi.com"),
+  title: "Sabi · Agente de ventas por WhatsApp para restaurantes y eventos",
+  description: "Sabi atiende por WhatsApp las 24 horas: recomienda, cierra pedidos de restaurantes y te lleva al enlace oficial para comprar entradas. Tú apruebas cada pedido. Precios en dólares, euros y bolívares.",
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Sabi · Tu mejor vendedor en WhatsApp",
-    description: "Pedidos por WhatsApp con IA, aprobados por ti. Dólares, euros y bolívares.",
+    description: "Pedidos y entradas por WhatsApp con IA, aprobados por ti. Dólares, euros y bolívares.",
+    url: "/",
+    siteName: "Sabi",
     locale: "es_VE",
     type: "website",
   },

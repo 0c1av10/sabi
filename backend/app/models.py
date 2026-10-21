@@ -42,6 +42,12 @@ class Restaurant(Base):
     tagline: Mapped[str] = mapped_column(Text, default="")
     logo_url: Mapped[str] = mapped_column(String(500), default="")
     brand_color: Mapped[str] = mapped_column(String(20), default="")
+    # Delivery cost in USD (like menu prices). None = unknown: the agent says the local confirms it.
+    delivery_fee: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Conditions as written on the restaurant's site or edited by the owner (zones, free-above...).
+    delivery_info: Mapped[str] = mapped_column(Text, default="")
+    # Delivery priced by zone: JSON [{"name": "Lechería", "fee": 2.0}]. See delivery.py.
+    delivery_zones: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     menu_items: Mapped[list["MenuItem"]] = relationship(back_populates="restaurant")
@@ -133,7 +139,9 @@ class Order(Base):
     source: Mapped[str] = mapped_column(String(20), default="whatsapp")  # whatsapp | tienda
     address: Mapped[str] = mapped_column(String(300), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
-    total: Mapped[float] = mapped_column(Float, default=0.0)
+    total: Mapped[float] = mapped_column(Float, default=0.0)  # items + delivery_fee
+    delivery_fee: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
+    delivery_zone: Mapped[str] = mapped_column(String(100), default="")
     rejection_reason: Mapped[str] = mapped_column(Text, default="")
     edit_summary: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

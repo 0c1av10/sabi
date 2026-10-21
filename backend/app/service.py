@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from .bcv import refresh_rates
 from .config import settings
-from .agent import fmt_money, rates_of, run_agent, summarize_order
+from .agent import delivery_fee_for, fmt_money, rates_of, run_agent, summarize_order
 from .models import (Conversation, Customer, MenuItem, Message, Order,
                      OrderItem, OrderStatus, PaymentStatus, Restaurant, utcnow)
 from .whatsapp import send_whatsapp_message
@@ -100,7 +100,8 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
                                conv: Conversation, draft: dict) -> Order:
     items_by_name = {i.name.lower(): i for i in (await db.execute(select(MenuItem).where(
         MenuItem.restaurant_id == restaurant.id))).scalars().all()}
-    _, total = summarize_order(draft, items_by_name, rates_of(restaurant))
+    fee = delivery_fee_for(restaurant, draft)
+    _, total = summarize_order(draft, items_by_name, rates_of(restaurant), fee)
 
     order = Order(
         restaurant_id=restaurant.id,
@@ -110,6 +111,8 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
         address=draft.get("address") or "",
         notes=draft.get("notes") or "",
         total=total,
+        delivery_fee=fee,
+        delivery_zone=draft.get("delivery_zone") or "",
         payment_method=draft.get("payment_method") or "",
         payment_reference=draft.get("payment_reference") or "",
         payment_status=PaymentStatus.submitted if draft.get("payment_method") else PaymentStatus.pending,
@@ -131,7 +134,7 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
             notes=oi.get("notes", ""),
         ))
         db.add(new_items[-1])
-    order.total = sum(i.unit_price * i.quantity for i in new_items)
+    order.total = sum(i.unit_price * i.quantity for i in new_items) + fee
     conv.status = "closed"
     await db.flush()
     return order

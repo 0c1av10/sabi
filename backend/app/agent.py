@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from . import delivery
 from .config import settings
 from .models import Conversation, MenuItem, Restaurant
 
@@ -47,7 +48,16 @@ def menu_text(items: list[MenuItem], rates: tuple[float, float]) -> str:
     return "\n".join(lines)
 
 
-def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float]) -> tuple[str, float]:
+def delivery_context(restaurant: Restaurant, rates: tuple[float, float]) -> str:
+    return delivery.describe(restaurant, lambda v: fmt_money(v, *rates))
+
+
+def delivery_fee_for(restaurant: Restaurant, order: dict) -> float:
+    return delivery.fee_for(restaurant, order.get("order_type"), order.get("delivery_zone") or "")
+
+
+def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float],
+                    delivery_fee: float = 0.0) -> tuple[str, float]:
     total = 0.0
     lines = []
     for oi in order.get("items", []):
@@ -58,10 +68,15 @@ def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tupl
         total += mi.price * qty
         extra = f" ({oi['extras']})" if oi.get("extras") else ""
         lines.append(f"• {qty} x {mi.name}{extra} — {fmt_money(mi.price * qty, *rates)}")
-    tipo = "Delivery" + (f" a {order.get('address','')}" if order.get("address") else "") \
+    zone = f" ({order['delivery_zone']})" if order.get("delivery_zone") else ""
+    tipo = "Delivery" + zone + (f" a {order.get('address','')}" if order.get("address") else "") \
         if order.get("order_type") == "delivery" else "Retiro en local"
     notes = f"\nNotas: {order['notes']}" if order.get("notes") else ""
-    return "\n".join(lines) + f"\n{tipo}{notes}\nTotal: {fmt_money(total, *rates)}", total
+    fee_line = ""
+    if delivery_fee and order.get("order_type") == "delivery":
+        total += delivery_fee
+        fee_line = f"\n• Delivery{zone} — {fmt_money(delivery_fee, *rates)}"
+    return "\n".join(lines) + fee_line + f"\n{tipo}{notes}\nTotal: {fmt_money(total, *rates)}", total
 
 
 def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dict | None, list[str]]:
@@ -90,6 +105,7 @@ def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dic
         "items": items,
         "order_type": order_type if order_type in ("delivery", "retiro") else None,
         "address": str(order.get("address") or "")[:300],
+        "delivery_zone": str(order.get("delivery_zone") or "")[:100],
         "notes": str(order.get("notes") or "")[:500],
         "payment_method": str(order.get("payment_method") or "")[:40],
         "payment_reference": str(order.get("payment_reference") or "")[:160],
@@ -109,6 +125,7 @@ Reglas:
 - Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
 - Mantén los precios compactos en una sola línea: "$X · Bs Y".
 - Si el cliente pide algo fuera del menú o no sabes algo, dilo y ofrece pasar la conversación al dueño (action=handoff).
+- Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
 - Si el cliente valida el resumen (sí, ok, confirmo), action=submit_order.
@@ -141,6 +158,7 @@ RESPONDER_TOOL = {
                     }},
                     "order_type": {"type": ["string", "null"], "enum": ["delivery", "retiro", None]},
                     "address": {"type": "string"},
+                    "delivery_zone": {"type": "string", "description": "Zona de delivery elegida, nombre exacto de las zonas del contexto; vacío si no hay."},
                     "notes": {"type": "string"},
                     "payment_method": {"type": "string"},
                     "payment_reference": {"type": "string"},
@@ -191,6 +209,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     sold_out = [i.name for i in items if not i.available]
     context = (
         f"\nRestaurante: {restaurant.name}\nHorarios: {restaurant.opening_hours}\n"
+        f"{delivery_context(restaurant, rates)}\n"
         f"Menú disponible hoy:\n{menu_text(items, rates)}\n"
         f"Agotado hoy: {', '.join(sold_out) or 'nada'}\n"
         f"Pedido en curso: {json.dumps(state.get('draft'), ensure_ascii=False)}\n"
@@ -230,10 +249,16 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     order, rejected = clean_order(data.get("order"), available)
     if order is None:
         order = state.get("draft")
+    zones = delivery.zones_of(restaurant)
+    if order is not None and zones:
+        chosen = delivery.find_zone(zones, order.get("delivery_zone") or "") \
+            or delivery.find_zone(zones, order.get("address") or "")
+        order["delivery_zone"] = chosen["name"] if chosen else ""
 
     if action in ("ask_confirm", "submit_order"):
         complete = bool(order and order["items"] and order["order_type"]
-                        and (order["order_type"] != "delivery" or order["address"]))
+                        and (order["order_type"] != "delivery"
+                             or (order["address"] and (not zones or order.get("delivery_zone")))))
         if rejected or not complete:
             action = "continue"
             if rejected:
@@ -247,7 +272,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
             else:
                 reply = "¡Perfecto! Tu pedido fue enviado al restaurante. El comercio verificará el pago y lo aprobará; te confirmo enseguida. 🙌"
         else:
-            summary, _ = summarize_order(order, available, rates)
+            summary, _ = summarize_order(order, available, rates, delivery_fee_for(restaurant, order))
             reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
 
     new_state = {**state, "draft": order}
@@ -293,7 +318,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                    conversation: Conversation, incoming: str) -> AgentResult:
     state = json.loads(conversation.state_json or "{}")
     draft = state.get("draft") or {
-        "items": [], "order_type": None, "address": "", "notes": "",
+        "items": [], "order_type": None, "address": "", "delivery_zone": "", "notes": "",
         "payment_method": "", "payment_reference": "",
     }
     text = incoming.lower()
@@ -395,6 +420,11 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     m = re.search(r"(?:direcci[oó]n|dir(?:ección)?|calle|av(?:enida)?\.?)\s*[:\-]?\s*(.+)", text)
     if draft["order_type"] == "delivery" and m:
         draft["address"] = m.group(1).strip()
+    zones = delivery.zones_of(restaurant)
+    if draft["order_type"] == "delivery" and zones:
+        picked = delivery.find_zone(zones, text) or delivery.find_zone(zones, draft.get("address") or "")
+        if picked:
+            draft["delivery_zone"] = picked["name"]
 
     new_items = requested
     for ni in new_items:
@@ -411,6 +441,9 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         missing = []
         if not draft.get("order_type"):
             missing.append("¿Delivery o retiro en el local?")
+        elif draft["order_type"] == "delivery" and zones and not draft.get("delivery_zone"):
+            listing = ", ".join(f"{z['name']} +{fmt_money(z['fee'], *rates)}" for z in zones)
+            missing.append(f"¿En qué zona estás? Delivery: {listing}.")
         elif draft["order_type"] == "delivery" and not draft.get("address"):
             missing.append("¿A qué dirección lo enviamos?")
         upsell = ""
@@ -427,7 +460,8 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         if upsell:
             return AgentResult(reply=f"Anoté: {got}.{upsell} ¿O lo dejamos así?",
                                state={**state, "draft": draft})
-        summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, rates_of(restaurant))
+        summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, rates_of(restaurant),
+                                     delivery_fee_for(restaurant, draft))
         return AgentResult(
             reply=f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante.",
             action="ask_confirm", order=draft, state={**state, "stage": "confirming", "draft": draft})
