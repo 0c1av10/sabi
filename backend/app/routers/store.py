@@ -142,6 +142,7 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
         "whatsapp": settings.shared_whatsapp_number or r.owner_phone,
         "rates": {"usd": r.exchange_rate, "eur": r.eur_rate},
         "delivery_fee": r.delivery_fee, "delivery_info": r.delivery_info,
+        "delivery_zones": delivery.zones_of(r),
         "menu": [{"id": i.id, "name": i.name, "price": i.price, "category": i.category,
                   "description": i.description, "image_url": i.image_url} for i in items],
     }
