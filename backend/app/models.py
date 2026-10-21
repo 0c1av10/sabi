@@ -46,6 +46,8 @@ class Restaurant(Base):
     delivery_fee: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Conditions as written on the restaurant's site or edited by the owner (zones, free-above...).
     delivery_info: Mapped[str] = mapped_column(Text, default="")
+    # Delivery priced by zone: JSON [{"name": "Lechería", "fee": 2.0}]. See delivery.py.
+    delivery_zones: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     menu_items: Mapped[list["MenuItem"]] = relationship(back_populates="restaurant")
@@ -139,6 +141,7 @@ class Order(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     total: Mapped[float] = mapped_column(Float, default=0.0)  # items + delivery_fee
     delivery_fee: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
+    delivery_zone: Mapped[str] = mapped_column(String(100), default="")
     rejection_reason: Mapped[str] = mapped_column(Text, default="")
     edit_summary: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

@@ -9,6 +9,8 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from .delivery import extract_zones
+
 UA = "Mozilla/5.0 (compatible; SabiBot/0.1; +https://www.holasabi.com)"
 MAX_BYTES = 3_000_000
 MAX_SCRIPTS = 6
@@ -230,7 +232,8 @@ def extract_delivery(texts: list[str]) -> dict:
         fee = distinct[0]
     elif not distinct and free:
         fee = 0.0
-    return {"fee": fee, "info": "\n".join(info)[:600]}
+    return {"fee": fee, "info": "\n".join(info)[:600],
+            "zones": extract_zones(texts, _visible_lines)}
 
 
 async def import_site(url: str) -> Optional[dict]:
@@ -254,7 +257,7 @@ async def import_site(url: str) -> Optional[dict]:
                 bundles.append(bundle)
                 _from_objects(bundle, items, url)
         delivery = extract_delivery([doc])
-        if delivery["fee"] is None and not delivery["info"]:
+        if delivery["fee"] is None and not delivery["info"] and not delivery["zones"]:
             if not bundles:  # the delivery price often lives in the JS bundle of single-page sites
                 host = urlparse(url).hostname
                 srcs = [urljoin(url, s) for s in re.findall(r'<script[^>]+src=["\']([^"\']+)', doc, re.I)]
@@ -269,5 +272,6 @@ async def import_site(url: str) -> Optional[dict]:
         "items": list(items.values()),
         "delivery_fee": delivery["fee"],
         "delivery_info": delivery["info"],
+        "delivery_zones": delivery["zones"],
         "website": url,
     }

@@ -41,6 +41,7 @@ async def seed() -> bool:
             tagline="Pollo asado a la brasa, cachapas, parrillas, arepas y desayunos criollos en Lechería",
             email="hola@nacionalrestaurant.com",
             website="https://nacionalrestaurant.com/",
+            delivery_zones='[{"name": "Lechería", "fee": 2.0}, {"name": "Barcelona", "fee": 3.0}, {"name": "Puerto La Cruz", "fee": 4.0}]',
             logo_url="https://nacionalrestaurant.com/favicon.svg",
             brand_color="#1A1714",
         )

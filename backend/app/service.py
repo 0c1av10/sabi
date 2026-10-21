@@ -100,7 +100,7 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
                                conv: Conversation, draft: dict) -> Order:
     items_by_name = {i.name.lower(): i for i in (await db.execute(select(MenuItem).where(
         MenuItem.restaurant_id == restaurant.id))).scalars().all()}
-    fee = delivery_fee_for(draft, restaurant.delivery_fee)
+    fee = delivery_fee_for(restaurant, draft)
     _, total = summarize_order(draft, items_by_name, rates_of(restaurant), fee)
 
     order = Order(
@@ -112,6 +112,7 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
         notes=draft.get("notes") or "",
         total=total,
         delivery_fee=fee,
+        delivery_zone=draft.get("delivery_zone") or "",
         payment_method=draft.get("payment_method") or "",
         payment_reference=draft.get("payment_reference") or "",
         payment_status=PaymentStatus.submitted if draft.get("payment_method") else PaymentStatus.pending,

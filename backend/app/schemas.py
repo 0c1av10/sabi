@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class LoginIn(BaseModel):
@@ -25,6 +25,11 @@ class MenuItemOut(MenuItemIn):
         from_attributes = True
 
 
+class DeliveryZone(BaseModel):
+    name: str
+    fee: float
+
+
 class RestaurantSettingsIn(BaseModel):
     welcome_message: Optional[str] = None
     opening_hours: Optional[str] = None
@@ -41,6 +46,7 @@ class RestaurantSettingsIn(BaseModel):
     delivery_fee: Optional[float] = None
     delivery_info: Optional[str] = None
     clear_delivery_fee: Optional[bool] = None  # true = fee unknown again
+    delivery_zones: Optional[list[DeliveryZone]] = None  # replaces the list; [] removes zones
 
 
 class RestaurantOut(BaseModel):
@@ -63,6 +69,13 @@ class RestaurantOut(BaseModel):
     brand_color: Optional[str] = None
     delivery_fee: Optional[float] = None
     delivery_info: Optional[str] = None
+    delivery_zones: list[DeliveryZone] = []
+
+    @field_validator("delivery_zones", mode="before")
+    @classmethod
+    def _zones(cls, v):
+        from .delivery import load_zones
+        return load_zones(v) if isinstance(v, str) or v is None else v
 
     class Config:
         from_attributes = True
@@ -95,6 +108,7 @@ class OrderOut(BaseModel):
     notes: str
     total: float
     delivery_fee: Optional[float] = 0.0
+    delivery_zone: Optional[str] = ""
     rejection_reason: str
     edit_summary: str
     created_at: datetime

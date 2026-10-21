@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from .. import delivery
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,6 +64,11 @@ async def update_settings(data: RestaurantSettingsIn,
         v = getattr(data, f)
         if v is not None:
             setattr(restaurant, f, v)
+    if data.delivery_zones is not None:
+        zones = delivery.clean_zones([z.model_dump() for z in data.delivery_zones])
+        if len(zones) != len(data.delivery_zones):
+            raise HTTPException(422, "Revisa las zonas: nombre sin repetir y costo entre 0 y 99 dólares")
+        restaurant.delivery_zones = delivery.dump_zones(zones) if zones else ""
     if data.clear_delivery_fee:
         restaurant.delivery_fee = None
     elif data.delivery_fee is not None:
@@ -134,7 +140,7 @@ def order_out(order: Order, customer: Customer | None) -> OrderOut:
         payment_method=order.payment_method,
         payment_reference=order.payment_reference,
         order_type=order.order_type,
-        address=order.address, notes=order.notes, total=order.total, delivery_fee=order.delivery_fee or 0.0,
+        address=order.address, notes=order.notes, total=order.total, delivery_fee=order.delivery_fee or 0.0, delivery_zone=order.delivery_zone or "",
         rejection_reason=order.rejection_reason, edit_summary=order.edit_summary,
         created_at=order.created_at, decided_at=order.decided_at,
         customer_phone=customer.phone if customer else "",
@@ -206,7 +212,7 @@ async def edit(order_id: int, data: OrderEditIn,
             setattr(order, f, v)
     type_changed = order.order_type != previous_type
     if type_changed:  # the delivery fee follows the order type
-        order.delivery_fee = (restaurant.delivery_fee or 0.0) if order.order_type == "delivery" else 0.0
+        order.delivery_fee = delivery.fee_for(restaurant, order.order_type, order.delivery_zone or "")
         await db.refresh(order, ["items"])
         order.total = sum(i.unit_price * i.quantity for i in order.items) + (order.delivery_fee or 0.0)
     if data.items is not None:
