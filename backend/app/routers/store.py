@@ -81,6 +81,11 @@ async def _apply_import(db: AsyncSession, restaurant: Restaurant, data: dict) ->
     restaurant.logo_url = restaurant.logo_url or data["logo_url"]
     restaurant.brand_color = restaurant.brand_color or _color(data["brand_color"])
     restaurant.tagline = restaurant.tagline or data["tagline"]
+    # Delivery price read from the site; never overwrite what the owner already set.
+    if restaurant.delivery_fee is None and data.get("delivery_fee") is not None:
+        restaurant.delivery_fee = data["delivery_fee"]
+    if not restaurant.delivery_info and data.get("delivery_info"):
+        restaurant.delivery_info = data["delivery_info"]
     return len(data["items"])
 
 
@@ -111,6 +116,7 @@ async def onboarding(data: OnboardingIn, db: AsyncSession = Depends(get_db)):
     return {
         "slug": r.slug, "pin": r.pin, "name": r.name,
         "imported": count, "site_read": bool(imported),
+        "delivery_fee": r.delivery_fee, "delivery_info": r.delivery_info,
         "store_path": f"/tienda/{r.slug}",
     }
 
@@ -130,6 +136,7 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
         "brand_color": r.brand_color or "#25D366", "opening_hours": r.opening_hours,
         "whatsapp": settings.shared_whatsapp_number or r.owner_phone,
         "rates": {"usd": r.exchange_rate, "eur": r.eur_rate},
+        "delivery_fee": r.delivery_fee, "delivery_info": r.delivery_info,
         "menu": [{"id": i.id, "name": i.name, "price": i.price, "category": i.category,
                   "description": i.description, "image_url": i.image_url} for i in items],
     }
@@ -155,10 +162,11 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
     summary = ", ".join(f"{q}x {mi.name}" for mi, q in lines)
     db.add(Message(conversation_id=conv.id, direction="inbound",
                    body=f"🛒 Pedido desde la tienda web: {summary}"))
+    fee = (r.delivery_fee or 0.0) if data.order_type == "delivery" else 0.0
     order = Order(restaurant_id=r.id, conversation_id=conv.id, customer_id=conv.customer_id,
-                  order_type=data.order_type, source="tienda",
+                  order_type=data.order_type, source="tienda", delivery_fee=fee,
                   address=data.address.strip() if data.order_type == "delivery" else "",
-                  notes=data.notes.strip(), total=sum(mi.price * q for mi, q in lines),
+                  notes=data.notes.strip(), total=sum(mi.price * q for mi, q in lines) + fee,
                   payment_method=data.payment_method, payment_reference=data.payment_reference.strip(),
                   payment_status="submitted")
     db.add(order)

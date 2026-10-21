@@ -8,6 +8,7 @@ type Item = { id: number; name: string; price: number; category: string; descrip
 type Store = {
   name: string; slug: string; tagline: string; logo_url: string; brand_color: string;
   opening_hours: string; whatsapp: string; rates: Rates; menu: Item[];
+  delivery_fee: number | null; delivery_info: string;
 };
 
 const input = "w-full rounded-xl border border-stone-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-stone-400";
@@ -47,7 +48,10 @@ export default function Tienda({ params }: { params: { slug: string } }) {
   const R = store.rates;
   const lines = store.menu.filter((i) => cart[i.id]).map((i) => ({ ...i, qty: cart[i.id] }));
   const count = lines.reduce((s, l) => s + l.qty, 0);
-  const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  const isDelivery = form.order_type === "delivery";
+  const fee = isDelivery ? (store.delivery_fee ?? 0) : 0;
+  const total = subtotal + fee;
   const add = (id: number, d: number) =>
     setCart((c) => { const n = { ...c, [id]: Math.max(0, (c[id] || 0) + d) }; if (!n[id]) delete n[id]; return n; });
 
@@ -127,6 +131,16 @@ export default function Tienda({ params }: { params: { slug: string } }) {
             </form>
           )}
           <div className="border-t border-stone-100 p-5">
+            {isDelivery && checkout && (
+              <div className="mb-3 space-y-1 text-sm text-stone-500">
+                <div className="flex justify-between tabular-nums"><span>Pedido</span><span>{usd(subtotal)}</span></div>
+                <div className="flex justify-between tabular-nums">
+                  <span>Delivery</span>
+                  <span>{store.delivery_fee === null ? "Lo confirma el local" : store.delivery_fee === 0 ? "Gratis" : usd(store.delivery_fee)}</span>
+                </div>
+                {store.delivery_info && <p className="whitespace-pre-line text-xs text-stone-400">{store.delivery_info}</p>}
+              </div>
+            )}
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-stone-500">Total</span>
               <span className="text-xl font-semibold tabular-nums">{usd(total)}</span>

@@ -7,7 +7,7 @@ import { bs, eur, usd, type Rates } from "../../../lib/money";
 type OrderItem = { id: number; name: string; quantity: number; unit_price: number; extras: string; notes: string };
 type Order = {
   id: number; status: string; order_type: string; address: string; notes: string;
-  total: number; source?: string; customer_phone: string; customer_name: string; created_at: string;
+  total: number; delivery_fee?: number; source?: string; customer_phone: string; customer_name: string; created_at: string;
   payment_status: string; payment_method: string; payment_reference: string;
   items: OrderItem[];
 };
@@ -61,7 +61,8 @@ export default function Pedidos() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-semibold">Pedido #{o.id} — {usd(o.total)}
-                  <span className="ml-2 font-normal text-stone-500">{eur(o.total, rate)} · {bs(o.total, rate)}</span></p>
+                  <span className="ml-2 font-normal text-stone-500">{eur(o.total, rate)} · {bs(o.total, rate)}</span>
+                  {!!o.delivery_fee && <span className="ml-2 text-xs font-normal text-stone-500">incluye delivery {usd(o.delivery_fee)}</span>}</p>
                 <p className="text-sm text-stone-500">
                   {o.source === "tienda" ? "Tienda web · " : "WhatsApp · "}{o.customer_name || o.customer_phone} · {o.order_type}
                   {o.address ? ` · ${o.address}` : ""}

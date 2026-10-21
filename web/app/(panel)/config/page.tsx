@@ -5,7 +5,7 @@ import { api } from "../../../lib/api";
 type Rates = { exchange_rate: number; eur_rate: number; bcv_auto?: boolean | null; rates_date?: string | null };
 
 export default function Config() {
-  const [form, setForm] = useState({ welcome_message: "", opening_hours: "", owner_phone: "", name: "", exchange_rate: "", eur_rate: "" });
+  const [form, setForm] = useState({ welcome_message: "", opening_hours: "", owner_phone: "", name: "", exchange_rate: "", eur_rate: "", delivery_fee: "", delivery_info: "" });
   const [auto, setAuto] = useState(true);
   const [ratesDate, setRatesDate] = useState("");
   const [saved, setSaved] = useState(false);
@@ -23,6 +23,8 @@ export default function Config() {
       setForm({
         welcome_message: r.welcome_message, opening_hours: r.opening_hours,
         owner_phone: r.owner_phone, name: r.name, exchange_rate: String(r.exchange_rate), eur_rate: String(r.eur_rate),
+        delivery_fee: r.delivery_fee === null || r.delivery_fee === undefined ? "" : String(r.delivery_fee),
+        delivery_info: r.delivery_info || "",
       });
       applyRates(r);
     }).catch(() => {});
@@ -31,8 +33,16 @@ export default function Config() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const feeText = form.delivery_fee.trim().replace(",", ".");
+    const fee = feeText === "" ? null : parseFloat(feeText);
+    if (fee !== null && (Number.isNaN(fee) || fee < 0 || fee > 99)) {
+      setError("El delivery debe ser un monto en dólares entre 0 y 99.");
+      return;
+    }
     const r = await api("/settings", { method: "PUT", body: JSON.stringify({
       ...form,
+      delivery_fee: fee === null ? undefined : fee,
+      clear_delivery_fee: fee === null,
       bcv_auto: auto,
       exchange_rate: parseFloat(form.exchange_rate.replace(",", ".")) || undefined,
       eur_rate: parseFloat(form.eur_rate.replace(",", ".")) || undefined,
@@ -74,6 +84,12 @@ export default function Config() {
         {field("name", "Nombre del restaurante")}
         {field("welcome_message", "Mensaje de bienvenida", true)}
         {field("opening_hours", "Horarios")}
+        <fieldset className="space-y-3 rounded-lg border p-3">
+          <legend className="px-1 text-sm font-medium">Delivery</legend>
+          {field("delivery_fee", "Costo de delivery en dólares (0 = gratis, vacío = lo confirma el local)")}
+          {field("delivery_info", "Zonas y condiciones (se muestran al cliente)", true)}
+          <p className="text-xs text-stone-500">Se lee de tu página web al crear la tienda. Revísalo y corrígelo si hace falta.</p>
+        </fieldset>
         <fieldset className="space-y-3 rounded-lg border p-3">
           <label className="flex items-center gap-2 text-sm font-medium">
             <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />

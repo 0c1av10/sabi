@@ -38,6 +38,9 @@ class RestaurantSettingsIn(BaseModel):
     tagline: Optional[str] = None
     logo_url: Optional[str] = None
     brand_color: Optional[str] = None
+    delivery_fee: Optional[float] = None
+    delivery_info: Optional[str] = None
+    clear_delivery_fee: Optional[bool] = None  # true = fee unknown again
 
 
 class RestaurantOut(BaseModel):
@@ -58,6 +61,8 @@ class RestaurantOut(BaseModel):
     tagline: Optional[str] = None
     logo_url: Optional[str] = None
     brand_color: Optional[str] = None
+    delivery_fee: Optional[float] = None
+    delivery_info: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -89,6 +94,7 @@ class OrderOut(BaseModel):
     address: str
     notes: str
     total: float
+    delivery_fee: Optional[float] = 0.0
     rejection_reason: str
     edit_summary: str
     created_at: datetime
