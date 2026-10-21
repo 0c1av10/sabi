@@ -13,7 +13,7 @@ type Msg = { id: number; role: "user" | "assistant"; text: string; blocks?: Bloc
 
 const SESSION_KEY = "sabi_events_session";
 const GREETING =
-  "¡Hola! Soy Sabi, el asistente de eventos de FC Producciones. Te ayudo a encontrar un evento, ver zonas y " +
+  "Soy Sabi 👋, el asistente de eventos de FC Producciones. Te ayudo a encontrar un evento, ver zonas y " +
   "precios de referencia y llegar al enlace oficial para comprar. Por ejemplo: \"Busco un concierto en Caracas\".";
 const SUGGESTIONS = ["Busco un concierto en Caracas", "¿Qué eventos hay en Valencia?", "Busco un evento en Maracaibo"];
 

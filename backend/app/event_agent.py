@@ -281,7 +281,7 @@ async def run_demo_agent(db: AsyncSession, tools: EventTools, session: EventSess
                     "Dime cuál te llama la atención y te muestro zonas y precios.",
                     shown=[e["id"] for e in res["eventos"]], event_id=None)
 
-    return done("¡Hola! Soy Sabi, el asistente de eventos de FC Producciones (demo). Te ayudo a encontrar un "
+    return done("Soy Sabi 👋, el asistente de eventos de FC Producciones (demo). Te ayudo a encontrar un "
                 "evento, ver zonas y precios de referencia y llegar al enlace oficial para comprar. "
                 "Por ejemplo: \"Busco un concierto en Caracas\".")
 
