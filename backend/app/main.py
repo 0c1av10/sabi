@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_db
-from .routers import panel, store, webhook
+from .routers import events, events_admin, panel, store, webhook
 
 
 _ready = False
@@ -20,6 +20,11 @@ async def ensure_ready() -> None:
         from scripts.seed import seed, seed_demo_conversations
         await seed()
         await seed_demo_conversations()
+    if settings.events_demo_seed:
+        from .db import SessionLocal
+        from .event_seed import seed_demo_events
+        async with SessionLocal() as session:
+            await seed_demo_events(session)  # no-op unless the events catalog is empty
     _ready = True
 
 
@@ -48,6 +53,8 @@ async def init_on_first_request(request: Request, call_next):
 app.include_router(webhook.router)
 app.include_router(panel.router)
 app.include_router(store.router)
+app.include_router(events.router)
+app.include_router(events_admin.router)
 
 
 @app.get("/health")

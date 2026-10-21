@@ -111,3 +111,82 @@ Los precios del menú se cargan en dólares. El dueño fija las tasas del día (
 ## Supabase (Postgres)
 
 Con `DATABASE_URL` apuntando a Supabase, el backend crea las tablas al arrancar, usa `NullPool` y desactiva el caché de prepared statements de asyncpg (compatible con el pooler en modo session o transaction) y activa RLS en todas las tablas de `public`. Sin políticas, los roles `anon`/`authenticated` de la Data API no ven nada; el backend se conecta como dueño de las tablas. Con `DEMO_AUTOSEED=true` solo se crea "NACIONAL Restaurante" si no existe: los datos ya no se borran.
+
+## Asistente de eventos (demo FC Producciones)
+
+Demostración **independiente** para presentar la propuesta: Sabi conversa, recomienda eventos de un catálogo local, muestra zonas y precios de referencia, calcula un subtotal orientativo y entrega el **enlace oficial** de TuEntradaWeb. **No** es una integración oficial ni una alianza aprobada, y Sabi **no compra por el usuario**: el pago ocurre en la plataforma externa.
+
+- Chat: `/eventos` (mobile-first, con distintivo "Demo").
+- Panel: `/eventos/admin` (catálogo, conversaciones, clics, pagos reportados, métricas, CSV).
+- API: `backend/app/routers/events.py` (público) y `events_admin.py` (admin).
+
+### Reglas del flujo
+
+| Estado | Qué significa | Quién lo produce |
+|---|---|---|
+| Interés registrado | El usuario preguntó por un evento/zona | Sabi (herramienta) |
+| Selección preparada | Zona + cantidad + subtotal orientativo. **No es reserva** | Backend |
+| Clic en enlace | Se abrió el enlace oficial. **No implica checkout ni compra** | Ruta `/api/events/go/{id}` |
+| Pago reportado | El usuario dijo "ya pagué". **No confirma nada** | Sabi (herramienta) |
+| Compra confirmada | Verificación humana con referencia, importe, moneda, nota, admin y fecha | **Solo un admin autenticado** |
+
+Atribución: se muestra como *manual* y solo existe si hay una compra confirmada vinculada a la conversación. Sin confirmaciones, los ingresos muestran "Sin datos".
+
+### Correr en local (sin credenciales externas)
+
+```bash
+cd backend
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+EVENTS_ADMIN_EMAILS=tu@correo.com EVENTS_ADMIN_PASSWORD=una-clave-larga uvicorn app.main:app --reload
+# otra terminal
+cd web && npm install && npm run dev     # http://localhost:3000/eventos
+```
+
+Sin `ANTHROPIC_API_KEY` (o con `AGENT_MOCK_MODE=true`) el agente usa el **motor de demostración determinista**, con el mismo contrato de herramientas que el motor real y sin llamadas externas. Con la key, usa Claude con *tool calling* (máx. `EVENTS_MAX_TOOL_CALLS` por turno, timeout `EVENTS_AGENT_TIMEOUT_SECONDS`) y, si falla, cae al motor de demostración.
+
+Con `EVENTS_DEMO_SEED=true` se crean tres eventos ficticios (Caracas, Valencia, Maracaibo) solo si el catálogo está vacío. Tienen `is_demo=true`: **la compra externa está desactivada** ("Configura un enlace oficial para habilitar la compra"). Uno de ellos tiene datos sin verificar a propósito, para ver los avisos. Con SQLite local los datos viven en `backend/sabi.db`; en Vercel sin `DATABASE_URL` de Postgres no hay persistencia real entre despliegues.
+
+### Habilitar la compra con un enlace oficial
+
+1. Entra a `/eventos/admin` con un correo de `EVENTS_ADMIN_EMAILS` y la clave `EVENTS_ADMIN_PASSWORD`.
+2. Crea un evento (o edita uno) **sin** marcar "datos de demostración", estado `publicado`, y pega el enlace https que TuEntradaWeb te haya confirmado. Sabi no construye URLs de checkout ni parámetros de selección.
+3. Agrega zonas con precio de referencia y marca "acabo de verificar" cuando lo hayas comprobado en la plataforma.
+4. El botón del chat apunta a `/api/events/go/{evento}`, que resuelve el destino **desde el catálogo** (nunca desde la petición), registra el clic y redirige. Si defines `EVENTS_ALLOWED_PURCHASE_HOSTS`, solo se aceptan esos dominios.
+
+### Seguridad (resumen)
+
+- Cada herramienta valida con Pydantic estricto (`extra=forbid`, enteros estrictos) y se autoriza en el servidor; `conversation_id` lo inyecta el servidor, el modelo no lo controla. Precios y subtotales salen de la base de datos en **centavos enteros**; no se suman ni convierten monedas.
+- Textos de eventos y mensajes se tratan como datos; el *system prompt* no cambia por pedido del usuario; se corrigen respuestas que afirmen reserva/pago.
+- Límite de mensajes por conversación y global, límite de intentos de login (persistido en BD), cookie `HttpOnly`/`SameSite=Lax`/`Secure`, CSV con neutralización de fórmulas.
+- Supabase: RLS activo con política de denegación para `anon`/`authenticated`; el backend es el único con acceso. La *service role* nunca llega al frontend.
+- **Límite conocido:** la autenticación del panel es una lista de correos + contraseña compartida por variable de entorno (no Supabase Auth ni contraseñas individuales). Es suficiente para la demo; para producción conviene migrar a cuentas individuales.
+
+### Pruebas
+
+```bash
+cd backend && pytest
+```
+
+Cubren: búsqueda por ciudad/fechas, evento inexistente, cantidades inválidas (negativas, decimales, fuera de límite), zona ajena, importes, datos desactualizados, zona agotada, clic sin venta, "ya pagué" como pago reportado, confirmación solo por admin, redirecciones abiertas y demo sin claves. Migración SQL y RLS: `supabase/migrations/20261021000000_events.sql` (la app también crea las tablas al arrancar).
+
+### Integraciones
+
+| | Estado |
+|---|---|
+| Chat web, catálogo, herramientas, panel, CSV | **Real** (código propio) |
+| Motor Claude con *tool calling* | **Real**, requiere `ANTHROPIC_API_KEY` (no probado sin la key) |
+| Catálogo de eventos de FC Producciones | **Simulado** (eventos ficticios) |
+| Disponibilidad y precios de TuEntradaWeb | **Pendiente**: se cargan y verifican a mano en el panel |
+| API / webhooks / checkout preseleccionado de TuEntradaWeb | **Pendiente**: no existe integración ni se asume una |
+| WhatsApp para eventos | **Pendiente** (ver abajo); el webhook de restaurantes existente no se modificó |
+
+### Conectar después TuEntradaWeb (si FC Producciones obtiene acceso autorizado)
+
+1. Con documentación oficial, crea un cliente en `backend/app/` que sincronice eventos y zonas hacia `events`/`event_zones` (con `verified_at` = hora de la sincronización).
+2. Si hay *deep links* documentados, guárdalos como `purchase_url`; no construyas parámetros que no estén documentados.
+3. Para confirmar compras de forma verificable, recibe el webhook oficial (valida firma y evita duplicados, como en `/webhook/kapso`) y crea el reporte confirmado con `reviewed_by="integracion:tuentradaweb"`, la referencia y el importe que envíe la plataforma.
+
+### WhatsApp (segunda fase)
+
+El motor ya es independiente del canal: un adaptador solo debe llamar `get_or_create_session(db, id_del_chat, channel="whatsapp")`, `run_event_agent(db, session, texto)`, enviar `reply` y convertir los bloques `ui` en listas/botones; el enlace de compra se arma como `FRONTEND_BASE_URL + ruta`. Hay que añadir validación de firma y deduplicación de mensajes (el webhook de restaurantes en `routers/webhook.py` es una referencia). No hay campañas ni recordatorios salientes.

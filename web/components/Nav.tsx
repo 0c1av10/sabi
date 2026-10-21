@@ -15,13 +15,13 @@ export default function Nav() {
   const path = usePathname();
   const [restaurant, setRestaurant] = useState<{ name: string; logo_url: string; brand_color: string } | null>(null);
   useEffect(() => {
-    if (path === "/" || path === "/login") return;
+    if (path === "/" || path === "/login" || path.startsWith("/eventos")) return;
     fetch("/api/me", { headers: { "X-Sabi-Token": localStorage.getItem("sabi_token") || "" } })
       .then((r) => r.ok ? r.json() : null)
       .then((data) => data && setRestaurant(data))
       .catch(() => {});
   }, [path]);
-  if (path.startsWith("/tienda/")) return null;
+  if (path.startsWith("/tienda/") || path.startsWith("/eventos")) return null;
   if (path === "/") {
     return (
       <nav className="absolute inset-x-0 top-0 z-20 px-4">

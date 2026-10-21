@@ -4,6 +4,7 @@ from sqlalchemy.pool import NullPool
 
 from .config import settings
 from .models import Base
+from . import event_models  # noqa: F401  (registers the events tables on Base.metadata)
 
 
 def _engine_url(url: str) -> str:
