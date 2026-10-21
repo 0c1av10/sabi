@@ -19,8 +19,7 @@ router = APIRouter(tags=["whatsapp"])
 
 WELCOME_MESSAGE = (
     "Soy Sabi 👋, la agente de IA de WhatsApp para los negocios en Venezuela.\n"
-    "Entra desde el enlace o botón del negocio donde quieres pedir o consultar, "
-    "y te atiendo ahí."
+    "Dime qué necesitas, por ejemplo: «quiero pedir en NACIONAL», y te atiendo ahí mismo."
 )
 _WELCOME_COOLDOWN = timedelta(hours=1)
 _welcomed: dict[str, datetime] = {}  # per warm instance: avoids repeating the welcome on every message
