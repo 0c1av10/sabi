@@ -75,6 +75,8 @@ class EventMessage(Base):
     session_id: Mapped[str] = mapped_column(ForeignKey("event_sessions.id"), index=True)
     role: Mapped[str] = mapped_column(String(10))  # user | assistant
     body: Mapped[str] = mapped_column(Text)
+    # Provider message id (WhatsApp) used to ignore duplicate webhook deliveries.
+    external_id: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
 
 

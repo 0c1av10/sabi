@@ -262,7 +262,9 @@ def _err(code: str, message: str) -> dict:
 
 
 async def get_or_create_session(db: AsyncSession, session_id: str | None,
-                                channel: str = "web") -> EventSession:
+                                channel: str = "web", trusted_id: bool = False) -> EventSession:
+    """`trusted_id=True` is for ids derived by the server (e.g. from a WhatsApp number):
+    the session is created with that id. Client-supplied ids are never reused for new rows."""
     if session_id:
         try:
             uuid.UUID(session_id)
@@ -272,7 +274,8 @@ async def get_or_create_session(db: AsyncSession, session_id: str | None,
         existing = await db.get(EventSession, session_id)
         if existing:
             return existing
-    session = EventSession(id=str(uuid.uuid4()), channel=channel)
+    session = EventSession(id=session_id if (trusted_id and session_id) else str(uuid.uuid4()),
+                           channel=channel)
     db.add(session)
     await db.flush()
     return session

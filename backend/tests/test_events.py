@@ -438,3 +438,33 @@ async def test_selection_in_demo_catalog_still_blocks_purchase(client, make_even
         "event_id": ev["id"], "zone_id": ev["zones"]["General"], "quantity": 1})).json()
     link = next(b for b in sel["ui"] if b["type"] == "link")
     assert link["habilitado"] is False and "Configura un enlace oficial" in link["mensaje"]
+
+
+# WhatsApp channel (adapter over the same engine) ------------------------------------
+async def test_whatsapp_adapter_routes_by_tag_and_keeps_context(client, make_event, Session):
+    from app.event_whatsapp import handle_event_whatsapp, session_id_for, wants_events
+    from app.whatsapp import sent_log
+
+    ev = await make_event(city="Caracas", url=OFFICIAL_URL)
+    phone = "584141234567"
+    sent_log.clear()
+
+    first = await client.post("/webhook/simulate", json={
+        "phone": phone, "text": "[sabi:eventos] Busco un concierto en Caracas"})
+    assert ev["name"] in first.json()["reply"]
+    # No tag needed afterwards: the events chat stays active.
+    await client.post("/webhook/simulate", json={"phone": phone, "text": f"Quiero ver zonas y precios de {ev['name']}"})
+    third = await client.post("/webhook/simulate", json={"phone": phone, "text": "quiero 2 entradas en la zona VIP"})
+    reply = third.json()["reply"]
+    assert "$120,00" in reply and "/api/events/go/" in reply and "no es una reserva" in reply.lower()
+    assert [m["to"] for m in sent_log] == [phone] * 3  # sent through the provider layer (mock mode)
+
+    async with Session() as db:
+        assert await wants_events(db, phone, "hola")
+        assert not await wants_events(db, phone, "[sabi:nacional] hola")  # restaurant tag wins
+        assert not await wants_events(db, "584149999999", "hola")  # nobody else is in events mode
+        # The phone number itself is not stored as the session id.
+        assert phone not in session_id_for(phone)
+        # Duplicate webhook deliveries are ignored.
+        assert await handle_event_whatsapp(db, "584140000001", "[sabi:eventos] hola", "wamid.X1")
+        assert await handle_event_whatsapp(db, "584140000001", "hola otra vez", "wamid.X1") == ""

@@ -187,6 +187,12 @@ Cubren: búsqueda por ciudad/fechas, evento inexistente, cantidades inválidas (
 2. Si hay *deep links* documentados, guárdalos como `purchase_url`; no construyas parámetros que no estén documentados.
 3. Para confirmar compras de forma verificable, recibe el webhook oficial (valida firma y evita duplicados, como en `/webhook/kapso`) y crea el reporte confirmado con `reviewed_by="integracion:tuentradaweb"`, la referencia y el importe que envíe la plataforma.
 
-### WhatsApp (segunda fase)
+### WhatsApp (Zernio / Kapso / Meta)
 
-El motor ya es independiente del canal: un adaptador solo debe llamar `get_or_create_session(db, id_del_chat, channel="whatsapp")`, `run_event_agent(db, session, texto)`, enviar `reply` y convertir los bloques `ui` en listas/botones; el enlace de compra se arma como `FRONTEND_BASE_URL + ruta`. Hay que añadir validación de firma y deduplicación de mensajes (el webhook de restaurantes en `routers/webhook.py` es una referencia). No hay campañas ni recordatorios salientes.
+El motor es independiente del canal; `backend/app/event_whatsapp.py` es el adaptador de WhatsApp y envía por `whatsapp.py`, así que usa el proveedor ya configurado (p. ej. Zernio).
+
+- **Entrada:** el mensaje que empieza el chat lleva la etiqueta `[sabi:eventos]`, por ejemplo con un enlace `https://wa.me/<número>?text=%5Bsabi%3Aeventos%5D%20Hola`. Después, el chat de eventos sigue activo 12 h sin etiqueta. Una etiqueta de restaurante (`[sabi:nacional]`) vuelve al flujo de restaurantes.
+- **Webhooks:** los de Zernio (`/webhook/zernio`, firma HMAC) y Kapso ya validan autenticidad; los mensajes se deduplican por el id del proveedor. Para probar sin proveedor, `POST /webhook/simulate` con `{"phone","text"}`.
+- **Respuesta:** texto plano; el enlace de compra se arma como `FRONTEND_BASE_URL` + ruta de clic, solo si el evento tiene enlace oficial.
+- **Privacidad:** la conversación se identifica con un UUID derivado del número (el número no se guarda en las tablas de eventos).
+- Variables necesarias (las mismas del flujo de restaurantes): `ZERNIO_API_KEY`, `ZERNIO_ACCOUNT_ID`, `ZERNIO_WEBHOOK_SECRET`, `WHATSAPP_MOCK_MODE=false`. No hay campañas ni recordatorios salientes.

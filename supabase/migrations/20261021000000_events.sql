@@ -56,9 +56,11 @@ CREATE TABLE IF NOT EXISTS event_messages (
 	session_id VARCHAR(36) NOT NULL REFERENCES event_sessions (id),
 	role VARCHAR(10) NOT NULL,
 	body TEXT NOT NULL,
+	external_id VARCHAR(200),                                  -- provider message id, dedupes webhooks
 	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT (now() AT TIME ZONE 'utc'),
 	PRIMARY KEY (id)
 );
+CREATE INDEX IF NOT EXISTS ix_event_messages_external_id ON event_messages (external_id);
 CREATE INDEX IF NOT EXISTS ix_event_messages_session_id ON event_messages (session_id);
 CREATE INDEX IF NOT EXISTS ix_event_messages_created_at ON event_messages (created_at);
 

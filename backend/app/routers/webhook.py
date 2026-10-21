@@ -12,6 +12,7 @@ from ..db import get_db
 from ..models import Restaurant
 from ..whatsapp import digits, send_whatsapp_message, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
+from ..event_whatsapp import handle_event_whatsapp, wants_events
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -31,6 +32,13 @@ async def _route_or_explain(db: AsyncSession, phone: str, body: str):
             "¡Hola! Para ayudarte, elige el restaurante donde quieres pedir:\n" + links,
         )
     return None, body
+
+
+async def _events_route(db: AsyncSession, phone: str, body: str, external_id: str | None = None):
+    """Events assistant channel. Returns the reply text, or None if the message is not for it."""
+    if not await wants_events(db, phone, body):
+        return None
+    return await handle_event_whatsapp(db, phone, body, external_id)
 
 
 @router.get("/webhook/whatsapp")
@@ -60,6 +68,8 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                     if c.get("wa_id") == phone:
                         name = c.get("profile", {}).get("name", "")
                 if phone and body:
+                    if await _events_route(db, phone, body, msg.get("id")) is not None:
+                        continue
                     restaurant, body = await _route_or_explain(db, phone, body)
                     if not restaurant:
                         continue
@@ -86,6 +96,8 @@ async def receive_kapso(request: Request, db: AsyncSession = Depends(get_db)):
         phone = msg.get("from") or conv.get("phone_number") or ""
         body = (msg.get("text") or {}).get("body", "")
         if phone and body:
+            if await _events_route(db, phone, body, msg.get("id")) is not None:
+                continue
             restaurant, body = await _route_or_explain(db, phone, body)
             if not restaurant:
                 continue
@@ -102,6 +114,9 @@ async def simulate_message(body_in: dict, db: AsyncSession = Depends(get_db)):
     phone = body_in.get("phone", "59912345678")
     text = body_in.get("text", "")
     name = body_in.get("name", "Cliente Test")
+    events_reply = await _events_route(db, phone, text)
+    if events_reply is not None:
+        return {"reply": events_reply}
     restaurant, text = await _route_or_explain(db, phone, text)
     if not restaurant:
         return {"reply": "Elige primero el restaurante desde su link de WhatsApp."}
@@ -128,6 +143,9 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
     body = msg.get("text") or ""
     if msg.get("conversationId"):
         zernio_conversations[phone] = msg["conversationId"]
+    external_id = msg.get("platformMessageId") or msg.get("id")
+    if phone and body and await _events_route(db, phone, body, external_id) is not None:
+        return {"status": "ok"}
     restaurant, body = await _route_or_explain(db, phone, body)
     if not (restaurant and phone and body):
         return {"status": "ignored"}
