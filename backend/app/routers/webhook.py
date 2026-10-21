@@ -15,15 +15,12 @@ from ..reactions import reaction_for
 from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
+from .. import concierge
 
 router = APIRouter(tags=["whatsapp"])
 
 
-WELCOME_MESSAGE = (
-    "Soy Sabi 👋, la agente de IA de WhatsApp para los negocios en Venezuela.\n"
-    "Dime qué necesitas, por ejemplo: «quiero pedir en NACIONAL» o «quiero entradas para un concierto», "
-    "y te atiendo ahí mismo."
-)
+WELCOME_MESSAGE = concierge.WELCOME
 _WELCOME_COOLDOWN = timedelta(hours=1)
 _welcomed: dict[str, datetime] = {}  # per warm instance: avoids repeating the welcome on every message
 
@@ -38,16 +35,27 @@ async def _react(phone: str, message_id: str | None, body: str) -> None:
             pass
 
 
-async def _route_or_explain(db: AsyncSession, phone: str, body: str):
+async def _resolve(db: AsyncSession, phone: str, body: str):
+    """(restaurant, body, reply). `reply` is Sabi's concierge text when no business is named
+    (None when a plain welcome was already sent recently)."""
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
-        return restaurant, routed_body
-    now = datetime.now(timezone.utc)
-    last = _welcomed.get(phone)
-    if not last or now - last > _WELCOME_COOLDOWN:
+        return restaurant, routed_body, None
+    text, is_welcome = await concierge.reply(db, body)
+    if is_welcome:
+        now = datetime.now(timezone.utc)
+        last = _welcomed.get(phone)
+        if last and now - last <= _WELCOME_COOLDOWN:
+            return None, body, None
         _welcomed[phone] = now
-        await send_whatsapp_message(phone, WELCOME_MESSAGE)
-    return None, body
+    return None, body, text
+
+
+async def _route_or_explain(db: AsyncSession, phone: str, body: str):
+    restaurant, routed_body, reply = await _resolve(db, phone, body)
+    if reply:
+        await send_whatsapp_message(phone, reply)
+    return restaurant, routed_body
 
 
 async def _events_route(db: AsyncSession, phone: str, body: str, external_id: str | None = None):
@@ -135,9 +143,9 @@ async def simulate_message(body_in: dict, db: AsyncSession = Depends(get_db)):
     events_reply = await _events_route(db, phone, text)
     if events_reply is not None:
         return {"reply": events_reply}
-    restaurant, text = await _route_or_explain(db, phone, text)
+    restaurant, text, concierge_reply = await _resolve(db, phone, text)
     if not restaurant:
-        return {"reply": WELCOME_MESSAGE}
+        return {"reply": concierge_reply or WELCOME_MESSAGE}
     reply = await handle_inbound_message(db, restaurant, phone, text, name)
     return {"reply": reply}
 

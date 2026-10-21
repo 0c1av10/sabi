@@ -13,8 +13,8 @@ type Msg = { id: number; role: "user" | "assistant"; text: string; blocks?: Bloc
 
 const SESSION_KEY = "sabi_events_session";
 const GREETING =
-  "Soy Sabi 👋, el asistente de eventos de FC Producciones. Te ayudo a encontrar un evento, ver zonas y " +
-  "precios de referencia y llegar al enlace oficial para comprar. Por ejemplo: \"Busco un concierto en Caracas\".";
+  "¡Hola! 👋 Soy Sabi. Te ayudo a encontrar el evento que te guste, ver zonas y precios y llegar al " +
+  "enlace oficial para comprar tus entradas. Por ejemplo: \"Busco un concierto en Caracas\".";
 const SUGGESTIONS = ["Busco un concierto en Caracas", "¿Qué eventos hay en Valencia?", "Busco un evento en Maracaibo"];
 
 const focus =
@@ -125,12 +125,11 @@ export default function EventsChat() {
     <div className="mx-auto flex min-h-[100dvh] max-w-2xl flex-col bg-crema text-berenjena">
       <header className="sticky top-0 z-10 border-b border-berenjena/15 bg-crema/95 px-4 pb-3 pt-4 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-lg font-bold">Sabi — Asistente de eventos</h1>
+          <h1 className="text-lg font-bold">Sabi — Entradas y eventos</h1>
           <DemoBadge />
         </div>
         <p className="mt-1 text-xs text-berenjena/80">
-          Demostración independiente para FC Producciones: no es una integración oficial con TuEntradaWeb ni una
-          alianza aprobada.
+          Encuentra tu evento, mira zonas y precios y compra en el enlace oficial de TuEntradaWeb.
         </p>
         {status?.demo_data && (
           <p role="status" className="mt-2 rounded-lg bg-pistacho px-3 py-1.5 text-xs font-medium">

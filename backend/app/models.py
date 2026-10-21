@@ -25,7 +25,7 @@ class Restaurant(Base):
     # Owner WhatsApp number (E.164 without +) for new-order notifications
     owner_phone: Mapped[str] = mapped_column(String(30), default="")
     welcome_message: Mapped[str] = mapped_column(
-        Text, default="¡Hola! Soy Sabi, el asistente de este restaurante. ¿En qué te ayudo?"
+        Text, default="¡Hola! Soy Sabi 👋 ¿Qué se te antoja hoy?"
     )
     opening_hours: Mapped[str] = mapped_column(Text, default="Lun-Dom 12:00-23:00")
     currency: Mapped[str] = mapped_column(String(10), default="USD")

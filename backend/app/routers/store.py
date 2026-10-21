@@ -105,7 +105,7 @@ async def onboarding(data: OnboardingIn, db: AsyncSession = Depends(get_db)):
         owner_phone=_digits(data.phone),
         email=data.email.strip().lower(),
         website=website,
-        welcome_message=f"¡Hola! 👋 Soy Sabi de *{name}*. ¿Qué te provoca hoy?",
+        welcome_message=f"¡Hola! 👋 Soy Sabi, te ayudo con tu pedido en *{name}*. ¿Qué te provoca hoy?",
     )
     db.add(r)
     await db.flush()

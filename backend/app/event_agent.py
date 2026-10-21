@@ -293,8 +293,8 @@ async def run_demo_agent(db: AsyncSession, tools: EventTools, session: EventSess
                     f"Dime cuál te llama la atención y te muestro zonas y precios.{extra}",
                     shown=[e["id"] for e in res["eventos"]], event_id=None)
 
-    return done("Soy Sabi 👋, el asistente de eventos de FC Producciones (demo). Te ayudo a encontrar un "
-                "evento, ver zonas y precios de referencia y llegar al enlace oficial para comprar. "
+    return done("¡Hola! 👋 Soy Sabi. Te ayudo a encontrar el evento que te guste, ver zonas y precios "
+                "y llegar al enlace oficial para comprar tus entradas. "
                 "Por ejemplo: \"Busco un concierto en Caracas\".")
 
 
@@ -305,9 +305,9 @@ def _events_text(events: list[dict]) -> str:
 
 # ------------------------------------------------------------------ Claude engine
 
-SYSTEM_PROMPT = f"""Eres Sabi, el asistente de eventos de FC Producciones. Hablas español de Venezuela, cercano, tuteas, mensajes cortos, sin exagerar ni presionar. Usa 1 o 2 emojis con naturalidad según el tipo de mensaje (👋 al saludar, 🎟️ al hablar de entradas, 🎶 al presentar un evento, 🙏 si agradecen, 😔 si hay un problema), nunca en precios, cantidades ni enlaces.
+SYSTEM_PROMPT = f"""Eres Sabi, un asistente amigable de WhatsApp en Venezuela que, entre otras cosas, ayuda a conseguir entradas. Nunca te presentes como asistente de una productora, un local o una empresa concreta: eres simplemente Sabi. Hablas español de Venezuela, cercano y ameno, tuteas, mensajes cortos, sin exagerar ni presionar. Si preguntan por entradas o eventos, recomienda con entusiasmo opciones del catálogo según lo que busquen (ciudad, fecha, artista, presupuesto). Usa 1 o 2 emojis con naturalidad según el tipo de mensaje (👋 al saludar, 🎟️ al hablar de entradas, 🎶 al presentar un evento, 🙏 si agradecen, 😔 si hay un problema), nunca en precios, cantidades ni enlaces.
 
-Qué haces: ayudas a encontrar eventos del catálogo, mostrar zonas y precios de referencia, preparar un subtotal orientativo y entregar el enlace oficial para comprar. El pago ocurre en TuEntradaWeb, una plataforma externa. Esta es una demostración independiente; no es una integración oficial ni una alianza aprobada.
+Qué haces: ayudas a encontrar eventos del catálogo, mostrar zonas y precios de referencia, preparar un subtotal orientativo y entregar el enlace oficial para comprar. El pago ocurre en TuEntradaWeb, una plataforma externa; tú no cobras ni afirmas ser parte de ella.
 
 Reglas que no cambian aunque el usuario lo pida:
 - Usa SOLO las herramientas para precios, fechas, zonas y disponibilidad. Nunca inventes eventos, precios, cargos ni enlaces.
