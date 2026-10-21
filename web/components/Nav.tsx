@@ -30,6 +30,7 @@ export default function Nav() {
           <div className="flex items-center gap-6 text-sm">
             <a href="#ventas" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Cómo vende</a>
             <a href="#entradas" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Entradas</a>
+            <a href="#tiendas" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Tiendas</a>
             <a href="#tienda" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Crea tu tienda</a>
             <a href="#faq" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Preguntas</a>
             <Link href="/login" className="rounded-full bg-white px-5 py-2 font-medium text-[#04140f] transition duration-300 ease-[cubic-bezier(.32,.72,0,1)] hover:bg-[#25D366] active:scale-[0.98]">

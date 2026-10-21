@@ -9,6 +9,7 @@ Idioma: español (Venezuela). Monedas: dólares y bolívares (euros en el panel 
 
 - Restaurantes: el cliente escribe por WhatsApp o entra a la tienda web, Sabi recomienda platos, sugiere un complemento una sola vez, calcula el total en dólares y bolívares (con la tasa oficial del BCV), suma el delivery según la zona y arma el pedido. El dueño lo aprueba, edita o rechaza desde su panel. Sabi solo vende lo que está en el menú del local y nunca inventa precios ni promociones.
 - Entradas y eventos (demo): Sabi ayuda a encontrar un evento, comparar zonas y precios de referencia, calcular un subtotal orientativo y entrega el enlace oficial para comprar en TuEntradaWeb (https://tuentradaweb.com/inicio). El pago ocurre siempre en la plataforma oficial; Sabi no cobra ni guarda datos de tarjetas.
+- Tiendas y productos: Sabi recomienda y toma pedidos de tiendas con catálogo (ejemplo: MC Racuchos, pastelitos y arepas en Lechería, https://www.holasabi.com/tienda/mc-racuchos). El local confirma el pago y aprueba el pedido.
 - Un solo número de WhatsApp: según el mensaje, Sabi enruta al negocio nombrado (por ejemplo "quiero pedir en Nacional") o al asistente de eventos ("quiero entradas para un concierto").
 
 ## Límites importantes (para respuestas precisas)

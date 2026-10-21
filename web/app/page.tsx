@@ -85,6 +85,21 @@ const ticketChat = (): Msg[] => [
   { who: "s", text: "Subtotal orientativo: $50,00 (2 x General). Esto no reserva tus entradas: la disponibilidad final y el pago se ven en el sitio oficial de TuEntradaWeb.", time: "18:32" },
 ];
 
+const shopChat = (): Msg[] => [
+  { who: "c", text: "Hola, quiero algo para merendar, ¿qué me recomiendas?", time: "17:05" },
+  { who: "s", text: "¡Hola! 👋 Soy Sabi. Los pastelitos de MC Racuchos están buenísimos: $1,45 c/u. ¿Te armo el combo de 5 por $7,30?", time: "17:05" },
+  { who: "c", text: "Dale, el de 5. De pollo y queso", time: "17:06" },
+  { who: "s", text: "Listo: INDIVIDUAL 5 piezas, $7,30. ¿Delivery o retiras en el local? 🛵", time: "17:06" },
+  { who: "c", text: "Delivery, en Lechería", time: "17:07" },
+  { who: "s", text: "Perfecto. El costo del delivery lo confirma el local. ¿Cómo vas a pagar: efectivo, transferencia o pago móvil?", time: "17:07" },
+];
+
+const shopSteps: [string, string][] = [
+  ["Recomienda de verdad", "Sabi conoce los productos y precios de la tienda y sugiere según el antojo, sin inventar nada."],
+  ["Arma el pedido", "Cantidades, combos, delivery o retiro y total en dólares y bolívares, con la tasa del día."],
+  ["El local confirma", "El dueño revisa el pago y aprueba el pedido desde su panel. Sabi nunca lo da por pagado por su cuenta."],
+];
+
 const ticketSteps: [string, string][] = [
   ["Encuentra el evento", "Pregunta por ciudad, artista o fecha. Sabi muestra solo eventos activos y nunca recomienda una zona agotada."],
   ["Arma la selección", "Zonas, cantidad y subtotal orientativo en su moneda. Si un precio no se verificó hace poco, lo dice."],
@@ -350,6 +365,40 @@ export default async function Landing() {
           <div className="flex justify-center">
             <Phone msgs={ticketChat()}
               footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Enlace oficial de TuEntradaWeb · el pago ocurre allí</div>} />
+          </div>
+        </div>
+      </section>
+
+      {/* Shops / products */}
+      <section id="tiendas" className="relative overflow-hidden border-t border-white/[0.06]">
+        <div className="pointer-events-none absolute -right-32 top-24 h-[28rem] w-[28rem] rounded-full bg-[#25D366]/[0.10] blur-3xl" />
+        <div className="reveal relative mx-auto grid max-w-6xl gap-14 px-6 py-28 lg:grid-cols-[auto_1fr] lg:items-center">
+          <div className="flex justify-center">
+            <Phone msgs={shopChat()} />
+          </div>
+          <div>
+            <span className="rounded-full border border-[#25D366]/40 px-3 py-1 text-xs font-medium text-[#25D366]">Tiendas y productos</span>
+            <h2 className="mt-5 max-w-xl text-3xl font-bold tracking-tight text-balance md:text-5xl">
+              Y también atiende tiendas: del antojo al pedido
+            </h2>
+            <p className="mt-5 max-w-xl text-emerald-50/70">
+              Pastelerías, arepas, tequeños y cualquier tienda con catálogo. Un ejemplo real: MC Racuchos, en Lechería,
+              con su menú y sus precios publicados.
+            </p>
+            <ol className="mt-10 space-y-6">
+              {shopSteps.map(([t, d], i) => (
+                <li key={t} className="flex gap-4">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-sm font-bold text-[#04140f]">{i + 1}</span>
+                  <div>
+                    <h3 className="text-lg font-semibold tracking-tight">{t}</h3>
+                    <p className="mt-1 max-w-[48ch] text-sm leading-relaxed text-emerald-50/70">{d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <Link href="/tienda/mc-racuchos" className="mt-8 inline-block rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
+              Ver la tienda de MC Racuchos
+            </Link>
           </div>
         </div>
       </section>

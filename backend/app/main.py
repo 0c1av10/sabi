@@ -18,6 +18,52 @@ KNOWN_DELIVERY_ZONES = {
 }
 
 
+# Businesses onboarded from their public storefront (menu and prices as published there).
+# Created once if missing; never touched afterwards so edits in the panel are kept.
+KNOWN_BUSINESSES = [{
+    "name": "MC Racuchos", "slug": "mc-racuchos",
+    "tagline": "Pastelitos, arepas y tequeños en Lechería",
+    "website": "https://mcracuchos.winktienda.com/",
+    "opening_hours": "Abre desde las 4:30 p. m. Puedes programar tu pedido",
+    "delivery_info": "El costo del delivery lo confirma el local.",
+    "menu": [
+        ("Pastelito de Pizza", 1.45, "Pastelitos", "Crujiente, relleno sabor pizza"),
+        ("Pastelito de Queso", 1.45, "Pastelitos", ""),
+        ("Pastelito de Pollo", 1.45, "Pastelitos", ""),
+        ("Pastelito de Molida", 1.45, "Pastelitos", "Carne molida"),
+        ("Pastelito de Carne Mechada", 1.45, "Pastelitos", ""),
+        ("Pastelito de Mechada con queso", 1.45, "Pastelitos", ""),
+        ("INDIVIDUAL 3 piezas", 4.90, "Combos", "3 pastelitos"),
+        ("INDIVIDUAL 5 piezas", 7.30, "Combos", "5 pastelitos"),
+        ("AREPAS 2 Pzas", 9.37, "Arepas", "2 arepas"),
+        ("TEQUEÑERO 20 piezas", 26.00, "Para compartir", "20 tequeños"),
+        ("PAPAQUESO 15 piezas", 16.00, "Para compartir", "15 piezas de papa y queso"),
+        ("TRISABOR 15 piezas", 20.00, "Para compartir", "15 piezas, tres sabores"),
+    ],
+}]
+
+
+async def seed_known_businesses() -> None:
+    import secrets
+    from sqlalchemy import select
+    from .db import SessionLocal
+    from .models import MenuItem, Restaurant
+    async with SessionLocal() as session:
+        for b in KNOWN_BUSINESSES:
+            if (await session.execute(select(Restaurant.id).where(Restaurant.slug == b["slug"]))).first():
+                continue
+            r = Restaurant(
+                name=b["name"], slug=b["slug"], pin=f"{secrets.randbelow(10000):04d}", owner_phone="",
+                tagline=b["tagline"], website=b["website"], opening_hours=b["opening_hours"],
+                delivery_info=b["delivery_info"],
+                welcome_message=f"¡Hola! 👋 Soy Sabi, te ayudo con tu pedido en *{b['name']}*. ¿Qué te provoca hoy?")
+            session.add(r)
+            await session.flush()
+            for n, price, cat, desc in b["menu"]:
+                session.add(MenuItem(restaurant_id=r.id, name=n, price=price, category=cat, description=desc))
+        await session.commit()
+
+
 async def backfill_known_delivery_zones() -> None:
     from sqlalchemy import select
     from . import delivery
@@ -67,6 +113,7 @@ async def ensure_ready() -> None:
         async with SessionLocal() as session:
             await seed_demo_events(session)  # no-op unless the events catalog is empty
     await sync_events_if_empty()
+    await seed_known_businesses()
     await backfill_known_delivery_zones()
     _ready = True
 
