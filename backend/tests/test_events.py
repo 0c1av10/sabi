@@ -482,3 +482,32 @@ async def test_whatsapp_first_message_routes_by_intent(Session):
         assert not await wants_events(db, "584121112233", "hola quiero comprar en nacional")
         assert await wants_events(db, "584121112233", "hola quiero entradas para un concierto")
         assert not await wants_events(db, "584121112233", "hola")
+
+
+async def test_cartelera_offered_when_no_event_is_buyable(tools):
+    res = await tools.call("buscar_eventos", {})
+    assert res["ok"]
+    link = res["cartelera"]
+    assert link["habilitado"] and link["ruta"].startswith("/api/events/go/cartelera")
+    assert "tuentradaweb" not in link["ruta"]  # destination is never in the URL
+
+
+async def test_cartelera_redirect_uses_configured_url(client, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "events_platform_url", "https://tuentradaweb.com/inicio")
+    r = await client.get("/api/events/go/cartelera?next=https://evil.example", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "https://tuentradaweb.com/inicio"
+
+
+async def test_cartelera_disabled_when_unset(client, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "events_platform_url", "")
+    r = await client.get("/api/events/go/cartelera", follow_redirects=False)
+    assert r.status_code == 404
+
+
+async def test_demo_event_link_falls_back_to_cartelera(tools, make_event):
+    ev = await make_event(is_demo=True, url="")
+    res = await tools.call("obtener_enlace_compra", {"evento_id": ev.id})
+    assert res["habilitado"] is False and res["cartelera"]["habilitado"]

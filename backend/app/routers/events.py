@@ -17,7 +17,7 @@ from ..event_agent import run_event_agent, uses_demo_engine
 from ..event_models import Event, EventActivity, EventMessage, EventSelection, EventSession
 from ..event_service import (NO_LINK_MESSAGE, VERIFY_NOTE, EventTools, event_public,
                              get_or_create_session, load_state, purchase_enabled,
-                             recent_user_messages, validate_purchase_url)
+                             platform_url, recent_user_messages, validate_purchase_url)
 from ..models import utcnow
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -67,6 +67,27 @@ async def status(db: AsyncSession = Depends(get_db)):
 @router.get("")
 async def catalog(db: AsyncSession = Depends(get_db)):
     return {"eventos": [event_public(e) for e in await _upcoming_published(db)], "aviso": VERIFY_NOTE}
+
+
+@router.get("/go/cartelera")
+async def go_to_platform(request: Request, c: str | None = None, db: AsyncSession = Depends(get_db)):
+    """Tracked redirect to the official TuEntradaWeb listing (from settings, never from the request)."""
+    destination = platform_url()
+    if not destination:
+        raise HTTPException(404, NO_LINK_MESSAGE)
+    session_id = None
+    if c:
+        try:
+            uuid.UUID(c)
+            session_id = c if await db.get(EventSession, c) else None
+        except ValueError:
+            session_id = None
+    if not _LINK_PREVIEW_BOTS.search(request.headers.get("user-agent", "")):
+        db.add(EventActivity(session_id=session_id, event_id=None, kind="click",
+                             detail="cartelera oficial abierta (no implica compra)"))
+        await db.commit()
+    return RedirectResponse(destination, status_code=302,
+                            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
 
 @router.get("/go/{event_id}")

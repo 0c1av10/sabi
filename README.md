@@ -196,3 +196,13 @@ El motor es independiente del canal; `backend/app/event_whatsapp.py` es el adapt
 - **Respuesta:** texto plano; el enlace de compra se arma como `FRONTEND_BASE_URL` + ruta de clic, solo si el evento tiene enlace oficial.
 - **Privacidad:** la conversación se identifica con un UUID derivado del número (el número no se guarda en las tablas de eventos).
 - Variables necesarias (las mismas del flujo de restaurantes): `ZERNIO_API_KEY`, `ZERNIO_ACCOUNT_ID`, `ZERNIO_WEBHOOK_SECRET`, `WHATSAPP_MOCK_MODE=false`. No hay campañas ni recordatorios salientes.
+
+
+### Cartelera oficial de TuEntradaWeb
+
+Cuando ningún evento del catálogo tiene enlace de compra propio (por ejemplo, los eventos demo),
+Sabi ofrece el botón **"Ver la cartelera y comprar en TuEntradaWeb"**, que abre
+`EVENTS_PLATFORM_URL` (por defecto `https://tuentradaweb.com/inicio`) mediante la redirección
+registrada `/api/events/go/cartelera`. El destino sale de la configuración, nunca de la petición.
+Abrir la cartelera no es una compra ni una reserva; el pago ocurre en TuEntradaWeb. Para
+desactivarla, deja `EVENTS_PLATFORM_URL` vacío. No es una integración oficial.

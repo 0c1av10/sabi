@@ -28,6 +28,9 @@ ESTIMATE_NOTE = "subtotal orientativo; cargos adicionales por verificar"
 VERIFY_NOTE = ("Precios y disponibilidad se verifican en la plataforma de venta "
                "(TuEntradaWeb) antes de pagar.")
 NO_LINK_MESSAGE = "Configura un enlace oficial para habilitar la compra"
+CARTELERA_BUTTON = "Ver la cartelera y comprar en TuEntradaWeb"
+CARTELERA_NOTE = ("Es la cartelera oficial de TuEntradaWeb: allí ves los eventos reales, la disponibilidad "
+                  "y el pago. Abrirla no reserva nada.")
 
 MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 WEEKDAYS = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
@@ -106,6 +109,22 @@ def validate_purchase_url(url: str) -> str:
     if hosts and not any(host == h or host.endswith("." + h) for h in hosts):
         raise ValueError("El dominio del enlace no está en la lista autorizada")
     return url
+
+
+def platform_url() -> str:
+    """The official listing URL, or '' when not configured or not valid."""
+    try:
+        return validate_purchase_url(settings.events_platform_url)
+    except ValueError:
+        return ""
+
+
+def cartelera_link(session_id: str | None) -> dict | None:
+    if not platform_url():
+        return None
+    path = "/api/events/go/cartelera" + (f"?c={session_id}" if session_id else "")
+    return {"habilitado": True, "ruta": path, "texto_boton": CARTELERA_BUTTON,
+            "aviso": CARTELERA_NOTE, "cartelera": True}
 
 
 # ------------------------------------------------------------------- freshness
@@ -350,7 +369,14 @@ class EventTools:
             out.append(event_public(ev))
             if len(out) == 3:
                 break
-        return {"ok": True, "total": len(out), "eventos": out, "aviso": VERIFY_NOTE}
+        result = {"ok": True, "total": len(out), "eventos": out, "aviso": VERIFY_NOTE}
+        # No event here can be bought from its own link (none found, or only demo/unlinked ones):
+        # offer the official listing instead, so the user always has a real place to buy.
+        if not any(e.get("compra_habilitada") for e in out):
+            link = cartelera_link(self.session.id)
+            if link:
+                result["cartelera"] = link
+        return result
 
     async def _obtener_evento(self, a: ObtenerEvento) -> dict:
         ev = await self._visible_event(a.evento_id)
@@ -409,7 +435,11 @@ class EventTools:
         if ev is None:
             return _err("evento_no_encontrado", "No encontré ese evento en el catálogo.")
         if not purchase_enabled(ev):
-            return {"ok": True, "habilitado": False, "mensaje": NO_LINK_MESSAGE}
+            out = {"ok": True, "habilitado": False, "mensaje": NO_LINK_MESSAGE, "es_demo": ev.is_demo}
+            link = cartelera_link(self.session.id)
+            if link:
+                out["cartelera"] = link
+            return out
         selection_id = None
         if a.selection_id:
             sel = await self.db.get(EventSelection, a.selection_id)

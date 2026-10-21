@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     events_max_message_chars: int = 500
     # Optional allowlist (comma separated hosts) for official purchase URLs.
     events_allowed_purchase_hosts: str = ""
+    # Official TuEntradaWeb listing, offered when an event has no link of its own (or is a demo).
+    # Empty disables it. Validated with the same rules as event purchase links.
+    events_platform_url: str = "https://tuentradaweb.com/inicio"
     # Admin: allowed emails (comma separated) + shared password. Empty = admin disabled.
     events_admin_emails: str = ""
     events_admin_password: str = ""
