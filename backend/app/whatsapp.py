@@ -40,6 +40,33 @@ async def send_whatsapp_message(to_phone: str, body: str) -> dict:
         return await _post(client, url, payload, headers, to_phone)
 
 
+async def send_whatsapp_reaction(to_phone: str, message_id: str, emoji: str) -> dict:
+    """React to an inbound message with an emoji (Cloud API `reaction` message).
+    Supported through Meta and Kapso. Zernio has no documented reaction endpoint, so there
+    the agent's emoji-rich text reply carries the tone instead. Never raises."""
+    if not (message_id and emoji):
+        return {"skipped": "empty"}
+    provider = whatsapp_provider()
+    if settings.whatsapp_mock_mode or not provider:
+        logger.info("[MOCK WA] react %s -> %s (%s)", emoji, to_phone, message_id)
+        sent_log.append({"to": to_phone, "reaction": emoji, "message_id": message_id})
+        return {"mock": True}
+    if provider == "zernio":
+        return {"skipped": "unsupported_provider"}
+    if provider == "kapso":
+        url = (f"https://api.kapso.ai/meta/whatsapp/{settings.kapso_api_version}/"
+               f"{settings.kapso_phone_number_id}/messages")
+        headers = {"X-API-Key": settings.kapso_api_key}
+    else:
+        url = (f"https://graph.facebook.com/{settings.whatsapp_api_version}/"
+               f"{settings.whatsapp_phone_number_id}/messages")
+        headers = {"Authorization": f"Bearer {settings.whatsapp_token}"}
+    payload = {"messaging_product": "whatsapp", "to": to_phone, "type": "reaction",
+               "reaction": {"message_id": message_id, "emoji": emoji}}
+    async with httpx.AsyncClient(timeout=10) as client:
+        return await _post(client, url, payload, headers, to_phone)
+
+
 def whatsapp_provider() -> str:
     if settings.whatsapp_provider:
         return settings.whatsapp_provider
