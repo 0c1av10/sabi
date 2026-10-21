@@ -9,7 +9,7 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-UA = "Mozilla/5.0 (compatible; SabiBot/0.1; +https://sabi-ecru.vercel.app)"
+UA = "Mozilla/5.0 (compatible; SabiBot/0.1; +https://www.holasabi.com)"
 MAX_BYTES = 3_000_000
 MAX_SCRIPTS = 6
 MAX_ITEMS = 80
