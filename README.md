@@ -143,7 +143,7 @@ EVENTS_ADMIN_EMAILS=tu@correo.com EVENTS_ADMIN_PASSWORD=una-clave-larga uvicorn 
 cd web && npm install && npm run dev     # http://localhost:3000/eventos
 ```
 
-Sin `ANTHROPIC_API_KEY` (o con `AGENT_MOCK_MODE=true`) el agente usa el **motor de demostración determinista**, con el mismo contrato de herramientas que el motor real y sin llamadas externas. Con la key, usa Claude con *tool calling* (máx. `EVENTS_MAX_TOOL_CALLS` por turno, timeout `EVENTS_AGENT_TIMEOUT_SECONDS`) y, si falla, cae al motor de demostración.
+Sin `ANTHROPIC_API_KEY`, o con `EVENTS_AGENT_MODE=demo` (o `AGENT_MOCK_MODE=true` en modo `auto`), el agente usa el **motor de demostración determinista**, con el mismo contrato de herramientas que el motor real y sin llamadas externas. Con la key, usa Claude con *tool calling* (máx. `EVENTS_MAX_TOOL_CALLS` por turno, timeout `EVENTS_AGENT_TIMEOUT_SECONDS`) y, si falla, cae al motor de demostración.
 
 Con `EVENTS_DEMO_SEED=true` se crean tres eventos ficticios (Caracas, Valencia, Maracaibo) solo si el catálogo está vacío. Tienen `is_demo=true`: **la compra externa está desactivada** ("Configura un enlace oficial para habilitar la compra"). Uno de ellos tiene datos sin verificar a propósito, para ver los avisos. Con SQLite local los datos viven en `backend/sabi.db`; en Vercel sin `DATABASE_URL` de Postgres no hay persistencia real entre despliegues.
 

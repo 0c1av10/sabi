@@ -359,7 +359,12 @@ async def run_claude_agent(tools: EventTools, session: EventSession,
 # ------------------------------------------------------------------ entry point
 
 def uses_demo_engine() -> bool:
-    return settings.agent_mock_mode or not settings.anthropic_api_key
+    mode = settings.events_agent_mode.strip().lower()
+    if mode == "demo":
+        return True
+    if not settings.anthropic_api_key:
+        return True
+    return mode != "claude" and settings.agent_mock_mode
 
 
 async def run_event_agent(db: AsyncSession, session: EventSession, message: str) -> EventAgentResult:

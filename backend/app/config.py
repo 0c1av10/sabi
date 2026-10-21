@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # --- Events (FC Producciones demo) ---
     # Seeds three fictional events when the catalog is empty (clearly marked as demo).
     events_demo_seed: bool = True
+    # auto = Claude when ANTHROPIC_API_KEY is set (and AGENT_MOCK_MODE is off), else demo.
+    # demo = always the deterministic engine (independent from the restaurant agent settings).
+    # claude = require Claude (falls back to demo on errors).
+    events_agent_mode: str = "auto"
     events_max_quantity: int = 10
     # Zone prices not verified for this many hours are shown as "por verificar".
     events_stale_hours: int = 72
