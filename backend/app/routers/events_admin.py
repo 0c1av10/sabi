@@ -259,6 +259,16 @@ async def update_event(event_id: int, data: EventIn, admin: str = Depends(curren
     return event_admin(await _event_or_404(db, ev.id))
 
 
+@router.post("/sync")
+async def sync_catalog(admin: str = Depends(current_admin), db: AsyncSession = Depends(get_db)):
+    """Pull events, zones, prices and availability from the official platform now."""
+    from .. import event_sync
+    try:
+        return await event_sync.sync(db)
+    except Exception as exc:
+        raise HTTPException(502, f"No se pudo leer la fuente: {type(exc).__name__}")
+
+
 @router.post("/events/{event_id}/active")
 async def set_active(event_id: int, body: dict, admin: str = Depends(current_admin),
                      db: AsyncSession = Depends(get_db)):

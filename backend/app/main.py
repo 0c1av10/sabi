@@ -34,6 +34,24 @@ async def backfill_known_delivery_zones() -> None:
             await session.commit()
 
 
+async def sync_events_if_empty() -> None:
+    """First load: fill the catalog from the official platform when it has no real events yet."""
+    if not settings.events_source_url:
+        return
+    from sqlalchemy import func, select
+    from .db import SessionLocal
+    from .event_models import Event
+    from . import event_sync
+    try:
+        async with SessionLocal() as session:
+            real = (await session.execute(select(func.count()).select_from(Event)
+                                          .where(Event.is_demo.is_(False)))).scalar_one()
+            if not real:
+                await event_sync.sync(session)
+    except Exception:
+        pass  # source unreachable: keep whatever the catalog has
+
+
 async def ensure_ready() -> None:
     global _ready
     if _ready:
@@ -48,6 +66,7 @@ async def ensure_ready() -> None:
         from .event_seed import seed_demo_events
         async with SessionLocal() as session:
             await seed_demo_events(session)  # no-op unless the events catalog is empty
+    await sync_events_if_empty()
     await backfill_known_delivery_zones()
     _ready = True
 

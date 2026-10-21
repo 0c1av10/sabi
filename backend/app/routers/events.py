@@ -69,6 +69,21 @@ async def catalog(db: AsyncSession = Depends(get_db)):
     return {"eventos": [event_public(e) for e in await _upcoming_published(db)], "aviso": VERIFY_NOTE}
 
 
+@router.get("/sync")
+async def scheduled_sync(request: Request, db: AsyncSession = Depends(get_db)):
+    """Refresh the catalog from the official platform. Called by the Vercel cron."""
+    import hmac
+    from .. import event_sync
+    secret = settings.cron_secret
+    sent = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if not secret or not hmac.compare_digest(sent, secret):
+        raise HTTPException(401, "No autorizado")
+    try:
+        return await event_sync.sync(db)
+    except Exception as exc:  # source down: keep the current catalog
+        raise HTTPException(502, f"No se pudo leer la fuente: {type(exc).__name__}")
+
+
 @router.get("/go/cartelera")
 async def go_to_platform(request: Request, c: str | None = None, db: AsyncSession = Depends(get_db)):
     """Tracked redirect to the official TuEntradaWeb listing (from settings, never from the request)."""

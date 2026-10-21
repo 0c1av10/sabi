@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # Official TuEntradaWeb listing, offered when an event has no link of its own (or is a demo).
     # Empty disables it. Validated with the same rules as event purchase links.
     events_platform_url: str = "https://tuentradaweb.com/inicio"
+    # Public JSON of the official platform that feeds the catalog (empty disables syncing).
+    events_source_url: str = "https://www.tuentradaweb.com/api/events"
+    # Bearer secret for the scheduled sync (Vercel cron sends CRON_SECRET). Empty = endpoint off.
+    cron_secret: str = ""
     # Admin: allowed emails (comma separated) + shared password. Empty = admin disabled.
     events_admin_emails: str = ""
     events_admin_password: str = ""
