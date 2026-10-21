@@ -11,7 +11,8 @@ from ..auth import restaurant_for_message
 from ..config import settings
 from ..db import get_db
 from ..models import Restaurant
-from ..whatsapp import digits, send_whatsapp_message, zernio_conversations
+from ..reactions import reaction_for
+from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
 
@@ -25,6 +26,16 @@ WELCOME_MESSAGE = (
 )
 _WELCOME_COOLDOWN = timedelta(hours=1)
 _welcomed: dict[str, datetime] = {}  # per warm instance: avoids repeating the welcome on every message
+
+
+async def _react(phone: str, message_id: str | None, body: str) -> None:
+    """Best-effort emoji reaction chosen by message type; must never break the reply."""
+    emoji = reaction_for(body)
+    if emoji and message_id:
+        try:
+            await send_whatsapp_reaction(phone, message_id, emoji)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 async def _route_or_explain(db: AsyncSession, phone: str, body: str):
@@ -73,6 +84,7 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                     if c.get("wa_id") == phone:
                         name = c.get("profile", {}).get("name", "")
                 if phone and body:
+                    await _react(phone, msg.get("id"), body)
                     if await _events_route(db, phone, body, msg.get("id")) is not None:
                         continue
                     restaurant, body = await _route_or_explain(db, phone, body)
@@ -101,6 +113,7 @@ async def receive_kapso(request: Request, db: AsyncSession = Depends(get_db)):
         phone = msg.get("from") or conv.get("phone_number") or ""
         body = (msg.get("text") or {}).get("body", "")
         if phone and body:
+            await _react(phone, msg.get("id"), body)
             if await _events_route(db, phone, body, msg.get("id")) is not None:
                 continue
             restaurant, body = await _route_or_explain(db, phone, body)
