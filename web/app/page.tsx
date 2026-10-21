@@ -76,6 +76,21 @@ const demos = (): { title: string; desc: string; from: string; result: string; g
   },
 ];
 
+const ticketChat = (): Msg[] => [
+  { who: "c", text: "Hola, quiero entradas para un concierto en Caracas", time: "18:30" },
+  { who: "s", text: "Soy Sabi 👋 Encontré 1 evento en Caracas: Noches de Araguaney (demo), sáb 14 nov, 8:00 pm. ¿Te muestro las zonas?", time: "18:30" },
+  { who: "c", text: "Sí", time: "18:31" },
+  { who: "s", text: "General: $25,00 · disponible\nVIP: $60,00 · por confirmar\nPrecios orientativos; cargos adicionales por verificar.", time: "18:31" },
+  { who: "c", text: "2 generales", time: "18:32" },
+  { who: "s", text: "Subtotal orientativo: $50,00 (2 x General). Esto no reserva tus entradas: la disponibilidad final y el pago se ven en el sitio oficial de TuEntradaWeb.", time: "18:32" },
+];
+
+const ticketSteps: [string, string][] = [
+  ["Encuentra el evento", "Pregunta por ciudad, artista o fecha. Sabi muestra solo eventos activos y nunca recomienda una zona agotada."],
+  ["Arma la selección", "Zonas, cantidad y subtotal orientativo en su moneda. Si un precio no se verificó hace poco, lo dice."],
+  ["Compra en el sitio oficial", "Sabi entrega el enlace oficial de TuEntradaWeb. El pago ocurre allí, nunca dentro del chat."],
+];
+
 const features = [
   {
     title: "Asesora y vende, no solo responde",
@@ -117,6 +132,8 @@ const faqs: [string, string][] = [
   ["¿Qué pasa si el cliente quiere hablar con una persona?", "Si el cliente pide algo fuera del menú o prefiere hablar contigo, Sabi se lo dice y te pasa la conversación."],
   ["¿Cómo maneja dólares, euros y bolívares?", "Cargas el menú en dólares y Sabi actualiza solo la tasa oficial del BCV del dólar y del euro. Si prefieres otra tasa, la pones a mano en Configuración. Cada precio y cada total sale en las tres monedas."],
   ["¿Toma reservas y se conecta con mi POS?", "Las reservas por WhatsApp y la conexión con tu POS llegan con el piloto. Hoy Sabi toma pedidos de delivery y retiro."],
+  ["¿Sabi vende entradas para eventos?", "Sabi te ayuda a encontrar el evento, comparar zonas y calcular un subtotal orientativo, y te entrega el enlace oficial de compra. El pago ocurre en la plataforma oficial; Sabi no cobra ni guarda datos de tarjetas. Hoy es una demo independiente, sin integración oficial con TuEntradaWeb."],
+  ["¿Sabi reserva o confirma mis entradas?", "No. Elegir zona y cantidad no reserva nada y abrir el enlace tampoco es una compra. Si dices «ya pagué», Sabi lo registra como reportado y una persona autorizada lo revisa antes de confirmarlo."],
   ["¿Qué necesito para empezar?", "Tu menú con precios, tus horarios y un número de WhatsApp. Estamos abriendo el piloto para 1 a 3 restaurantes."],
 ];
 
@@ -144,7 +161,7 @@ export default async function Landing() {
               Tu mejor vendedor, atendiendo <span className="text-[#25D366]">WhatsApp</span> las 24 horas
             </h1>
             <p className="mt-6 max-w-xl text-lg text-emerald-50/80">
-              Tu cliente ordena, pregunta y reserva desde WhatsApp. Sabi recomienda, sube el ticket con
+              Tu cliente ordena, pregunta, reserva o busca entradas desde WhatsApp. Sabi recomienda, sube el ticket con
               la sugerencia justa y cierra el pedido. Tú apruebas cada uno antes de que se confirme.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
@@ -298,6 +315,45 @@ export default async function Landing() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Tickets / events */}
+      <section id="entradas" className="relative overflow-hidden border-t border-white/[0.06]">
+        <div className="pointer-events-none absolute -left-32 top-24 h-[28rem] w-[28rem] rounded-full bg-[#25D366]/[0.10] blur-3xl" />
+        <div className="reveal relative mx-auto grid max-w-6xl gap-14 px-6 py-28 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <span className="rounded-full border border-[#25D366]/40 px-3 py-1 text-xs font-medium text-[#25D366]">Entradas y eventos</span>
+            <h2 className="mt-5 max-w-xl text-3xl font-bold tracking-tight text-balance md:text-5xl">
+              También vende entradas, hasta el enlace oficial de compra
+            </h2>
+            <p className="mt-5 max-w-xl text-emerald-50/70">
+              Para productoras y eventos, el mismo número de WhatsApp atiende a quien pregunta por un concierto:
+              busca el evento, compara zonas y prepara la selección. La compra se hace en la plataforma oficial.
+            </p>
+            <ol className="mt-10 space-y-6">
+              {ticketSteps.map(([t, d], i) => (
+                <li key={t} className="flex gap-4">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-sm font-bold text-[#04140f]">{i + 1}</span>
+                  <div>
+                    <h3 className="text-lg font-semibold tracking-tight">{t}</h3>
+                    <p className="mt-1 max-w-[48ch] text-sm leading-relaxed text-emerald-50/70">{d}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-8 max-w-xl text-xs leading-relaxed text-emerald-50/50">
+              Demo independiente: no es una integración oficial con TuEntradaWeb ni con la productora. Una selección no es una reserva,
+              abrir el enlace no es una compra y un «ya pagué» no confirma nada hasta que lo revisa una persona autorizada.
+            </p>
+            <Link href="/eventos" className="mt-8 inline-block rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
+              Probar el asistente de eventos
+            </Link>
+          </div>
+          <div className="flex justify-center">
+            <Phone msgs={ticketChat()}
+              footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Enlace oficial de TuEntradaWeb · el pago ocurre allí</div>} />
           </div>
         </div>
       </section>
