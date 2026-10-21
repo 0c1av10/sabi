@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     whatsapp_provider: str = ""  # zernio | kapso | meta; empty = first configured
     shared_whatsapp_number: str = ""
-    frontend_base_url: str = "https://sabi-ecru.vercel.app"
+    frontend_base_url: str = "https://www.holasabi.com"
 
     zernio_api_key: str = ""
     zernio_account_id: str = ""
