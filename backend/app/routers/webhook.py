@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select
@@ -17,20 +18,24 @@ from ..event_whatsapp import handle_event_whatsapp, wants_events
 router = APIRouter(tags=["whatsapp"])
 
 
+WELCOME_MESSAGE = (
+    "¡Hola! Soy SABI, la agente de IA que atiende por WhatsApp a los negocios en Venezuela. 👋\n"
+    "Para empezar, entra desde el enlace o botón del negocio donde quieres pedir o consultar, "
+    "y yo te atiendo desde ahí."
+)
+_WELCOME_COOLDOWN = timedelta(hours=1)
+_welcomed: dict[str, datetime] = {}  # per warm instance: avoids repeating the welcome on every message
+
+
 async def _route_or_explain(db: AsyncSession, phone: str, body: str):
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
         return restaurant, routed_body
-    restaurants = (await db.execute(select(Restaurant).order_by(Restaurant.name))).scalars().all()
-    if restaurants:
-        links = "\n".join(
-            f"• {r.name}: {settings.frontend_base_url}/tienda/{r.slug}"
-            for r in restaurants
-        )
-        await send_whatsapp_message(
-            phone,
-            "¡Hola! Para ayudarte, elige el restaurante donde quieres pedir:\n" + links,
-        )
+    now = datetime.now(timezone.utc)
+    last = _welcomed.get(phone)
+    if not last or now - last > _WELCOME_COOLDOWN:
+        _welcomed[phone] = now
+        await send_whatsapp_message(phone, WELCOME_MESSAGE)
     return None, body
 
 
@@ -119,7 +124,7 @@ async def simulate_message(body_in: dict, db: AsyncSession = Depends(get_db)):
         return {"reply": events_reply}
     restaurant, text = await _route_or_explain(db, phone, text)
     if not restaurant:
-        return {"reply": "Elige primero el restaurante desde su link de WhatsApp."}
+        return {"reply": WELCOME_MESSAGE}
     reply = await handle_inbound_message(db, restaurant, phone, text, name)
     return {"reply": reply}
 
