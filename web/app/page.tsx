@@ -343,10 +343,6 @@ export default async function Landing() {
                 </li>
               ))}
             </ol>
-            <p className="mt-8 max-w-xl text-xs leading-relaxed text-emerald-50/50">
-              Demo independiente: no es una integración oficial con TuEntradaWeb ni con la productora. Una selección no es una reserva,
-              abrir el enlace no es una compra y un «ya pagué» no confirma nada hasta que lo revisa una persona autorizada.
-            </p>
             <Link href="/eventos" className="mt-8 inline-block rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
               Probar el asistente de eventos
             </Link>
