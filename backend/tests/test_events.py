@@ -468,3 +468,17 @@ async def test_whatsapp_adapter_routes_by_tag_and_keeps_context(client, make_eve
         # Duplicate webhook deliveries are ignored.
         assert await handle_event_whatsapp(db, "584140000001", "[sabi:eventos] hola", "wamid.X1")
         assert await handle_event_whatsapp(db, "584140000001", "hola otra vez", "wamid.X1") == ""
+
+
+async def test_whatsapp_first_message_routes_by_intent(Session):
+    from app.auth import restaurant_by_mention
+    from app.event_whatsapp import wants_events
+    from app.models import Restaurant
+    async with Session() as db:
+        db.add(Restaurant(name="NACIONAL Restaurante", slug="nacional", pin="1234"))
+        await db.commit()
+        assert (await restaurant_by_mention(db, "Hola quiero comprar en Nacional")).slug == "nacional"
+        assert await restaurant_by_mention(db, "hola") is None
+        assert not await wants_events(db, "584121112233", "hola quiero comprar en nacional")
+        assert await wants_events(db, "584121112233", "hola quiero entradas para un concierto")
+        assert not await wants_events(db, "584121112233", "hola")

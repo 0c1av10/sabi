@@ -13,6 +13,7 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import restaurant_by_mention
 from .config import settings
 from .event_agent import run_event_agent
 from .event_models import EventMessage, EventSession
@@ -21,6 +22,10 @@ from .models import utcnow
 from .whatsapp import digits, send_whatsapp_message
 
 EVENTS_TAG = re.compile(r"\[sabi:eventos\]", re.I)
+# Strong signals only: a bare "entradas" also means starters on a restaurant menu.
+EVENTS_INTENT = re.compile(
+    r"\b(boletos?|boletas?|tickets?|conciertos?|eventos?|tuentradaweb|fc\s*producciones|"
+    r"entradas?\s+(para|al|a\s+un)|(comprar|quiero|busco|necesito)\s+(unas?\s+)?entradas?)\b", re.I)
 OTHER_TAG = re.compile(r"\[sabi:(?!eventos\])[a-z0-9-]+\]", re.I)
 _NAMESPACE = uuid.UUID("6f0f6c1e-5d0b-4a43-9a5f-2f4d8c1b7a10")
 SESSION_TTL = timedelta(hours=12)
@@ -38,6 +43,10 @@ async def wants_events(db: AsyncSession, phone: str, body: str) -> bool:
     if OTHER_TAG.search(body):
         return False
     if EVENTS_TAG.search(body):
+        return True
+    if await restaurant_by_mention(db, body):
+        return False  # naming a business switches to its ordering mode
+    if EVENTS_INTENT.search(body):
         return True
     session = await db.get(EventSession, session_id_for(phone))
     return bool(session and session.updated_at >= utcnow() - SESSION_TTL)

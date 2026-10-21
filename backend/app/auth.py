@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, Request
 import re
+import unicodedata
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +42,37 @@ async def restaurant_for_webhook(db: AsyncSession) -> Restaurant:
     return (await db.execute(select(Restaurant))).scalars().first()
 
 
+_GENERIC = {"restaurante", "restaurant", "resto", "bar", "cafe", "cafeteria", "el", "la", "los",
+            "las", "de", "del", "y", "&"}
+
+
+def _norm(text: str) -> list[str]:
+    plain = unicodedata.normalize("NFD", text.lower())
+    plain = "".join(c for c in plain if unicodedata.category(c) != "Mn")
+    return re.findall(r"[a-z0-9]+", plain)
+
+
+async def restaurant_by_mention(db: AsyncSession, body: str) -> Restaurant | None:
+    """A first message such as "hola, quiero pedir en Nacional" names the business.
+    Matches when every distinctive word of the name (or the slug) appears in the message;
+    the longest match wins and a tie is treated as ambiguous (no routing)."""
+    words = set(_norm(body))
+    if not words:
+        return None
+    best: list[tuple[int, Restaurant]] = []
+    for r in (await db.execute(select(Restaurant))).scalars().all():
+        for candidate in (_norm(r.name), _norm(r.slug)):
+            core = [w for w in candidate if w not in _GENERIC]
+            if core and all(w in words for w in core):
+                best.append((len(core), r))
+                break
+    if not best:
+        return None
+    top = max(n for n, _ in best)
+    winners = [r for n, r in best if n == top]
+    return winners[0] if len(winners) == 1 else None
+
+
 async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tuple[Restaurant | None, str]:
     """Resolve a shared WhatsApp message to a tenant.
 
@@ -54,6 +86,10 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
         )).scalar_one_or_none()
         if restaurant:
             return restaurant, re.sub(r"\s*\[sabi:[a-z0-9-]+\]\s*", " ", body, flags=re.I).strip()
+
+    mentioned = await restaurant_by_mention(db, body)
+    if mentioned:
+        return mentioned, body
 
     restaurant = (await db.execute(
         select(Restaurant)
