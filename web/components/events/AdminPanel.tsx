@@ -251,14 +251,36 @@ function EventsTab() {
   }
 
   const current = events.find((e) => e.id === editing);
+  const [syncing, setSyncing] = useState(false);
+
+  async function syncNow() {
+    setSyncing(true);
+    setMsg("");
+    try {
+      const r = await eventsApi<{ created: number; updated: number; total: number; note?: string }>(
+        "/admin/sync", { method: "POST" });
+      setMsg(r.note || `Sincronizado con TuEntradaWeb: ${r.total} eventos (${r.created} nuevos, ${r.updated} actualizados).`);
+      load();
+    } catch (err) {
+      setMsg((err as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
       <section aria-label="Lista de eventos">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-berenjena">Eventos</h2>
-          <button className={btn} onClick={() => edit(null)}>Nuevo evento</button>
+          <div className="flex gap-2">
+            <button className={btnGhost} onClick={syncNow} disabled={syncing}>
+              {syncing ? "Sincronizando…" : "Sincronizar con TuEntradaWeb"}
+            </button>
+            <button className={btn} onClick={() => edit(null)}>Nuevo evento</button>
+          </div>
         </div>
+        {msg && <p role="status" className="mb-2 text-sm text-berenjena">{msg}</p>}
         <ul className="space-y-2">
           {events.map((ev) => (
             <li key={ev.id} className="rounded-xl border border-berenjena/15 bg-white p-3 text-sm text-berenjena">
