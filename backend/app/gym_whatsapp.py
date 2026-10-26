@@ -119,9 +119,17 @@ async def reply_for(db: AsyncSession, phone: str, body: str) -> str:
         name = re.sub(r"[^\wáéíóúñÁÉÍÓÚÑ .'-]", "", text)[:60].strip()
         if len(name) < 2:
             return "¿Me dices tu nombre para anotarte? 🙂"
-        state.update(step="level", name=name)
+        state.update(step="type", name=name)
         await _save(db, session, state)
-        return f"Mucho gusto, {name.split()[0]}. ¿Qué nivel tienes: principiante, intermedio o avanzado?"
+        options = f" Tenemos: {p.classes_text}." if p.classes_text else ""
+        return f"Mucho gusto, {name.split()[0]}.{options} ¿Qué clase te interesa?"
+
+    if step == "type":
+        if len(text) < 3:
+            return "Dime qué clase te interesa, por ejemplo «boxeo»."
+        state.update(step="level", type=text[:60])
+        await _save(db, session, state)
+        return "¿Qué nivel tienes: principiante, intermedio o avanzado? (si nunca has entrenado, principiante)"
 
     if step == "level":
         level = _level(text)
@@ -136,14 +144,14 @@ async def reply_for(db: AsyncSession, phone: str, body: str) -> str:
             return "Cuéntame qué día y hora te quedan bien, por ejemplo «miércoles 6 pm»."
         state.update(step="confirm", when=text)
         await _save(db, session, state)
-        return (f"Esto es lo que enviaré al gimnasio:\n• Nombre: {state['name']}\n• Nivel: {state['level']}\n"
-                f"• Preferencia: {text}\n\n¿Lo envío? (sí / no)")
+        return (f"Esto es lo que enviaré al gimnasio:\n• Nombre: {state['name']}\n• Clase: {state.get('type', '')}\n"
+                f"• Nivel: {state['level']}\n• Preferencia: {text}\n\n¿Lo envío? (sí / no)")
 
     if step == "confirm":
         if not YES.match(text):
             return "Responde «sí» para enviar la solicitud o «no» para cancelar."
         req = ClassRequest(phone=digits(phone), student_name=state.get("name", ""), level=state.get("level", ""),
-                           preferred=state.get("when", ""))
+                           preferred=f"{state.get('type', '')} — {state.get('when', '')}"[:200])
         db.add(req)
         await _save(db, session, {})
         if p.owner_phone:
@@ -153,8 +161,9 @@ async def reply_for(db: AsyncSession, phone: str, body: str) -> str:
                                    f"prefiere {req.preferred}. Confírmala en el panel.")
             except Exception:  # noqa: BLE001 - the request is saved either way
                 pass
+        extra = f" Si quieres adelantar, también puedes escribir a: {p.contact}." if p.contact else ""
         return ("¡Listo! 🥊 Tu solicitud quedó enviada. Esto no es una reserva todavía: "
-                f"{p.name} te confirma el día y la hora por este mismo chat.")
+                f"{p.name} te confirma el día y la hora por este mismo chat.{extra}")
 
     await _save(db, session, {})
     return await reply_for(db, phone, body)

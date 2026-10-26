@@ -64,6 +64,29 @@ async def seed_known_businesses() -> None:
         await session.commit()
 
 
+GYM_DEFAULTS = {
+    "name": "Domicio Rondón Gym Boxing",
+    "address": "Cumaná, Venezuela",
+    "classes_text": "preparación física, entrenamiento personalizado, boxeo (aficionado y profesional), "
+                    "tae-box, defensa personal y bailoterapia",
+    "contact": "Instagram @gymboxing.dr · WhatsApp +58 414-7753401",
+}
+
+
+async def seed_gym_profile() -> None:
+    """Fills the gym's public data (from its own site) only where empty; never overwrites edits."""
+    from .db import SessionLocal
+    from . import gym_whatsapp
+    async with SessionLocal() as session:
+        p = await gym_whatsapp.profile(session)
+        if p.name == "Domicio Rondón Boxing Gym" and not p.address and not p.classes_text:
+            p.name = GYM_DEFAULTS["name"]
+        for key in ("address", "classes_text", "contact"):
+            if not getattr(p, key):
+                setattr(p, key, GYM_DEFAULTS[key])
+        await session.commit()
+
+
 async def apply_business_pins() -> None:
     """Lets the operator set a known PIN for a business (e.g. one created by the seed)."""
     pairs = [p.split(":", 1) for p in settings.business_pins.split(",") if ":" in p]
@@ -132,6 +155,7 @@ async def ensure_ready() -> None:
     await sync_events_if_empty()
     await seed_known_businesses()
     await apply_business_pins()
+    await seed_gym_profile()
     await backfill_known_delivery_zones()
     _ready = True
 
