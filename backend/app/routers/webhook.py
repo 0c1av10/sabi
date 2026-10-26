@@ -15,7 +15,7 @@ from ..reactions import reaction_for
 from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge
+from .. import concierge, gym_whatsapp
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -60,6 +60,8 @@ async def _route_or_explain(db: AsyncSession, phone: str, body: str):
 
 async def _events_route(db: AsyncSession, phone: str, body: str, external_id: str | None = None):
     """Events assistant channel. Returns the reply text, or None if the message is not for it."""
+    if await gym_whatsapp.wants_gym(db, phone, body):
+        return await gym_whatsapp.handle_gym_whatsapp(db, phone, body)
     if not await wants_events(db, phone, body):
         return None
     return await handle_event_whatsapp(db, phone, body, external_id)

@@ -545,7 +545,89 @@ function SessionsTab() {
   );
 }
 
-const TABS = ["Resumen", "Eventos", "Pagos reportados", "Actividad", "Conversaciones"] as const;
+type GymProfile = { name: string; address: string; classes_text: string; schedule_text: string; membership_text: string; contact: string; owner_phone: string };
+type GymRequest = { id: number; phone: string; student_name: string; level: string; preferred: string; status: string; gym_note: string; created_at: string; reviewed_by: string };
+const emptyGym: GymProfile = { name: "", address: "", classes_text: "", schedule_text: "", membership_text: "", contact: "", owner_phone: "" };
+
+function GymTab() {
+  const [profile, setProfile] = useState<GymProfile>(emptyGym);
+  const [rows, setRows] = useState<GymRequest[]>([]);
+  const [notes, setNotes] = useState<Record<number, string>>({});
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(() => {
+    eventsApi<GymProfile>("/admin/gym/profile").then(setProfile).catch((e) => setMsg((e as Error).message));
+    eventsApi<GymRequest[]>("/admin/gym/requests").then(setRows).catch(() => undefined);
+  }, []);
+  useEffect(load, [load]);
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg("");
+    try {
+      setProfile(await eventsApi<GymProfile>("/admin/gym/profile", { method: "PUT", body: JSON.stringify(profile) }));
+      setMsg("Datos del gimnasio guardados.");
+    } catch (err) {
+      setMsg((err as Error).message);
+    }
+  }
+  async function review(id: number, action: "confirm" | "reject") {
+    setMsg("");
+    try {
+      await eventsApi(`/admin/gym/requests/${id}/${action}`, { method: "POST", body: JSON.stringify({ note: notes[id] || "" }) });
+      setMsg(action === "confirm" ? "Confirmada: el alumno recibió el mensaje." : "Rechazada: el alumno fue avisado.");
+      load();
+    } catch (err) {
+      setMsg((err as Error).message);
+    }
+  }
+  const set = (k: keyof GymProfile) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setProfile({ ...profile, [k]: e.target.value });
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+      <section aria-label="Datos del gimnasio">
+        <h2 className="mb-3 text-lg font-semibold">Datos del gimnasio</h2>
+        <p className="mb-3 text-xs text-berenjena/80">Sabi solo dice lo que escribas aquí. Lo vacío lo confirma el gimnasio.</p>
+        <form onSubmit={saveProfile} className="space-y-3 rounded-xl border border-berenjena/15 bg-white p-4 text-sm">
+          <Field label="Nombre"><input className={input} value={profile.name} onChange={set("name")} /></Field>
+          <Field label="Dirección"><input className={input} value={profile.address} onChange={set("address")} /></Field>
+          <Field label="Clases que ofrece"><textarea className={input} rows={2} value={profile.classes_text} onChange={set("classes_text")} /></Field>
+          <Field label="Horarios"><textarea className={input} rows={2} value={profile.schedule_text} onChange={set("schedule_text")} /></Field>
+          <Field label="Mensualidad (como la comunica el gimnasio)"><textarea className={input} rows={2} value={profile.membership_text} onChange={set("membership_text")} /></Field>
+          <Field label="Contacto"><input className={input} value={profile.contact} onChange={set("contact")} /></Field>
+          <Field label="WhatsApp que recibe cada solicitud (con código de país)"><input className={input} value={profile.owner_phone} onChange={set("owner_phone")} /></Field>
+          <button className={btn} type="submit">Guardar</button>
+        </form>
+      </section>
+      <section aria-label="Solicitudes de clase">
+        <h2 className="mb-3 text-lg font-semibold">Solicitudes de clase</h2>
+        {msg && <p role="status" className="mb-2 text-sm">{msg}</p>}
+        <ul className="space-y-2">
+          {rows.length === 0 && <li className="text-sm text-berenjena/80">Todavía no hay solicitudes.</li>}
+          {rows.map((r) => (
+            <li key={r.id} className="rounded-xl border border-berenjena/15 bg-white p-3 text-sm">
+              <p className="font-semibold">{r.student_name} <span className="font-normal text-berenjena/80">· {r.level} · +{r.phone}</span></p>
+              <p className="text-xs text-berenjena/80">Prefiere: {r.preferred} · {formatDateTime(r.created_at)} · {r.status}</p>
+              {r.status === "solicitada" ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input className={`${input} flex-1`} placeholder="Día y hora confirmados, o motivo" aria-label="Nota para el alumno"
+                    value={notes[r.id] || ""} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} />
+                  <button className={btn} onClick={() => review(r.id, "confirm")}>Confirmar</button>
+                  <button className={btnGhost} onClick={() => review(r.id, "reject")}>Rechazar</button>
+                </div>
+              ) : (
+                <p className="mt-1 text-xs">Revisada por {r.reviewed_by}: {r.gym_note || "—"}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+const TABS = ["Resumen", "Eventos", "Clases", "Pagos reportados", "Actividad", "Conversaciones"] as const;
 
 export default function AdminPanel() {
   const [admin, setAdmin] = useState<string | null | undefined>(undefined); // undefined = checking
@@ -589,6 +671,7 @@ export default function AdminPanel() {
       <main className="mx-auto max-w-6xl px-4 py-6">
         {tab === "Resumen" && <Summary m={metrics} />}
         {tab === "Eventos" && <EventsTab />}
+        {tab === "Clases" && <GymTab />}
         {tab === "Pagos reportados" && <PurchasesTab admin={admin} />}
         {tab === "Actividad" && <ActivityTab />}
         {tab === "Conversaciones" && <SessionsTab />}

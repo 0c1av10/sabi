@@ -269,6 +269,103 @@ async def sync_catalog(admin: str = Depends(current_admin), db: AsyncSession = D
         raise HTTPException(502, f"No se pudo leer la fuente: {type(exc).__name__}")
 
 
+# ------------------------------------------------------------------------- gym classes
+
+class GymProfileIn(BaseModel):
+    name: str = Field("Domicio Rondón Boxing Gym", min_length=2, max_length=200)
+    address: str = Field("", max_length=300)
+    classes_text: str = Field("", max_length=1500)
+    schedule_text: str = Field("", max_length=1500)
+    membership_text: str = Field("", max_length=1500)
+    contact: str = Field("", max_length=200)
+    owner_phone: str = Field("", max_length=30)
+
+
+class GymReviewIn(BaseModel):
+    note: str = Field("", max_length=500)
+
+
+def _gym_profile_out(p) -> dict:
+    return {"name": p.name, "address": p.address, "classes_text": p.classes_text,
+            "schedule_text": p.schedule_text, "membership_text": p.membership_text,
+            "contact": p.contact, "owner_phone": p.owner_phone}
+
+
+def _gym_request_out(r) -> dict:
+    return {"id": r.id, "phone": r.phone, "student_name": r.student_name, "level": r.level,
+            "preferred": r.preferred, "status": r.status, "gym_note": r.gym_note,
+            "created_at": r.created_at.isoformat(), "reviewed_by": r.reviewed_by,
+            "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None}
+
+
+@router.get("/gym/profile")
+async def gym_profile(admin: str = Depends(current_admin), db: AsyncSession = Depends(get_db)):
+    from .. import gym_whatsapp
+    p = await gym_whatsapp.profile(db)
+    await db.commit()
+    return _gym_profile_out(p)
+
+
+@router.put("/gym/profile")
+async def gym_profile_update(data: GymProfileIn, admin: str = Depends(current_admin),
+                             db: AsyncSession = Depends(get_db)):
+    from .. import gym_whatsapp
+    p = await gym_whatsapp.profile(db)
+    p.name, p.address = data.name.strip(), data.address.strip()
+    p.classes_text, p.schedule_text = data.classes_text.strip(), data.schedule_text.strip()
+    p.membership_text, p.contact = data.membership_text.strip(), data.contact.strip()
+    p.owner_phone = "".join(c for c in data.owner_phone if c.isdigit())[:30]
+    await db.commit()
+    return _gym_profile_out(p)
+
+
+@router.get("/gym/requests")
+async def gym_requests(admin: str = Depends(current_admin), db: AsyncSession = Depends(get_db)):
+    from ..gym_models import ClassRequest
+    rows = (await db.execute(select(ClassRequest).order_by(ClassRequest.id.desc()).limit(200))).scalars().all()
+    return [_gym_request_out(r) for r in rows]
+
+
+async def _review_gym_request(db: AsyncSession, request_id: int, admin: str, status: str, note: str, text: str):
+    from ..gym_models import ClassRequest
+    from ..whatsapp import send_whatsapp_message
+    r = await db.get(ClassRequest, request_id)
+    if not r:
+        raise HTTPException(404, "Solicitud no encontrada")
+    if r.status != "solicitada":
+        raise HTTPException(409, "Esta solicitud ya fue revisada")
+    r.status, r.gym_note, r.reviewed_by, r.reviewed_at = status, note.strip(), admin, utcnow()
+    await db.commit()
+    try:
+        await send_whatsapp_message(r.phone, text)
+    except Exception:  # noqa: BLE001 - the decision is saved even if WhatsApp fails
+        pass
+    return _gym_request_out(r)
+
+
+@router.post("/gym/requests/{request_id}/confirm")
+async def gym_confirm(request_id: int, data: GymReviewIn, admin: str = Depends(current_admin),
+                      db: AsyncSession = Depends(get_db)):
+    if not data.note.strip():
+        raise HTTPException(422, "Escribe el día y la hora confirmados")
+    from .. import gym_whatsapp
+    p = await gym_whatsapp.profile(db)
+    return await _review_gym_request(
+        db, request_id, admin, "confirmada", data.note,
+        f"¡Listo! 🥊 {p.name} confirmó tu clase: {data.note.strip()}. ¡Te esperamos!")
+
+
+@router.post("/gym/requests/{request_id}/reject")
+async def gym_reject(request_id: int, data: GymReviewIn, admin: str = Depends(current_admin),
+                     db: AsyncSession = Depends(get_db)):
+    from .. import gym_whatsapp
+    p = await gym_whatsapp.profile(db)
+    reason = f" {data.note.strip()}" if data.note.strip() else ""
+    return await _review_gym_request(
+        db, request_id, admin, "rechazada", data.note,
+        f"Hola, {p.name} no pudo confirmar esa clase.{reason} Escríbeme y buscamos otro horario. 🙏")
+
+
 @router.post("/events/{event_id}/active")
 async def set_active(event_id: int, body: dict, admin: str = Depends(current_admin),
                      db: AsyncSession = Depends(get_db)):

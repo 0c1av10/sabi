@@ -15,7 +15,7 @@ from .models import Restaurant
 
 WELCOME = (
     "¡Hola! 👋 Soy Sabi. Te echo una mano con lo que necesites: dónde comer o pedir delivery, "
-    "o conseguir entradas para un evento. ¿Qué se te antoja hoy?"
+    "conseguir entradas para un evento o reservar tu clase de boxeo. ¿Qué se te antoja hoy?"
 )
 
 FOOD_INTENT = re.compile(
