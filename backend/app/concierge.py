@@ -10,6 +10,7 @@ import unicodedata
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from .auth import restaurants_by_product
 from .models import Restaurant
 
 WELCOME = (
@@ -49,6 +50,11 @@ async def recommendations(db: AsyncSession, limit: int = 4) -> str:
 
 async def reply(db: AsyncSession, body: str) -> tuple[str, bool]:
     """(text, is_plain_welcome). The welcome is rate-limited by the caller; recommendations are not."""
+    sellers = await restaurants_by_product(db, body)
+    if len(sellers) >= 2:
+        names = "\n".join(f"• *{r.name}*" for r in sellers[:4])
+        return ("¡Claro! 😋 Eso lo consigues en:\n" + names +
+                f"\n\nDime dónde y te lo armo, por ejemplo «quiero pedir en {sellers[0].name}».", False)
     if wants_food(body):
         return await recommendations(db), False
     return WELCOME, True

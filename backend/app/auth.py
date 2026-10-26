@@ -8,7 +8,7 @@ from itsdangerous import URLSafeSerializer, BadSignature
 
 from .config import settings
 from .db import get_db
-from .models import Conversation, Customer, Restaurant
+from .models import Conversation, Customer, MenuItem, Restaurant
 
 _serializer = URLSafeSerializer(settings.session_secret, salt="sabi-auth")
 COOKIE_NAME = "sabi_session"
@@ -73,6 +73,39 @@ async def restaurant_by_mention(db: AsyncSession, body: str) -> Restaurant | Non
     return winners[0] if len(winners) == 1 else None
 
 
+_PRODUCT_STOP = {"quiero", "unos", "unas", "pedir", "para", "compartir", "piezas", "pieza", "pzas", "individual",
+                 "combo", "combos", "natural", "casero", "entero", "medio", "platos", "entradas", "postres",
+                 "bebidas", "general", "algo", "hola", "buenas", "favor", "necesito", "gustaria", "tienen",
+                 "tiene", "hay", "unos", "dame", "mandame", "ordenar", "comprar", "ocupo", "busco", "mucho"}
+
+
+def _stem(word: str) -> str:
+    for suffix in ("es", "s"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
+            return word[: -len(suffix)]
+    return word
+
+
+def _same(a: str, b: str) -> bool:
+    return a == b or (min(len(a), len(b)) >= 6 and (a.startswith(b) or b.startswith(a)))
+
+
+async def restaurants_by_product(db: AsyncSession, body: str) -> list[Restaurant]:
+    """Businesses whose available menu has a product the message asks for ("quiero unos pastelitos").
+    Only distinctive words count (4+ letters, not filler)."""
+    wanted = {_stem(w) for w in _norm(body) if len(w) >= 4 and w not in _PRODUCT_STOP}
+    if not wanted:
+        return []
+    found: dict[int, Restaurant] = {}
+    rows = (await db.execute(select(MenuItem, Restaurant).join(
+        Restaurant, MenuItem.restaurant_id == Restaurant.id).where(MenuItem.available.is_(True)))).all()
+    for item, rest in rows:
+        words = {_stem(w) for w in _norm(f"{item.name} {item.category}") if len(w) >= 4 and w not in _PRODUCT_STOP}
+        if any(_same(w, m) for w in wanted for m in words):
+            found[rest.id] = rest
+    return list(found.values())
+
+
 async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tuple[Restaurant | None, str]:
     """Resolve a shared WhatsApp message to a tenant.
 
@@ -98,4 +131,10 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
         .where(Customer.phone == phone, Conversation.status == "open")
         .order_by(Conversation.updated_at.desc())
     )).scalars().first()
-    return restaurant, body
+    if restaurant:
+        return restaurant, body
+    # No business named and no open conversation: a product only one business sells decides it.
+    by_product = await restaurants_by_product(db, body)
+    if len(by_product) == 1:
+        return by_product[0], body
+    return None, body

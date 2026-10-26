@@ -33,3 +33,10 @@ def test_collect_slugs_includes_tour_events():
     payload = {"data": [{"type": "event", "slug": "a"},
                         {"type": "tour", "countries": [{"cities": [{"events": [{"slug": "b"}]}]}]}]}
     assert s.collect_slugs(payload) == ["a", "b"]
+
+
+def test_product_stemming_matches_plural_to_menu_word():
+    from app.auth import _norm, _same, _stem
+    asked = {_stem(w) for w in _norm("quiero unos pastelitos") if len(w) >= 4}
+    menu = {_stem(w) for w in _norm("Pastelito de Queso")}
+    assert any(_same(a, m) for a in asked for m in menu)
