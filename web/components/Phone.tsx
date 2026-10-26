@@ -2,8 +2,8 @@ import { WhatsAppLogo } from "./Brand";
 
 export type Msg = { who: "c" | "s"; text: string; time?: string };
 
-export default function Phone({ msgs, footer, animate = false, step = 0.9, height = 560, className = "" }: {
-  msgs: Msg[]; footer?: React.ReactNode; animate?: boolean; step?: number; height?: number; className?: string;
+export default function Phone({ msgs, footer, animate = false, step = 0.9, height = 560, className = "", title = "Tu restaurante" }: {
+  msgs: Msg[]; footer?: React.ReactNode; animate?: boolean; step?: number; height?: number; className?: string; title?: string;
 }) {
   const delay = (i: number) => (animate ? { animationDelay: `${0.4 + i * step}s` } : undefined);
   const cls = animate ? "msg-in" : "";
@@ -14,7 +14,7 @@ export default function Phone({ msgs, footer, animate = false, step = 0.9, heigh
         <div className="flex items-center gap-2 bg-[#075E54] px-4 pb-3 pt-7 text-white">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold">S</div>
           <div className="leading-tight">
-            <p className="text-sm font-semibold">Tu restaurante</p>
+            <p className="text-sm font-semibold">{title}</p>
             <p className="text-[11px] text-emerald-100">en línea</p>
           </div>
           <WhatsAppLogo className="ml-auto h-5 w-5" fill="#ffffff" />

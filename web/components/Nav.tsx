@@ -29,7 +29,7 @@ export default function Nav() {
           <Link href="/" className="text-lg font-bold tracking-tight text-white">Sabi</Link>
           <div className="flex items-center gap-6 text-sm">
             <a href="#ventas" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Cómo vende</a>
-            <a href="#entradas" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Entradas</a>
+            <a href="#pedir-eventos" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Entradas</a>
             <a href="#tiendas" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Tiendas</a>
             <a href="#tienda" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Crea tu tienda</a>
             <a href="#faq" className="hidden text-emerald-50/70 transition hover:text-white sm:inline">Preguntas</a>

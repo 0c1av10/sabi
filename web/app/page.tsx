@@ -106,6 +106,23 @@ const ticketSteps: [string, string][] = [
   ["Compra en el sitio oficial", "Sabi entrega el enlace oficial de TuEntradaWeb. El pago ocurre allí, nunca dentro del chat."],
 ];
 
+const WA = (process.env.NEXT_PUBLIC_SABI_WHATSAPP || "").replace(/\D/g, "");
+const waLink = (text: string) => (WA ? `https://wa.me/${WA}?text=${encodeURIComponent(text)}` : "/eventos");
+
+const eventAsks: [string, string][] = [
+  ["¿Qué eventos hay este mes?", "Te muestra la cartelera con ciudad, recinto y fecha."],
+  ["Quiero entradas para un concierto en Caracas", "Filtra por ciudad, artista o fecha."],
+  ["¿Cuánto cuestan las zonas?", "Zonas con precio en su moneda y si hay disponibilidad."],
+  ["Somos 4, ¿cuánto sería en General?", "Subtotal orientativo por cantidad, sin reservar nada."],
+  ["Pásame el enlace para comprar", "Te entrega el enlace oficial de TuEntradaWeb de ese evento."],
+];
+
+const askSteps: [string, string][] = [
+  ["Escribe por WhatsApp", "Abre el chat con Sabi y cuéntale qué evento, ciudad o artista buscas. Con tus palabras, sin comandos."],
+  ["Sabi te muestra las opciones", "Eventos activos, fecha, recinto y zonas con precio orientativo. Nunca te recomienda una zona agotada."],
+  ["Compras en el sitio oficial", "Sabi te pasa el enlace de TuEntradaWeb. El pago ocurre allí, nunca dentro del chat."],
+];
+
 const features = [
   {
     title: "Asesora y vende, no solo responde",
@@ -179,12 +196,17 @@ export default async function Landing() {
               Tu cliente ordena, pregunta, reserva o busca entradas desde WhatsApp. Sabi recomienda, sube el ticket con
               la sugerencia justa y cierra el pedido. Tú apruebas cada uno antes de que se confirme.
             </p>
+            <ul className="mt-6 flex flex-wrap gap-2 text-sm">
+              {[["#ventas", "🍽️ Comida y delivery"], ["#pedir-eventos", "🎟️ Entradas y eventos"], ["#tiendas", "🛍️ Tiendas"], ["#clases", "🥊 Clases"]].map(([href, label]) => (
+                <li key={href}><a href={href} className="inline-block rounded-full border border-white/15 bg-white/[0.04] px-4 py-1.5 text-emerald-50/90 transition hover:border-[#25D366]/60 hover:text-white">{label}</a></li>
+              ))}
+            </ul>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link href="/login" className="rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
                 Probar el panel
               </Link>
-              <a href="#ventas" className="rounded-full border border-white/25 px-7 py-3 font-medium text-white transition duration-200 hover:bg-white/10 active:scale-[0.98]">
-                Ver cómo vende
+              <a href="#pedir-eventos" className="rounded-full border border-white/25 px-7 py-3 font-medium text-white transition duration-200 hover:bg-white/10 active:scale-[0.98]">
+                Pedir info de un evento
               </a>
             </div>
           </div>
@@ -334,6 +356,59 @@ export default async function Landing() {
         </div>
       </section>
 
+      {/* How to ask about events */}
+      <section id="pedir-eventos" className="relative overflow-hidden border-t border-white/[0.06]">
+        <div className="pointer-events-none absolute -right-32 top-10 h-[30rem] w-[30rem] rounded-full bg-[#25D366]/[0.12] blur-3xl" />
+        <div className="reveal relative mx-auto max-w-6xl px-6 py-28">
+          <span className="rounded-full border border-[#25D366]/40 px-3 py-1 text-xs font-medium text-[#25D366]">Entradas y eventos</span>
+          <h2 className="mt-5 max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-5xl">Pide información de un evento en 3 pasos</h2>
+          <p className="mt-4 max-w-2xl text-emerald-50/70">
+            La cartelera se actualiza sola desde TuEntradaWeb. Escríbele a Sabi como le escribirías a un amigo.
+          </p>
+          <div className="mt-14 grid gap-14 lg:grid-cols-[1fr_auto] lg:items-start">
+            <div>
+              <ol className="space-y-7">
+                {askSteps.map(([t, d], i) => (
+                  <li key={t} className="flex gap-4">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#25D366] text-sm font-bold text-[#04140f]">{i + 1}</span>
+                    <div>
+                      <h3 className="text-lg font-semibold tracking-tight">{t}</h3>
+                      <p className="mt-1 max-w-[52ch] text-sm leading-relaxed text-emerald-50/70">{d}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <h3 className="mt-12 text-sm font-semibold uppercase tracking-wider text-emerald-50/50">Puedes escribirle cosas como</h3>
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                {eventAsks.map(([q, d]) => (
+                  <li key={q}>
+                    <a href={waLink(q)} className="bezel block h-full transition duration-200 hover:scale-[1.02]"><div className="bezel-core h-full p-4">
+                      <p className="w-fit rounded-2xl rounded-br-md bg-[#d9fdd3] px-3 py-1.5 text-sm text-stone-900">{q}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-emerald-50/60">{d}</p>
+                    </div></a>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-10 flex flex-wrap gap-3">
+                <a href={waLink("Hola Sabi, ¿qué eventos hay?")} className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
+                  <WhatsAppLogo className="h-5 w-5" fill="#06281e" />{WA ? "Preguntar por WhatsApp" : "Probar el chat de eventos"}
+                </a>
+                <Link href="/eventos" className="rounded-full border border-white/25 px-7 py-3 font-medium text-white transition duration-200 hover:bg-white/10 active:scale-[0.98]">
+                  Ver la cartelera
+                </Link>
+              </div>
+              <p className="mt-5 max-w-xl text-xs leading-relaxed text-emerald-50/50">
+                Elegir zona y cantidad no reserva tus entradas y abrir el enlace tampoco es una compra. La disponibilidad final y el pago se ven en el sitio oficial.
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <Phone title="Sabi" msgs={ticketChat()}
+                footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Enlace oficial de TuEntradaWeb · el pago ocurre allí</div>} />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Tickets / events */}
       <section id="entradas" className="relative overflow-hidden border-t border-white/[0.06]">
         <div className="pointer-events-none absolute -left-32 top-24 h-[28rem] w-[28rem] rounded-full bg-[#25D366]/[0.10] blur-3xl" />
@@ -370,6 +445,7 @@ export default async function Landing() {
       </section>
 
       {/* Shops / products */}
+      <span id="clases" className="block" />
       <section id="tiendas" className="relative overflow-hidden border-t border-white/[0.06]">
         <div className="pointer-events-none absolute -right-32 top-24 h-[28rem] w-[28rem] rounded-full bg-[#25D366]/[0.10] blur-3xl" />
         <div className="reveal relative mx-auto grid max-w-6xl gap-14 px-6 py-28 lg:grid-cols-[auto_1fr] lg:items-center">
