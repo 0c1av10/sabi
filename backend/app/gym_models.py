@@ -25,6 +25,8 @@ class GymProfile(Base):
     membership_text: Mapped[str] = mapped_column(Text, default="")  # price/conditions as the gym states them
     contact: Mapped[str] = mapped_column(String(200), default="")
     owner_phone: Mapped[str] = mapped_column(String(30), default="")  # gets a WhatsApp for each request
+    # Google Calendar id the gym shared with Sabi's service account (nullable: added after launch).
+    calendar_id: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
 
 class ClassRequest(Base):
@@ -40,3 +42,8 @@ class ClassRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
     reviewed_by: Mapped[str] = mapped_column(String(200), default="")
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Confirmed class slot (naive UTC) and its Google Calendar event, when connected.
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    calendar_event_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    calendar_link: Mapped[str | None] = mapped_column(String(500), nullable=True)

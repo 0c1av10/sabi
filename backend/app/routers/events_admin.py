@@ -23,6 +23,7 @@ from ..db import get_db
 from ..event_models import (Event, EventActivity, EventLoginFailure, EventMessage,
                             EventPurchaseReport, EventSelection, EventSession, EventZone)
 from ..event_service import (fmt_minor, to_minor, validate_purchase_url, zone_needs_verification)
+from .. import gcal
 from ..models import utcnow
 
 router = APIRouter(prefix="/api/events/admin", tags=["events-admin"])
@@ -279,22 +280,29 @@ class GymProfileIn(BaseModel):
     membership_text: str = Field("", max_length=1500)
     contact: str = Field("", max_length=200)
     owner_phone: str = Field("", max_length=30)
+    calendar_id: str = Field("", max_length=300)
 
 
 class GymReviewIn(BaseModel):
     note: str = Field("", max_length=500)
+    starts_at: datetime | None = None  # local time (America/Caracas) of the confirmed class
+    duration_minutes: int = Field(60, ge=15, le=240)
+    force: bool = False  # confirm even if the calendar shows a clash
 
 
 def _gym_profile_out(p) -> dict:
     return {"name": p.name, "address": p.address, "classes_text": p.classes_text,
             "schedule_text": p.schedule_text, "membership_text": p.membership_text,
-            "contact": p.contact, "owner_phone": p.owner_phone}
+            "contact": p.contact, "owner_phone": p.owner_phone, "calendar_id": p.calendar_id or "",
+            "calendar_ready": gcal.enabled(), "calendar_share_with": gcal.service_email()}
 
 
 def _gym_request_out(r) -> dict:
     return {"id": r.id, "phone": r.phone, "student_name": r.student_name, "level": r.level,
             "preferred": r.preferred, "status": r.status, "gym_note": r.gym_note,
             "created_at": r.created_at.isoformat(), "reviewed_by": r.reviewed_by,
+            "starts_at": r.starts_at.replace(tzinfo=timezone.utc).isoformat() if r.starts_at else None,
+            "calendar_link": r.calendar_link or "",
             "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None}
 
 
@@ -315,6 +323,7 @@ async def gym_profile_update(data: GymProfileIn, admin: str = Depends(current_ad
     p.classes_text, p.schedule_text = data.classes_text.strip(), data.schedule_text.strip()
     p.membership_text, p.contact = data.membership_text.strip(), data.contact.strip()
     p.owner_phone = "".join(c for c in data.owner_phone if c.isdigit())[:30]
+    p.calendar_id = data.calendar_id.strip() or None
     await db.commit()
     return _gym_profile_out(p)
 
@@ -326,7 +335,8 @@ async def gym_requests(admin: str = Depends(current_admin), db: AsyncSession = D
     return [_gym_request_out(r) for r in rows]
 
 
-async def _review_gym_request(db: AsyncSession, request_id: int, admin: str, status: str, note: str, text: str):
+async def _review_gym_request(db: AsyncSession, request_id: int, admin: str, status: str, note: str, text: str,
+                              **extra):
     from ..gym_models import ClassRequest
     from ..whatsapp import send_whatsapp_message
     r = await db.get(ClassRequest, request_id)
@@ -335,6 +345,8 @@ async def _review_gym_request(db: AsyncSession, request_id: int, admin: str, sta
     if r.status != "solicitada":
         raise HTTPException(409, "Esta solicitud ya fue revisada")
     r.status, r.gym_note, r.reviewed_by, r.reviewed_at = status, note.strip(), admin, utcnow()
+    for key, value in extra.items():
+        setattr(r, key, value)
     await db.commit()
     try:
         await send_whatsapp_message(r.phone, text)
@@ -343,16 +355,46 @@ async def _review_gym_request(db: AsyncSession, request_id: int, admin: str, sta
     return _gym_request_out(r)
 
 
+def _gym_when(dt_utc: datetime) -> str:
+    from ..event_service import MONTHS, WEEKDAYS
+    d = dt_utc.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-4)))
+    hour12 = d.hour % 12 or 12
+    return f"{WEEKDAYS[d.weekday()]} {d.day} {MONTHS[d.month - 1]} · {hour12}:{d.minute:02d} {'a. m.' if d.hour < 12 else 'p. m.'}"
+
+
 @router.post("/gym/requests/{request_id}/confirm")
 async def gym_confirm(request_id: int, data: GymReviewIn, admin: str = Depends(current_admin),
                       db: AsyncSession = Depends(get_db)):
-    if not data.note.strip():
-        raise HTTPException(422, "Escribe el día y la hora confirmados")
     from .. import gym_whatsapp
+    from ..gym_models import ClassRequest
     p = await gym_whatsapp.profile(db)
+    req = await db.get(ClassRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Solicitud no encontrada")
+    if data.starts_at is None and not data.note.strip():
+        raise HTTPException(422, "Elige el día y la hora de la clase (o escribe una nota)")
+    extra: dict = {}
+    when_text = data.note.strip()
+    if data.starts_at is not None:
+        start = _to_utc_naive(data.starts_at, "America/Caracas")
+        end = start + timedelta(minutes=data.duration_minutes)
+        extra.update(starts_at=start, duration_minutes=data.duration_minutes)
+        when_text = _gym_when(start) + (f" ({data.note.strip()})" if data.note.strip() else "")
+        if p.calendar_id and gcal.enabled():
+            try:
+                busy = [] if data.force else await gcal.clashes(p.calendar_id, start, end)
+                if busy:
+                    raise HTTPException(409, "Ese horario choca con: " + ", ".join(busy[:3]) +
+                                        ". Elige otra hora o confirma igual.")
+                event_id, link = await gcal.create_event(
+                    p.calendar_id, f"Clase: {req.student_name} ({req.level})",
+                    f"{req.preferred}\nSolicitada por WhatsApp +{req.phone} vía Sabi.", start, end)
+                extra.update(calendar_event_id=event_id, calendar_link=link)
+            except gcal.CalendarError as exc:
+                raise HTTPException(502, str(exc))
     return await _review_gym_request(
-        db, request_id, admin, "confirmada", data.note,
-        f"¡Listo! 🥊 {p.name} confirmó tu clase: {data.note.strip()}. ¡Te esperamos!")
+        db, request_id, admin, "confirmada", data.note, 
+        f"¡Listo! 🥊 {p.name} confirmó tu clase: {when_text}. ¡Te esperamos!", **extra)
 
 
 @router.post("/gym/requests/{request_id}/reject")

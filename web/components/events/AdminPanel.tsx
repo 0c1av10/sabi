@@ -545,14 +545,16 @@ function SessionsTab() {
   );
 }
 
-type GymProfile = { name: string; address: string; classes_text: string; schedule_text: string; membership_text: string; contact: string; owner_phone: string };
-type GymRequest = { id: number; phone: string; student_name: string; level: string; preferred: string; status: string; gym_note: string; created_at: string; reviewed_by: string };
-const emptyGym: GymProfile = { name: "", address: "", classes_text: "", schedule_text: "", membership_text: "", contact: "", owner_phone: "" };
+type GymProfile = { name: string; address: string; classes_text: string; schedule_text: string; membership_text: string; contact: string; owner_phone: string; calendar_id: string; calendar_ready?: boolean; calendar_share_with?: string };
+type GymRequest = { id: number; phone: string; student_name: string; level: string; preferred: string; status: string; gym_note: string; created_at: string; reviewed_by: string; starts_at: string | null; calendar_link: string };
+const emptyGym: GymProfile = { name: "", address: "", classes_text: "", schedule_text: "", membership_text: "", contact: "", owner_phone: "", calendar_id: "" };
 
 function GymTab() {
   const [profile, setProfile] = useState<GymProfile>(emptyGym);
   const [rows, setRows] = useState<GymRequest[]>([]);
   const [notes, setNotes] = useState<Record<number, string>>({});
+  const [slots, setSlots] = useState<Record<number, { at: string; mins: string }>>({});
+  const [clash, setClash] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
 
   const load = useCallback(() => {
@@ -571,14 +573,23 @@ function GymTab() {
       setMsg((err as Error).message);
     }
   }
-  async function review(id: number, action: "confirm" | "reject") {
+  async function review(id: number, action: "confirm" | "reject", force = false) {
     setMsg("");
+    setClash(null);
+    const slot = slots[id];
+    const body: Record<string, unknown> = { note: notes[id] || "", force };
+    if (action === "confirm" && slot?.at) {
+      body.starts_at = slot.at;
+      body.duration_minutes = Number(slot.mins) || 60;
+    }
     try {
-      await eventsApi(`/admin/gym/requests/${id}/${action}`, { method: "POST", body: JSON.stringify({ note: notes[id] || "" }) });
+      await eventsApi(`/admin/gym/requests/${id}/${action}`, { method: "POST", body: JSON.stringify(body) });
       setMsg(action === "confirm" ? "Confirmada: el alumno recibió el mensaje." : "Rechazada: el alumno fue avisado.");
       load();
     } catch (err) {
-      setMsg((err as Error).message);
+      const text = (err as Error).message;
+      setMsg(text);
+      if (text.startsWith("Ese horario choca")) setClash(id);
     }
   }
   const set = (k: keyof GymProfile) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -597,6 +608,14 @@ function GymTab() {
           <Field label="Mensualidad (como la comunica el gimnasio)"><textarea className={input} rows={2} value={profile.membership_text} onChange={set("membership_text")} /></Field>
           <Field label="Contacto"><input className={input} value={profile.contact} onChange={set("contact")} /></Field>
           <Field label="WhatsApp que recibe cada solicitud (con código de país)"><input className={input} value={profile.owner_phone} onChange={set("owner_phone")} /></Field>
+          <Field label="ID del Google Calendar del gimnasio">
+            <input className={input} value={profile.calendar_id} onChange={set("calendar_id")} placeholder="ej. clases@group.calendar.google.com" />
+          </Field>
+          <p className="text-xs text-berenjena/80">
+            {profile.calendar_ready
+              ? `Para conectar: en Google Calendar, comparte ese calendario con ${profile.calendar_share_with} con permiso «Hacer cambios en eventos». Cada clase confirmada se agrega sola y Sabi avisa si el horario choca.`
+              : "Google Calendar todavía no está configurado en el servidor."}
+          </p>
           <button className={btn} type="submit">Guardar</button>
         </form>
       </section>
@@ -611,13 +630,20 @@ function GymTab() {
               <p className="text-xs text-berenjena/80">Prefiere: {r.preferred} · {formatDateTime(r.created_at)} · {r.status}</p>
               {r.status === "solicitada" ? (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <input className={`${input} flex-1`} placeholder="Día y hora confirmados, o motivo" aria-label="Nota para el alumno"
+                  <input type="datetime-local" className={`${input} w-auto`} aria-label="Día y hora de la clase"
+                    value={slots[r.id]?.at || ""} onChange={(e) => setSlots({ ...slots, [r.id]: { at: e.target.value, mins: slots[r.id]?.mins || "60" } })} />
+                  <select className={`${input} w-auto`} aria-label="Duración"
+                    value={slots[r.id]?.mins || "60"} onChange={(e) => setSlots({ ...slots, [r.id]: { at: slots[r.id]?.at || "", mins: e.target.value } })}>
+                    {["45", "60", "90", "120"].map((m) => <option key={m} value={m}>{m} min</option>)}
+                  </select>
+                  <input className={`${input} flex-1`} placeholder="Nota para el alumno (opcional)" aria-label="Nota para el alumno"
                     value={notes[r.id] || ""} onChange={(e) => setNotes({ ...notes, [r.id]: e.target.value })} />
                   <button className={btn} onClick={() => review(r.id, "confirm")}>Confirmar</button>
+                  {clash === r.id && <button className={btnGhost} onClick={() => review(r.id, "confirm", true)}>Confirmar igual</button>}
                   <button className={btnGhost} onClick={() => review(r.id, "reject")}>Rechazar</button>
                 </div>
               ) : (
-                <p className="mt-1 text-xs">Revisada por {r.reviewed_by}: {r.gym_note || "—"}</p>
+                <p className="mt-1 text-xs">Revisada por {r.reviewed_by}: {r.gym_note || (r.starts_at ? formatDateTime(r.starts_at) : "—")}{r.calendar_link && <> · <a className="underline" href={r.calendar_link} target="_blank" rel="noreferrer">Ver en Google Calendar</a></>}</p>
               )}
             </li>
           ))}
