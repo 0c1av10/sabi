@@ -23,6 +23,23 @@ async function bcvRates() {
     return FALLBACK;
   }
 }
+type Ev = { id: number; nombre: string; ciudad: string; recinto: string; fecha: string; demo?: boolean };
+async function upcoming(): Promise<Ev[]> {
+  try {
+    const base = process.env.BACKEND_URL || "https://sabi-api.vercel.app";
+    const r = await fetch(`${base}/api/events`, { next: { revalidate: 1800 } });
+    if (!r.ok) return [];
+    const d = await r.json();
+    return (d.eventos as Ev[]).filter((e) => !e.demo).slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+const when = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString("es-VE", { weekday: "short", day: "numeric", month: "short", timeZone: "America/Caracas" });
+  } catch { return ""; }
+};
 const m = (v: number) => `${usd(v)} · ${eur(v, R)} · ${bs(v, R)}`;
 
 const heroChat = (): Msg[] => [
@@ -77,12 +94,12 @@ const demos = (): { title: string; desc: string; from: string; result: string; g
 ];
 
 const ticketChat = (): Msg[] => [
-  { who: "c", text: "Hola, quiero entradas para un concierto en Caracas", time: "18:30" },
-  { who: "s", text: "Soy Sabi 👋 Encontré 1 evento en Caracas: Noches de Araguaney (demo), sáb 14 nov, 8:00 pm. ¿Te muestro las zonas?", time: "18:30" },
-  { who: "c", text: "Sí", time: "18:31" },
+  { who: "c", text: "Hola, ¿qué hay por hacer este fin de semana en Caracas?", time: "18:30" },
+  { who: "s", text: "¡Hola! 👋 Soy Sabi. Por ahora hay 2 planes: un concierto el sáb 14 nov, 8:00 pm, y una feria gastronómica el dom 15. ¿Cuál te provoca?", time: "18:30" },
+  { who: "c", text: "El concierto, ¿cuánto cuesta?", time: "18:31" },
   { who: "s", text: "General: $25,00 · disponible\nVIP: $60,00 · por confirmar\nPrecios orientativos; cargos adicionales por verificar.", time: "18:31" },
   { who: "c", text: "2 generales", time: "18:32" },
-  { who: "s", text: "Subtotal orientativo: $50,00 (2 x General). Esto no reserva tus entradas: la disponibilidad final y el pago se ven en el sitio oficial de TuEntradaWeb.", time: "18:32" },
+  { who: "s", text: "Subtotal orientativo: $50,00 (2 x General). Esto no reserva tus entradas: la disponibilidad final y el pago se ven en el enlace oficial.", time: "18:32" },
 ];
 
 const shopChat = (): Msg[] => [
@@ -103,24 +120,24 @@ const shopSteps: [string, string][] = [
 const ticketSteps: [string, string][] = [
   ["Encuentra el evento", "Pregunta por ciudad, artista o fecha. Sabi muestra solo eventos activos y nunca recomienda una zona agotada."],
   ["Arma la selección", "Zonas, cantidad y subtotal orientativo en su moneda. Si un precio no se verificó hace poco, lo dice."],
-  ["Compra en el sitio oficial", "Sabi entrega el enlace oficial de TuEntradaWeb. El pago ocurre allí, nunca dentro del chat."],
+  ["Compra en el sitio oficial", "Sabi entrega el enlace oficial de compra. El pago ocurre allí, nunca dentro del chat."],
 ];
 
 const WA = (process.env.NEXT_PUBLIC_SABI_WHATSAPP || "").replace(/\D/g, "");
 const waLink = (text: string) => (WA ? `https://wa.me/${WA}?text=${encodeURIComponent(text)}` : "/eventos");
 
 const eventAsks: [string, string][] = [
-  ["¿Qué eventos hay este mes?", "Te muestra la cartelera con ciudad, recinto y fecha."],
-  ["Quiero entradas para un concierto en Caracas", "Filtra por ciudad, artista o fecha."],
+  ["¿Qué hay por hacer este fin de semana?", "Te cuenta los planes y eventos disponibles, con ciudad, recinto y fecha."],
+  ["¿Qué hay para hacer en Caracas?", "Filtra por ciudad, artista o fecha."],
   ["¿Cuánto cuestan las zonas?", "Zonas con precio en su moneda y si hay disponibilidad."],
   ["Somos 4, ¿cuánto sería en General?", "Subtotal orientativo por cantidad, sin reservar nada."],
-  ["Pásame el enlace para comprar", "Te entrega el enlace oficial de TuEntradaWeb de ese evento."],
+  ["Pásame el enlace para comprar", "Te entrega el enlace oficial de compra de ese evento."],
 ];
 
 const askSteps: [string, string][] = [
-  ["Escribe por WhatsApp", "Abre el chat con Sabi y cuéntale qué evento, ciudad o artista buscas. Con tus palabras, sin comandos."],
-  ["Sabi te muestra las opciones", "Eventos activos, fecha, recinto y zonas con precio orientativo. Nunca te recomienda una zona agotada."],
-  ["Compras en el sitio oficial", "Sabi te pasa el enlace de TuEntradaWeb. El pago ocurre allí, nunca dentro del chat."],
+  ["Pregunta qué hay por hacer", "Abre el chat con Sabi y dile en qué ciudad estás o qué plan buscas: un concierto, una feria, algo para el fin de semana."],
+  ["Sabi te dice qué hay", "Los eventos disponibles en tu ciudad, con fecha, recinto y zonas con precio orientativo. Nunca te recomienda una zona agotada."],
+  ["Compras con el enlace oficial", "Si hay entradas, Sabi te pasa el enlace oficial de compra. El pago ocurre allí, nunca dentro del chat."],
 ];
 
 const features = [
@@ -164,13 +181,14 @@ const faqs: [string, string][] = [
   ["¿Qué pasa si el cliente quiere hablar con una persona?", "Si el cliente pide algo fuera del menú o prefiere hablar contigo, Sabi se lo dice y te pasa la conversación."],
   ["¿Cómo maneja dólares, euros y bolívares?", "Cargas el menú en dólares y Sabi actualiza solo la tasa oficial del BCV del dólar y del euro. Si prefieres otra tasa, la pones a mano en Configuración. Cada precio y cada total sale en las tres monedas."],
   ["¿Toma reservas y se conecta con mi POS?", "Las reservas por WhatsApp y la conexión con tu POS llegan con el piloto. Hoy Sabi toma pedidos de delivery y retiro."],
-  ["¿Sabi vende entradas para eventos?", "Sabi te ayuda a encontrar el evento, comparar zonas y calcular un subtotal orientativo, y te entrega el enlace oficial de compra. El pago ocurre en la plataforma oficial; Sabi no cobra ni guarda datos de tarjetas. Hoy es una demo independiente, sin integración oficial con TuEntradaWeb."],
+  ["¿Sabi vende entradas para eventos?", "Sabi te cuenta qué eventos hay disponibles, compara zonas, calcula un subtotal orientativo y te entrega el enlace oficial de compra. El pago ocurre allí; Sabi no cobra ni guarda datos de tarjetas."],
   ["¿Sabi reserva o confirma mis entradas?", "No. Elegir zona y cantidad no reserva nada y abrir el enlace tampoco es una compra. Si dices «ya pagué», Sabi lo registra como reportado y una persona autorizada lo revisa antes de confirmarlo."],
   ["¿Qué necesito para empezar?", "Tu menú con precios, tus horarios y un número de WhatsApp. Estamos abriendo el piloto para 1 a 3 restaurantes."],
 ];
 
 export default async function Landing() {
   const rates = await bcvRates();
+  const events = await upcoming();
   R = rates;
   bcvDate = rates.fecha;
   const bcvLine = `BCV ${bcvDate.split("-").reverse().join("/")}: $1 = ${bs(1, R)} · €1 = ${bs(R.eur / R.usd, R)}`;
@@ -360,10 +378,10 @@ export default async function Landing() {
       <section id="pedir-eventos" className="relative overflow-hidden border-t border-white/[0.06]">
         <div className="pointer-events-none absolute -right-32 top-10 h-[30rem] w-[30rem] rounded-full bg-[#25D366]/[0.12] blur-3xl" />
         <div className="reveal relative mx-auto max-w-6xl px-6 py-28">
-          <span className="rounded-full border border-[#25D366]/40 px-3 py-1 text-xs font-medium text-[#25D366]">Entradas y eventos</span>
-          <h2 className="mt-5 max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-5xl">Pide información de un evento en 3 pasos</h2>
+          <span className="rounded-full border border-[#25D366]/40 px-3 py-1 text-xs font-medium text-[#25D366]">Planes y eventos</span>
+          <h2 className="mt-5 max-w-2xl text-3xl font-bold tracking-tight text-balance md:text-5xl">Pregúntale qué hay por hacer en tu ciudad</h2>
           <p className="mt-4 max-w-2xl text-emerald-50/70">
-            La cartelera se actualiza sola desde TuEntradaWeb. Escríbele a Sabi como le escribirías a un amigo.
+            Sabi te cuenta los eventos disponibles, las zonas y los precios. Escríbele como le escribirías a un amigo.
           </p>
           <div className="mt-14 grid gap-14 lg:grid-cols-[1fr_auto] lg:items-start">
             <div>
@@ -389,21 +407,37 @@ export default async function Landing() {
                   </li>
                 ))}
               </ul>
+              {events.length > 0 && (
+                <>
+                  <h3 className="mt-12 text-sm font-semibold uppercase tracking-wider text-emerald-50/50">Disponibles ahora</h3>
+                  <ul className="mt-4 divide-y divide-white/10 border-y border-white/10">
+                    {events.map((e) => (
+                      <li key={e.id} className="flex items-center justify-between gap-4 py-3 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{e.nombre}</p>
+                          <p className="truncate text-xs text-emerald-50/60">{[e.ciudad, e.recinto].filter(Boolean).join(" · ")}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full border border-white/15 px-3 py-1 text-xs capitalize text-emerald-50/80">{when(e.fecha)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               <div className="mt-10 flex flex-wrap gap-3">
-                <a href={waLink("Hola Sabi, ¿qué eventos hay?")} className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
-                  <WhatsAppLogo className="h-5 w-5" fill="#06281e" />{WA ? "Preguntar por WhatsApp" : "Probar el chat de eventos"}
+                <a href={waLink("Hola Sabi, ¿qué hay por hacer?")} className="inline-flex items-center gap-2 rounded-full bg-[#25D366] px-7 py-3 font-semibold text-[#06281e] shadow-lg shadow-[#25D366]/30 transition duration-200 hover:scale-[1.03] active:scale-[0.98]">
+                  <WhatsAppLogo className="h-5 w-5" fill="#06281e" />{WA ? "Preguntar por WhatsApp" : "Preguntarle a Sabi"}
                 </a>
                 <Link href="/eventos" className="rounded-full border border-white/25 px-7 py-3 font-medium text-white transition duration-200 hover:bg-white/10 active:scale-[0.98]">
-                  Ver la cartelera
+                  Ver todos los eventos
                 </Link>
               </div>
               <p className="mt-5 max-w-xl text-xs leading-relaxed text-emerald-50/50">
-                Elegir zona y cantidad no reserva tus entradas y abrir el enlace tampoco es una compra. La disponibilidad final y el pago se ven en el sitio oficial.
+                Elegir zona y cantidad no reserva tus entradas y abrir el enlace tampoco es una compra. La disponibilidad final y el pago se ven en el enlace oficial.
               </p>
             </div>
             <div className="flex justify-center">
               <Phone title="Sabi" msgs={ticketChat()}
-                footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Enlace oficial de TuEntradaWeb · el pago ocurre allí</div>} />
+                footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Enlace oficial de compra · el pago ocurre allí</div>} />
             </div>
           </div>
         </div>
@@ -439,7 +473,7 @@ export default async function Landing() {
           </div>
           <div className="flex justify-center">
             <Phone msgs={ticketChat()}
-              footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Enlace oficial de TuEntradaWeb · el pago ocurre allí</div>} />
+              footer={<div className="ml-auto w-fit rounded-full bg-[#075E54] px-3 py-1.5 text-[11px] font-medium text-white">Enlace oficial de compra · el pago ocurre allí</div>} />
           </div>
         </div>
       </section>
