@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from . import delivery
 from .config import settings
-from .models import Conversation, MenuItem, Restaurant
+from .models import Conversation, Customer, MenuItem, Restaurant
 
 logger = logging.getLogger("sabi.agent")
 
@@ -179,7 +179,11 @@ async def run_agent(db: AsyncSession, restaurant: Restaurant, conversation: Conv
 
     if settings.agent_mock_mode or not settings.anthropic_api_key:
         return run_mock_agent(restaurant, items, conversation, incoming)
-    return await run_llm_agent(restaurant, items, conversation, history, incoming)
+    customer = await db.get(Customer, conversation.customer_id)
+    from . import memory
+    contact = await memory.get(db, customer.phone) if customer else None
+    known = memory.first_name((contact.name if contact else None) or (customer.name if customer else ""))
+    return await run_llm_agent(restaurant, items, conversation, history, incoming, known)
 
 
 def _llm_messages(history: list[tuple[str, str]], incoming: str) -> list[dict]:
@@ -200,7 +204,8 @@ def _llm_messages(history: list[tuple[str, str]], incoming: str) -> list[dict]:
 
 async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
                         conversation: Conversation,
-                        history: list[tuple[str, str]], incoming: str) -> AgentResult:
+                        history: list[tuple[str, str]], incoming: str,
+                        customer_name: str = "") -> AgentResult:
     import anthropic
 
     state = json.loads(conversation.state_json or "{}")
@@ -215,6 +220,9 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
         f"Pedido en curso: {json.dumps(state.get('draft'), ensure_ascii=False)}\n"
         f"Ya ofreciste complemento: {'sí' if state.get('upsell_offered') else 'no'}"
     )
+    if customer_name:
+        context += (f"\nEl cliente se llama {customer_name}: dirígete a él por su nombre con naturalidad, "
+                    "sin repetirlo en cada mensaje.")
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     try:

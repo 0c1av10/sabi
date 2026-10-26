@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import restaurants_by_product
+from . import memory
 from .models import Restaurant
 
 WELCOME = (
@@ -48,13 +49,29 @@ async def recommendations(db: AsyncSession, limit: int = 4) -> str:
             "con delivery. ¿Qué se te antoja?")
 
 
-async def reply(db: AsyncSession, body: str) -> tuple[str, bool]:
+def _hello(name: str, topic: str | None) -> str:
+    who = f", {name}" if name else ""
+    if topic:
+        return (f"¡Hola de nuevo{who}! 👋 La vez pasada te ayudé con {topic}. ¿Repetimos o buscas otra cosa? "
+                "Te puedo ayudar con comida y delivery, entradas para eventos o clases de boxeo.")
+    return (f"¡Hola{who}! 👋 Soy Sabi. Te echo una mano con lo que necesites: dónde comer o pedir delivery, "
+            "conseguir entradas para un evento o reservar tu clase de boxeo. ¿Qué se te antoja hoy?")
+
+
+async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool]:
     """(text, is_plain_welcome). The welcome is rate-limited by the caller; recommendations are not."""
+    contact = await memory.get(db, phone) if phone else None
+    name = memory.first_name(contact.name if contact else None)
+    said = memory.extract_name(body)
+    if said and len(body.split()) <= 6:
+        return (f"¡Mucho gusto, {memory.first_name(said)}! 😊 Ya me quedo con tu nombre. "
+                "¿Qué se te antoja hoy: comida, entradas o una clase de boxeo?"), False
     sellers = await restaurants_by_product(db, body)
     if len(sellers) >= 2:
         names = "\n".join(f"• *{r.name}*" for r in sellers[:4])
         return ("¡Claro! 😋 Eso lo consigues en:\n" + names +
                 f"\n\nDime dónde y te lo armo, por ejemplo «quiero pedir en {sellers[0].name}».", False)
     if wants_food(body):
-        return await recommendations(db), False
-    return WELCOME, True
+        text = await recommendations(db)
+        return (text.replace("¡Uy, qué rico!", f"¡Uy, qué rico, {name}!", 1) if name else text), False
+    return _hello(name, contact.last_topic if contact else None), True

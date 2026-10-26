@@ -12,6 +12,7 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from . import memory
 from .event_models import EventSession
 from .gym_models import ClassRequest, GymProfile
 from .models import utcnow
@@ -110,8 +111,15 @@ async def reply_for(db: AsyncSession, phone: str, body: str) -> str:
 
     if not step:
         info = _info(p)
-        msg = (f"¡Hola! 💪 Soy Sabi. Te ayudo a pedir tu clase en *{p.name}*."
+        contact = await memory.get(db, phone)
+        known = memory.first_name(contact.name if contact else None)
+        hello = f"¡Hola, {known}! 💪" if known else "¡Hola! 💪"
+        msg = (f"{hello} Soy Sabi. Te ayudo a pedir tu clase en *{p.name}*."
                + (f"\n\n{info}" if info else "\n\nEl gimnasio te confirma horarios y cupos cuando reciba tu solicitud."))
+        if known:
+            await _save(db, session, {"step": "type", "name": contact.name})
+            options = f" Tenemos: {p.classes_text}." if p.classes_text and not info else ""
+            return msg + f"\n\n¿Qué clase te interesa?{options}"
         await _save(db, session, {"step": "name"})
         return msg + "\n\nPara empezar, ¿cuál es tu nombre?"
 
@@ -119,6 +127,7 @@ async def reply_for(db: AsyncSession, phone: str, body: str) -> str:
         name = re.sub(r"[^\wáéíóúñÁÉÍÓÚÑ .'-]", "", text)[:60].strip()
         if len(name) < 2:
             return "¿Me dices tu nombre para anotarte? 🙂"
+        await memory.set_name(db, phone, name)
         state.update(step="type", name=name)
         await _save(db, session, state)
         options = f" Tenemos: {p.classes_text}." if p.classes_text else ""
@@ -154,6 +163,7 @@ async def reply_for(db: AsyncSession, phone: str, body: str) -> str:
                            preferred=f"{state.get('type', '')} — {state.get('when', '')}"[:200])
         db.add(req)
         await _save(db, session, {})
+        await memory.set_topic(db, phone, "tu solicitud de clase de boxeo")
         if p.owner_phone:
             try:
                 await send_whatsapp_message(

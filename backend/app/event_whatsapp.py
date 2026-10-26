@@ -17,6 +17,7 @@ from .auth import restaurant_by_mention
 from .config import settings
 from .event_agent import run_event_agent
 from .event_models import EventMessage, EventSession
+from . import memory
 from .event_service import get_or_create_session, recent_user_messages
 from .models import utcnow
 from .whatsapp import digits, send_whatsapp_message
@@ -79,7 +80,9 @@ async def handle_event_whatsapp(db: AsyncSession, phone: str, body: str,
     db.add(EventMessage(session_id=session.id, role="user", body=message, external_id=external_id))
     await db.commit()  # visible to concurrent retries (dedupe) and to the agent's history
 
-    result = await run_event_agent(db, session, message)
+    contact = await memory.get(db, phone)
+    result = await run_event_agent(db, session, message,
+                                   memory.first_name(contact.name if contact else None))
     text = render_text(result.reply, result.ui)
     session.state_json = json.dumps(result.state, ensure_ascii=False)
     db.add(EventMessage(session_id=session.id, role="assistant", body=text))

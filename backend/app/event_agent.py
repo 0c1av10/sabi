@@ -337,7 +337,7 @@ def _history_messages(history: list[tuple[str, str]]) -> list[dict]:
 
 
 async def run_claude_agent(tools: EventTools, session: EventSession,
-                           history: list[tuple[str, str]]) -> EventAgentResult:
+                           history: list[tuple[str, str]], contact_name: str = "") -> EventAgentResult:
     import anthropic
 
     state = load_state(session)
@@ -348,7 +348,8 @@ async def run_claude_agent(tools: EventTools, session: EventSession,
     async with asyncio.timeout(settings.events_agent_timeout_seconds):
         for _ in range(settings.events_max_tool_calls + 2):
             resp = await client.messages.create(
-                model=settings.anthropic_model, max_tokens=900, system=SYSTEM_PROMPT,
+                model=settings.anthropic_model, max_tokens=900,
+                system=SYSTEM_PROMPT + (f"\nLa persona se llama {contact_name}: dirígete a ella por su nombre con naturalidad, sin repetirlo en cada mensaje." if contact_name else ""),
                 tools=llm_tool_specs(), messages=messages)
             if resp.stop_reason != "tool_use":
                 break
@@ -379,14 +380,15 @@ def uses_demo_engine() -> bool:
     return mode != "claude" and settings.agent_mock_mode
 
 
-async def run_event_agent(db: AsyncSession, session: EventSession, message: str) -> EventAgentResult:
+async def run_event_agent(db: AsyncSession, session: EventSession, message: str,
+                          contact_name: str = "") -> EventAgentResult:
     tools = EventTools(db, session)
     if not uses_demo_engine():
         msgs = (await db.execute(select(EventMessage).where(EventMessage.session_id == session.id)
                                  .order_by(EventMessage.id.desc()).limit(14))).scalars().all()
         history = [(m.role, m.body) for m in reversed(msgs)]
         try:
-            result = await run_claude_agent(tools, session, history)
+            result = await run_claude_agent(tools, session, history, contact_name)
             result.reply = sanitize_reply(result.reply)
             return result
         except Exception as exc:  # network, API, timeout, tool loop

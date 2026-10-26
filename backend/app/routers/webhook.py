@@ -15,7 +15,7 @@ from ..reactions import reaction_for
 from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge, gym_whatsapp
+from .. import concierge, gym_whatsapp, memory
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -40,8 +40,9 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     (None when a plain welcome was already sent recently)."""
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
+        await memory.set_topic(db, phone, f"tu pedido en {restaurant.name}")
         return restaurant, routed_body, None
-    text, is_welcome = await concierge.reply(db, body)
+    text, is_welcome = await concierge.reply(db, body, phone)
     if is_welcome:
         now = datetime.now(timezone.utc)
         last = _welcomed.get(phone)
@@ -58,12 +59,20 @@ async def _route_or_explain(db: AsyncSession, phone: str, body: str):
     return restaurant, routed_body
 
 
-async def _events_route(db: AsyncSession, phone: str, body: str, external_id: str | None = None):
+async def _events_route(db: AsyncSession, phone: str, body: str, external_id: str | None = None,
+                        profile_name: str = ""):
     """Events assistant channel. Returns the reply text, or None if the message is not for it."""
+    if memory.FORGET.search(body):
+        await memory.forget(db, phone)
+        reply = "Listo, ya no recuerdo tu nombre ni lo que hablamos antes. Si quieres, dime cómo te llamas de nuevo. 🙂"
+        await send_whatsapp_message(phone, reply)
+        return reply
+    await memory.note(db, phone, body, profile_name)
     if await gym_whatsapp.wants_gym(db, phone, body):
         return await gym_whatsapp.handle_gym_whatsapp(db, phone, body)
     if not await wants_events(db, phone, body):
         return None
+    await memory.set_topic(db, phone, "entradas para eventos")
     return await handle_event_whatsapp(db, phone, body, external_id)
 
 
@@ -95,7 +104,7 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                         name = c.get("profile", {}).get("name", "")
                 if phone and body:
                     await _react(phone, msg.get("id"), body)
-                    if await _events_route(db, phone, body, msg.get("id")) is not None:
+                    if await _events_route(db, phone, body, msg.get("id"), name) is not None:
                         continue
                     restaurant, body = await _route_or_explain(db, phone, body)
                     if not restaurant:
@@ -124,7 +133,7 @@ async def receive_kapso(request: Request, db: AsyncSession = Depends(get_db)):
         body = (msg.get("text") or {}).get("body", "")
         if phone and body:
             await _react(phone, msg.get("id"), body)
-            if await _events_route(db, phone, body, msg.get("id")) is not None:
+            if await _events_route(db, phone, body, msg.get("id"), conv.get("contact_name") or "") is not None:
                 continue
             restaurant, body = await _route_or_explain(db, phone, body)
             if not restaurant:
@@ -142,7 +151,7 @@ async def simulate_message(body_in: dict, db: AsyncSession = Depends(get_db)):
     phone = body_in.get("phone", "59912345678")
     text = body_in.get("text", "")
     name = body_in.get("name", "Cliente Test")
-    events_reply = await _events_route(db, phone, text)
+    events_reply = await _events_route(db, phone, text, None, name)
     if events_reply is not None:
         return {"reply": events_reply}
     restaurant, text, concierge_reply = await _resolve(db, phone, text)
@@ -172,7 +181,7 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
     if msg.get("conversationId"):
         zernio_conversations[phone] = msg["conversationId"]
     external_id = msg.get("platformMessageId") or msg.get("id")
-    if phone and body and await _events_route(db, phone, body, external_id) is not None:
+    if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
         return {"status": "ok"}
     restaurant, body = await _route_or_explain(db, phone, body)
     if not (restaurant and phone and body):
