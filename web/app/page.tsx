@@ -94,12 +94,12 @@ const demos = (): { title: string; desc: string; from: string; result: string; g
 ];
 
 const ticketChat = (): Msg[] => [
-  { who: "c", text: "Hola, ¿qué hay por hacer este fin de semana en Caracas?", time: "18:30" },
-  { who: "s", text: "¡Hola! 👋 Soy Sabi. Por ahora hay 2 planes: un concierto el sáb 14 nov, 8:00 pm, y una feria gastronómica el dom 15. ¿Cuál te provoca?", time: "18:30" },
-  { who: "c", text: "El concierto, ¿cuánto cuesta?", time: "18:31" },
-  { who: "s", text: "General: $25,00 · disponible\nVIP: $60,00 · por confirmar\nPrecios orientativos; cargos adicionales por verificar.", time: "18:31" },
-  { who: "c", text: "2 generales", time: "18:32" },
-  { who: "s", text: "Subtotal orientativo: $50,00 (2 x General). Esto no reserva tus entradas: la disponibilidad final y el pago se ven en el enlace oficial.", time: "18:32" },
+  { who: "c", text: "Hola, ¿qué hay por hacer en Lechería esta semana?", time: "18:30" },
+  { who: "s", text: "¡Hola! 👋 Soy Sabi. Esta semana: Greeicy en concierto, mar 27 oct, 8:00 pm, Marina Inbuca. ¿Te cuento las zonas?", time: "18:30" },
+  { who: "c", text: "Sí, ¿cuánto cuestan?", time: "18:31" },
+  { who: "s", text: "Preferencial: €46,99 · disponible\nPlatinum, Diamante, VIP y Box: agotadas según la última verificación.\nPrecios orientativos; cargos adicionales por verificar.", time: "18:31" },
+  { who: "c", text: "2 preferenciales", time: "18:32" },
+  { who: "s", text: "Subtotal orientativo: €93,98 (2 x Preferencial). Esto no reserva tus entradas: la disponibilidad final y el pago se ven en el enlace oficial.", time: "18:32" },
 ];
 
 const shopChat = (): Msg[] => [
