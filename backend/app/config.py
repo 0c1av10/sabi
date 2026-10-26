@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     events_source_url: str = "https://www.tuentradaweb.com/api/events"
     # Bearer secret for the scheduled sync (Vercel cron sends CRON_SECRET). Empty = endpoint off.
     cron_secret: str = ""
+    # Panel PINs set at startup for existing businesses: "slug:1234,other:5678". Empty = untouched.
+    business_pins: str = ""
     # Admin: allowed emails (comma separated) + shared password. Empty = admin disabled.
     events_admin_emails: str = ""
     events_admin_password: str = ""

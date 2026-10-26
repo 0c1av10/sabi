@@ -64,6 +64,23 @@ async def seed_known_businesses() -> None:
         await session.commit()
 
 
+async def apply_business_pins() -> None:
+    """Lets the operator set a known PIN for a business (e.g. one created by the seed)."""
+    pairs = [p.split(":", 1) for p in settings.business_pins.split(",") if ":" in p]
+    pairs = [(s.strip(), pin.strip()) for s, pin in pairs if s.strip() and pin.strip().isdigit() and len(pin.strip()) == 4]
+    if not pairs:
+        return
+    from sqlalchemy import select
+    from .db import SessionLocal
+    from .models import Restaurant
+    async with SessionLocal() as session:
+        for slug, pin in pairs:
+            r = (await session.execute(select(Restaurant).where(Restaurant.slug == slug))).scalar_one_or_none()
+            if r and r.pin != pin:
+                r.pin = pin
+        await session.commit()
+
+
 async def backfill_known_delivery_zones() -> None:
     from sqlalchemy import select
     from . import delivery
@@ -114,6 +131,7 @@ async def ensure_ready() -> None:
             await seed_demo_events(session)  # no-op unless the events catalog is empty
     await sync_events_if_empty()
     await seed_known_businesses()
+    await apply_business_pins()
     await backfill_known_delivery_zones()
     _ready = True
 
