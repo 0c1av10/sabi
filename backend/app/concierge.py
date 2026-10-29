@@ -60,24 +60,13 @@ def is_greeting(body: str) -> bool:
     return bool(GREETING.match(_plain(body).strip()))
 
 
-async def _places(db: AsyncSession, limit: int = 6) -> str:
-    rows = (await db.execute(select(Restaurant).order_by(Restaurant.id).limit(limit))).scalars().all()
-    if not rows:
-        return ""
-    lines = []
-    for r in rows:
-        tag = (r.tagline or "").strip()
-        lines.append(f"• *{r.name}*" + (f" — {tag}" if tag else ""))
-    return "🍽️ *Comida y delivery*\n" + "\n".join(lines) + "\n\n"
-
-
 async def _hello(db: AsyncSession, name: str, returning: bool) -> str:
+    """Short on purpose: Sabi answers the greeting and lets the person say what they want;
+    food, events or classes are then handled by what they write."""
     who = f", {name}" if name else ""
-    head = f"¡Hola de nuevo{who}! 👋" if returning else f"¡Hola{who}! 👋 Soy Sabi."
-    return (f"{head} Esto es lo que tengo disponible:\n\n" + await _places(db) +
-            "🎟️ *Entradas y eventos*: dime qué plan buscas, por ejemplo «¿qué hay por hacer en Lechería?».\n"
-            "🥊 *Clases de boxeo* en Domicio Rondón Gym.\n\n"
-            "¿Qué te provoca hoy? Escríbeme el nombre del sitio o lo que se te antoja.")
+    if returning:
+        return f"¡Hola de nuevo{who}! 👋 ¿Qué se te antoja hoy?"
+    return f"¡Hola{who}! 👋 Soy Sabi. ¿En qué te echo una mano hoy?"
 
 
 async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool]:

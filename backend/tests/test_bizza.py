@@ -84,7 +84,7 @@ def test_greeting_detection():
 
 
 @pytest.mark.asyncio
-async def test_hola_lists_every_business_even_with_an_open_conversation(Session, client, monkeypatch):
+async def test_hola_is_short_and_food_intent_lists_businesses(Session, client, monkeypatch):
     from app.models import Conversation, Customer
     await _seed(Session, monkeypatch)
     async with Session() as s:
@@ -98,8 +98,9 @@ async def test_hola_lists_every_business_even_with_an_open_conversation(Session,
     async with Session() as s:
         restaurant, _, reply = await _resolve(s, "584140000001", "hola")
         assert restaurant is None
-        assert "Bizza" in reply and "MC Racuchos" in reply
-        # the old conversation no longer captures the next message
-        open_left = (await s.execute(select(func.count()).select_from(Conversation)
-                                     .where(Conversation.status == "open"))).scalar_one()
-        assert open_left == 0
+        assert reply and "Bizza" not in reply and "MC Racuchos" not in reply  # no menu dump
+        assert (await s.execute(select(func.count()).select_from(Conversation)
+                                .where(Conversation.status == "open"))).scalar_one() == 0
+        # what the person says next decides the answer
+        restaurant, _, reply = await _resolve(s, "584140000001", "tengo hambre, quiero comer algo")
+        assert restaurant is None and "Bizza" in reply
