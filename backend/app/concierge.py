@@ -34,8 +34,10 @@ def wants_food(body: str) -> bool:
     return bool(FOOD_INTENT.search(_plain(body)))
 
 
-async def recommendations(db: AsyncSession, limit: int = 4) -> str:
-    rows = (await db.execute(select(Restaurant).order_by(Restaurant.id).limit(limit))).scalars().all()
+async def recommendations(db: AsyncSession, limit: int = 6) -> str:
+    # Internal test businesses ("Prueba ...") are never recommended to customers.
+    rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
+                             .order_by(Restaurant.id).limit(limit))).scalars().all()
     if not rows:
         return ("Todavía no tengo locales para recomendarte por aquí, pero cuéntame qué se te antoja "
                 "y lo tengo en cuenta. 😊 Si buscas entradas para un evento, dímelo y te ayudo.")
