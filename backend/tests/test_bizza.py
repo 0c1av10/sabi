@@ -102,5 +102,7 @@ async def test_hola_is_short_and_food_intent_lists_businesses(Session, client, m
         assert (await s.execute(select(func.count()).select_from(Conversation)
                                 .where(Conversation.status == "open"))).scalar_one() == 0
         # what the person says next decides the answer
+        from app import concierge
+        monkeypatch.setattr(concierge.random, "sample", lambda pop, k: pop[-k:])
         restaurant, _, reply = await _resolve(s, "584140000001", "tengo hambre, quiero comer algo")
-        assert restaurant is None and "Bizza" in reply
+        assert restaurant is None and "Bizza" in reply and reply.count("• *") == 2

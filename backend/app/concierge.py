@@ -4,6 +4,7 @@ Sabi is one assistant for many businesses, so it never introduces itself as the 
 particular restaurant or producer. It chats naturally and, when asked about food or delivery,
 recommends the places it knows; tickets are handled by the events assistant.
 """
+import random
 import re
 import unicodedata
 
@@ -34,21 +35,21 @@ def wants_food(body: str) -> bool:
     return bool(FOOD_INTENT.search(_plain(body)))
 
 
-async def recommendations(db: AsyncSession, limit: int = 6) -> str:
-    # Internal test businesses ("Prueba ...") are never recommended to customers.
+async def recommendations(db: AsyncSession, pick: int = 2) -> str:
+    """One or two suggestions, not the whole list; varied between asks. Internal test
+    businesses ("Prueba ...") are never recommended."""
     rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
-                             .order_by(Restaurant.id).limit(limit))).scalars().all()
+                             .order_by(Restaurant.id))).scalars().all()
     if not rows:
         return ("Todavía no tengo locales para recomendarte por aquí, pero cuéntame qué se te antoja "
                 "y lo tengo en cuenta. 😊 Si buscas entradas para un evento, dímelo y te ayudo.")
+    chosen = random.sample(rows, min(pick, len(rows)))
     lines = []
-    for r in rows:
+    for r in chosen:
         tag = (r.tagline or "").strip()
         lines.append(f"• *{r.name}*" + (f" — {tag}" if tag else ""))
-    first = rows[0].name
-    return ("¡Uy, qué rico! 😋 Por ahora te recomiendo:\n" + "\n".join(lines) +
-            f"\n\nSi te provoca alguno, escríbeme «quiero pedir en {first}» y te armo el pedido "
-            "con delivery. ¿Qué se te antoja?")
+    return ("¡Uy, qué rico! 😋 Te sugiero:\n" + "\n".join(lines) +
+            "\n\n¿Te armo el pedido en alguno? Si se te antoja otra cosa, dime qué y lo busco.")
 
 
 GREETING = re.compile(
