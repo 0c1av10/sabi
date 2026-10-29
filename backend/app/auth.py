@@ -63,7 +63,7 @@ async def restaurant_by_mention(db: AsyncSession, body: str) -> Restaurant | Non
     for r in (await db.execute(select(Restaurant))).scalars().all():
         for candidate in (_norm(r.name), _norm(r.slug)):
             core = [w for w in candidate if w not in _GENERIC]
-            if core and all(w in words for w in core):
+            if core and (all(w in words for w in core) or (len(core) > 1 and "".join(core) in words)):
                 best.append((len(core), r))
                 break
     if not best:
@@ -91,19 +91,33 @@ def _same(a: str, b: str) -> bool:
 
 
 async def restaurants_by_product(db: AsyncSession, body: str) -> list[Restaurant]:
-    """Businesses whose available menu has a product the message asks for ("quiero unos pastelitos").
-    Only distinctive words count (4+ letters, not filler)."""
+    """Businesses that sell what the message asks for ("quiero unos pastelitos", "quiero pizza").
+    Only distinctive words count (4+ letters, not filler). A word that is the category or the first
+    word of a product name (Pizzas, Pastelitos) outweighs one that is only a flavor inside another
+    product ("Pastelito de Pizza"), so only the best-matching businesses are returned."""
     wanted = {_stem(w) for w in _norm(body) if len(w) >= 4 and w not in _PRODUCT_STOP}
     if not wanted:
         return []
-    found: dict[int, Restaurant] = {}
+    best: dict[int, tuple[int, Restaurant]] = {}
     rows = (await db.execute(select(MenuItem, Restaurant).join(
         Restaurant, MenuItem.restaurant_id == Restaurant.id).where(MenuItem.available.is_(True)))).all()
     for item, rest in rows:
-        words = {_stem(w) for w in _norm(f"{item.name} {item.category}") if len(w) >= 4 and w not in _PRODUCT_STOP}
-        if any(_same(w, m) for w in wanted for m in words):
-            found[rest.id] = rest
-    return list(found.values())
+        category = {_stem(w) for w in _norm(item.category or "") if len(w) >= 4 and w not in _PRODUCT_STOP}
+        name_words = [_stem(w) for w in _norm(item.name or "") if len(w) >= 4 and w not in _PRODUCT_STOP]
+        score = 0
+        for w in wanted:
+            if any(_same(w, c) for c in category):
+                score = max(score, 3)
+            if name_words and _same(w, name_words[0]):
+                score = max(score, 2)
+            if any(_same(w, n) for n in name_words):
+                score = max(score, 1)
+        if score and score > best.get(rest.id, (0, rest))[0]:
+            best[rest.id] = (score, rest)
+    if not best:
+        return []
+    top = max(sc for sc, _ in best.values())
+    return [r for sc, r in best.values() if sc == top]
 
 
 async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tuple[Restaurant | None, str]:

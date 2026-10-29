@@ -106,3 +106,18 @@ async def test_hola_is_short_and_food_intent_lists_businesses(Session, client, m
         monkeypatch.setattr(concierge.random, "sample", lambda pop, k: pop[-k:])
         restaurant, _, reply = await _resolve(s, "584140000001", "tengo hambre, quiero comer algo")
         assert restaurant is None and "Bizza" in reply and reply.count("• *") == 2
+
+
+@pytest.mark.asyncio
+async def test_product_routing_pizza_goes_to_bizza_pastelitos_to_mc(Session, monkeypatch):
+    from app.auth import restaurant_for_message
+    await _seed(Session, monkeypatch)
+    async with Session() as s:
+        r, _ = await restaurant_for_message(s, "584140000002", "quiero pizza")
+        assert r and r.slug == "bizza"
+        r, _ = await restaurant_for_message(s, "584140000002", "quiero unos pastelitos")
+        assert r and r.slug == "mc-racuchos"
+        r, _ = await restaurant_for_message(s, "584140000002", "quiero pedir en mcracuchos")
+        assert r and r.slug == "mc-racuchos"
+        r, _ = await restaurant_for_message(s, "584140000002", "tengo hambre, ¿qué me recomiendas?")
+        assert r is None
