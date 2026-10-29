@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_db
+from .known_menus import BIZZA_MENU
 from .routers import events, events_admin, panel, store, webhook
 
 
@@ -40,6 +41,14 @@ KNOWN_BUSINESSES = [{
         ("PAPAQUESO 15 piezas", 16.00, "Para compartir", "15 piezas de papa y queso"),
         ("TRISABOR 15 piezas", 20.00, "Para compartir", "15 piezas, tres sabores"),
     ],
+}, {
+    # Demo from the restaurant's public QR menu. No hours, delivery terms or contacts are set.
+    "name": "Bizza", "slug": "bizza",
+    "tagline": "Pizzas, pastas, carnes y postres",
+    "website": "https://bizza.tastio.club/menu",
+    "opening_hours": "",
+    "delivery_info": "",
+    "menu": BIZZA_MENU,
 }]
 
 
