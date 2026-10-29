@@ -73,3 +73,33 @@ async def test_login_and_tenant_isolation(Session, client, monkeypatch):
     async with Session() as s:
         other = (await s.execute(select(MenuItem).join(Restaurant).where(Restaurant.slug == "mc-racuchos"))).scalars().first()
     assert (await client.delete(f"/api/menu/{other.id}", headers=h)).status_code in (403, 404)
+
+
+def test_greeting_detection():
+    from app import concierge
+    for ok in ("hola", "Hola!", "Buenas tardes", "¿Qué tienes?", "menú", "Hola Sabi"):
+        assert concierge.is_greeting(ok), ok
+    for no in ("hola quiero pizza", "quiero pastelitos", "Lechería", "me llamo Octavio"):
+        assert not concierge.is_greeting(no), no
+
+
+@pytest.mark.asyncio
+async def test_hola_lists_every_business_even_with_an_open_conversation(Session, client, monkeypatch):
+    from app.models import Conversation, Customer
+    await _seed(Session, monkeypatch)
+    async with Session() as s:
+        mc = (await s.execute(select(Restaurant).where(Restaurant.slug == "mc-racuchos"))).scalar_one()
+        cust = Customer(restaurant_id=mc.id, phone="584140000001", name="Octavio")
+        s.add(cust)
+        await s.flush()
+        s.add(Conversation(customer_id=cust.id, status="open"))
+        await s.commit()
+    from app.routers.webhook import _resolve
+    async with Session() as s:
+        restaurant, _, reply = await _resolve(s, "584140000001", "hola")
+        assert restaurant is None
+        assert "Bizza" in reply and "MC Racuchos" in reply
+        # the old conversation no longer captures the next message
+        open_left = (await s.execute(select(func.count()).select_from(Conversation)
+                                     .where(Conversation.status == "open"))).scalar_one()
+        assert open_left == 0

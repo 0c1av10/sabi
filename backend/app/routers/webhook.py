@@ -4,13 +4,13 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request, Response
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import restaurant_for_message
 from ..config import settings
 from ..db import get_db
-from ..models import Restaurant
+from ..models import Conversation, Customer, Restaurant
 from ..reactions import reaction_for
 from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
@@ -35,9 +35,23 @@ async def _react(phone: str, message_id: str | None, body: str) -> None:
             pass
 
 
+async def _close_open_conversations(db: AsyncSession, phone: str) -> None:
+    ids = (await db.execute(
+        select(Conversation.id).join(Customer, Conversation.customer_id == Customer.id)
+        .where(Customer.phone == phone, Conversation.status == "open"))).scalars().all()
+    if ids:
+        await db.execute(update(Conversation).where(Conversation.id.in_(ids)).values(status="closed"))
+        await db.commit()
+
+
 async def _resolve(db: AsyncSession, phone: str, body: str):
     """(restaurant, body, reply). `reply` is Sabi's concierge text when no business is named
     (None when a plain welcome was already sent recently)."""
+    if concierge.is_greeting(body):
+        # A bare "hola" starts over: it must not stay inside the last business's open conversation.
+        await _close_open_conversations(db, phone)
+        text, _ = await concierge.reply(db, body, phone)
+        return None, body, text
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
         await memory.set_topic(db, phone, f"tu pedido en {restaurant.name}")

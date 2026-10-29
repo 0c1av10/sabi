@@ -49,13 +49,35 @@ async def recommendations(db: AsyncSession, limit: int = 4) -> str:
             "con delivery. ¿Qué se te antoja?")
 
 
-def _hello(name: str, topic: str | None) -> str:
+GREETING = re.compile(
+    r"^\W*(?:hola+|holi+|buenas|buen\s?dia|buenos\s?dias|buenas\s?(?:tardes|noches)|hey|hi|saludos|inicio|"
+    r"menu|opciones|ayuda|que\s+(?:tienes|tienen|hay|ofreces|ofrecen)|en\s+que\s+me\s+ayudas)"
+    r"(?:\s+(?:sabi|a\s+todos|amigo|amiga))?\W*$")
+
+
+def is_greeting(body: str) -> bool:
+    """A bare "hola" / "buenas" / "menú": it restarts the conversation with Sabi's options."""
+    return bool(GREETING.match(_plain(body).strip()))
+
+
+async def _places(db: AsyncSession, limit: int = 6) -> str:
+    rows = (await db.execute(select(Restaurant).order_by(Restaurant.id).limit(limit))).scalars().all()
+    if not rows:
+        return ""
+    lines = []
+    for r in rows:
+        tag = (r.tagline or "").strip()
+        lines.append(f"• *{r.name}*" + (f" — {tag}" if tag else ""))
+    return "🍽️ *Comida y delivery*\n" + "\n".join(lines) + "\n\n"
+
+
+async def _hello(db: AsyncSession, name: str, returning: bool) -> str:
     who = f", {name}" if name else ""
-    if topic:
-        return (f"¡Hola de nuevo{who}! 👋 La vez pasada te ayudé con {topic}. ¿Repetimos o buscas otra cosa? "
-                "Te puedo ayudar con comida y delivery, entradas para eventos o clases de boxeo.")
-    return (f"¡Hola{who}! 👋 Soy Sabi. Te echo una mano con lo que necesites: dónde comer o pedir delivery, "
-            "conseguir entradas para un evento o reservar tu clase de boxeo. ¿Qué se te antoja hoy?")
+    head = f"¡Hola de nuevo{who}! 👋" if returning else f"¡Hola{who}! 👋 Soy Sabi."
+    return (f"{head} Esto es lo que tengo disponible:\n\n" + await _places(db) +
+            "🎟️ *Entradas y eventos*: dime qué plan buscas, por ejemplo «¿qué hay por hacer en Lechería?».\n"
+            "🥊 *Clases de boxeo* en Domicio Rondón Gym.\n\n"
+            "¿Qué te provoca hoy? Escríbeme el nombre del sitio o lo que se te antoja.")
 
 
 async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool]:
@@ -74,4 +96,4 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
     if wants_food(body):
         text = await recommendations(db)
         return (text.replace("¡Uy, qué rico!", f"¡Uy, qué rico, {name}!", 1) if name else text), False
-    return _hello(name, contact.last_topic if contact else None), True
+    return await _hello(db, name, bool(contact and contact.last_topic)), True
