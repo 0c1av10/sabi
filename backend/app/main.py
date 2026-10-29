@@ -99,7 +99,7 @@ async def seed_gym_profile() -> None:
 async def apply_business_pins() -> None:
     """Lets the operator set a known PIN for a business (e.g. one created by the seed)."""
     pairs = [p.split(":", 1) for p in settings.business_pins.split(",") if ":" in p]
-    pairs = [(s.strip(), pin.strip()) for s, pin in pairs if s.strip() and pin.strip().isdigit() and len(pin.strip()) == 4]
+    pairs = [(s.strip(), pin.strip()) for s, pin in pairs if s.strip() and pin.strip().isalnum() and 4 <= len(pin.strip()) <= 20]
     if not pairs:
         return
     from sqlalchemy import select

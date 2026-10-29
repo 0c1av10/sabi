@@ -60,8 +60,8 @@ async def test_store_endpoint_and_other_businesses_untouched(Session, client, mo
 
 @pytest.mark.asyncio
 async def test_login_and_tenant_isolation(Session, client, monkeypatch):
-    await _seed(Session, monkeypatch, pins="bizza:4821,mc-racuchos:7310")
-    ok = await client.post("/api/auth/login", json={"slug": "bizza", "pin": "4821"})
+    await _seed(Session, monkeypatch, pins="bizza:clave4821,mc-racuchos:7310")
+    ok = await client.post("/api/auth/login", json={"slug": "bizza", "pin": "clave4821"})
     assert ok.status_code == 200
     bad = await client.post("/api/auth/login", json={"slug": "bizza", "pin": "7310"})
     assert bad.status_code == 401
