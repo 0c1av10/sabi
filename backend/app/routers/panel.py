@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .. import delivery
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -260,19 +260,40 @@ async def list_conversations(restaurant: Restaurant = Depends(current_restaurant
     return out
 
 
+CARACAS = timezone(timedelta(hours=-4))
+
+
 @router.get("/today")
 async def today(restaurant: Restaurant = Depends(current_restaurant),
                 db: AsyncSession = Depends(get_db)):
-    start = datetime.now(timezone.utc).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
+    # "Today" is the business day in Caracas (UTC-4), stored times are naive UTC.
+    now_local = datetime.now(CARACAS)
+    start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).replace(tzinfo=None)
+    week_start = start - timedelta(days=6)
     orders = (await db.execute(select(Order).where(
-        Order.restaurant_id == restaurant.id, Order.created_at >= start))).scalars().all()
+        Order.restaurant_id == restaurant.id, Order.created_at >= week_start)
+        .options(selectinload(Order.items)))).scalars().all()
+    today_orders = [o for o in orders if o.created_at >= start]
     convs = (await db.execute(select(Conversation).where(
         Conversation.restaurant_id == restaurant.id,
         Conversation.updated_at >= start))).scalars().all()
+    done = [o for o in today_orders if o.status.value in ("approved", "edited")]
+    sales = sum(o.total or 0.0 for o in done)
+    counts: dict[str, int] = {}
+    for o in orders:
+        if o.status.value in ("approved", "edited"):
+            for i in o.items:
+                counts[i.name] = counts.get(i.name, 0) + (i.quantity or 0)
+    top = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
     return {
-        "orders_total": len(orders),
-        "approved": sum(1 for o in orders if o.status.value in ("approved", "edited")),
-        "rejected": sum(1 for o in orders if o.status.value == "rejected"),
-        "pending": sum(1 for o in orders if o.status.value == "pending"),
+        "orders_total": len(today_orders),
+        "approved": len(done),
+        "rejected": sum(1 for o in today_orders if o.status.value == "rejected"),
+        "pending": sum(1 for o in today_orders if o.status.value == "pending"),
         "open_conversations": sum(1 for c in convs if c.status == "open"),
+        "sales_today": round(sales, 2),
+        "avg_ticket": round(sales / len(done), 2) if done else 0.0,
+        "unpaid_approved": sum(1 for o in done if o.payment_status.value != "confirmed"),
+        "top_items": [{"name": n, "quantity": q} for n, q in top],
+        "day": now_local.strftime("%Y-%m-%d"),
     }
