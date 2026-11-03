@@ -1,8 +1,8 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import (Boolean, DateTime, Enum, Float, ForeignKey, Integer,
-                        String, Text)
+from sqlalchemy import (Boolean, DateTime, Enum, Float, ForeignKey, Index,
+                        Integer, String, Text, text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -163,3 +163,28 @@ class OrderItem(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
 
     order: Mapped[Order] = relationship(back_populates="items")
+
+
+class RidesQuoteJob(Base):
+    """Yummy Rides quote pilot job (pull model). Route and recipient live
+    here; the external runner never supplies them. Status flow:
+    pending -> claimed -> sending -> done | needs_review | error."""
+    __tablename__ = "rides_quote_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phone: Mapped[str] = mapped_column(String(30), index=True)
+    origin: Mapped[str] = mapped_column(String(300))
+    destination: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    idem_key: Mapped[str] = mapped_column(String(80), default="")
+    dispatch_poked: Mapped[bool] = mapped_column(Boolean, default=False)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    __table_args__ = (
+        # Atomic creation exclusion: two concurrent webhooks cannot both
+        # create an active job for the same phone (IntegrityError on the loser).
+        Index("uq_rides_quote_active_phone", "phone", unique=True,
+              postgresql_where=text("status IN ('pending','claimed','sending','needs_review')"),
+              sqlite_where=text("status IN ('pending','claimed','sending','needs_review')")),
+    )

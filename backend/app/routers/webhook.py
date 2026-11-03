@@ -15,7 +15,7 @@ from ..reactions import reaction_for
 from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge, gym_whatsapp, memory
+from .. import concierge, gym_whatsapp, memory, pilot_yummy
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -24,6 +24,17 @@ WELCOME_MESSAGE = concierge.WELCOME
 _WELCOME_COOLDOWN = timedelta(hours=1)
 _welcomed: dict[str, datetime] = {}  # per warm instance: avoids repeating the welcome on every message
 
+
+
+async def _pilot_route(db: AsyncSession, phone: str, body: str) -> bool:
+    """Yummy Rides quote pilot: personal quote requests reach it BEFORE
+    restaurant routing - the user's own WhatsApp asks Sabi directly, with no
+    business involved. Quote-only; the reply itself says no ride is ordered."""
+    reply = await pilot_yummy.create_quote_job(db, phone, body)
+    if reply:
+        await send_whatsapp_message(phone, reply)
+        return True
+    return False
 
 async def _react(phone: str, message_id: str | None, body: str) -> None:
     """Best-effort emoji reaction chosen by message type; must never break the reply."""
@@ -118,6 +129,8 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                         name = c.get("profile", {}).get("name", "")
                 if phone and body:
                     await _react(phone, msg.get("id"), body)
+                    if await _pilot_route(db, phone, body):
+                        continue
                     if await _events_route(db, phone, body, msg.get("id"), name) is not None:
                         continue
                     restaurant, body = await _route_or_explain(db, phone, body)
@@ -147,6 +160,8 @@ async def receive_kapso(request: Request, db: AsyncSession = Depends(get_db)):
         body = (msg.get("text") or {}).get("body", "")
         if phone and body:
             await _react(phone, msg.get("id"), body)
+            if await _pilot_route(db, phone, body):
+                continue
             if await _events_route(db, phone, body, msg.get("id"), conv.get("contact_name") or "") is not None:
                 continue
             restaurant, body = await _route_or_explain(db, phone, body)
@@ -195,6 +210,8 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
     if msg.get("conversationId"):
         zernio_conversations[phone] = msg["conversationId"]
     external_id = msg.get("platformMessageId") or msg.get("id")
+    if phone and body and await _pilot_route(db, phone, body):
+        return {"status": "ok"}
     if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
         return {"status": "ok"}
     restaurant, body = await _route_or_explain(db, phone, body)

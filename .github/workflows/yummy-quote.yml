@@ -1,0 +1,36 @@
+# Sabi Yummy Rides quote pilot - manual dispatch only.
+# Privacy: no dispatch inputs (nothing typed into a public run page), no
+# artifacts, driver logs only steps/counts/booleans. Addresses, keys and the
+# delivery endpoint live in repo Secrets. The route itself never
+# reaches GitHub: the runner pulls the job from sabi-api privately. Phone Harness spend is capped
+# server-side by PH_MINUTES and only the promo balance can be consumed.
+name: sabi-yummy-quote-pilot
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sabi-yummy-quote-pilot
+  cancel-in-progress: false
+
+jobs:
+  quote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx
+      - name: Run quote driver
+        env:
+          PH_API_KEY: ${{ secrets.PH_API_KEY }}
+          PH_PROFILE_ID: ${{ secrets.PH_PROFILE_ID }}
+          # Includes the /api prefix, e.g. https://sabi-api.vercel.app/api
+          SABI_API_BASE: ${{ secrets.SABI_API_BASE }}
+          SABI_RUNNER_TOKEN: ${{ secrets.SABI_RUNNER_TOKEN }}
+          PH_MINUTES: '3'
+        run: python pilot/yummy_quote_driver.py
