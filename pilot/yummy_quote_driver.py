@@ -328,6 +328,9 @@ async def main():
     except PilotAbort as e:
         log("ABORT", str(e))
         rc = 1
+    except FileNotFoundError as e:
+        log("FAIL", f"missing executable: {e.filename}")
+        rc = 2
     except Exception as e:
         log("FAIL", type(e).__name__)
         rc = 2

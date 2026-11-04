@@ -25,6 +25,15 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install httpx
+      - name: Ensure adb
+        run: |
+          if ! command -v adb >/dev/null 2>&1; then
+            if [ -n "$ANDROID_HOME" ] && [ -x "$ANDROID_HOME/platform-tools/adb" ]; then
+              echo "ADB_BIN=$ANDROID_HOME/platform-tools/adb" >> "$GITHUB_ENV"
+            else
+              sudo apt-get update -qq && sudo apt-get install -y -qq android-tools-adb
+            fi
+          fi
       - name: Run quote driver
         env:
           PH_API_KEY: ${{ secrets.PH_API_KEY }}
