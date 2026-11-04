@@ -36,8 +36,18 @@ logger = logging.getLogger("sabi.pilot_yummy")
 ACTIVE_STATUSES = ("pending", "claimed", "sending", "needs_review")
 
 QUOTE_INTENT = re.compile(
-    r"(cu[aá]nto|precio|tarifa).{0,40}(viaje|carrera|ride|yummy)", re.IGNORECASE)
-ROUTE_RE = re.compile(r"\b(?:de|desde)\s+(.+?)\s+\b(?:a|hasta)\s+(.+?)\s*$", re.IGNORECASE)
+    r"(cu[aá]nto|precio|tarifa|cobra|sale).{0,40}(viaje|carrera|ride|taxi|yummy)", re.IGNORECASE)
+RIDE_INTENT = re.compile(
+    r"(yummy.{0,40}(taxi|rides?|viaje|carrera|transporte|moto)"
+    r"|(taxi|viaje|carrera|transporte|moto).{0,40}yummy"
+    r"|(quiero|pido|pedir|solicito|necesito).{0,20}yummy)", re.IGNORECASE)
+ROUTE_RE = re.compile(
+    r"\b(?:de|desde)\s+(.+?)\s+(?:a|al|hasta|hacia)\s+(.+?)\s*$", re.IGNORECASE)
+ROUTE_FOLLOWUP_RE = re.compile(
+    r"^(.{1,120}?)\s+(?:a|al|hasta|hacia)\s+(.{1,120}?)\s*$", re.IGNORECASE)
+CANCEL_RE = re.compile(
+    r"^(no|nada|cancela(r)?|olv[ií]dalo|olvida|d[eé]jalo|mejor no)\b", re.IGNORECASE)
+AWAITING_TTL = timedelta(minutes=30)   # route clarification window per phone
 
 JPEG_MAGIC = b"\xff\xd8\xff"
 DISPATCH_API = "https://api.github.com/repos/{repo}/actions/workflows/{workflow}/dispatches"
@@ -71,7 +81,8 @@ async def daily_job_count(db: AsyncSession, hours: int = 24) -> int:
     since = utcnow() - timedelta(hours=hours)
     res = await db.execute(
         select(func.count()).select_from(RidesQuoteJob)
-        .where(RidesQuoteJob.created_at >= since))
+        .where(RidesQuoteJob.created_at >= since,
+               ~RidesQuoteJob.status.in_(("awaiting_route", "expired"))))
     return int(res.scalar() or 0)
 
 
@@ -143,18 +154,74 @@ async def recover_stale_jobs(db: AsyncSession) -> None:
                 "No pude completar la cotización esta vez; si quieres, "
                 "pídemela de nuevo en unos minutos.")
 
+async def _latest_awaiting(db: AsyncSession, phone: str) -> RidesQuoteJob | None:
+    res = await db.execute(
+        select(RidesQuoteJob).where(
+            RidesQuoteJob.phone == phone,
+            RidesQuoteJob.status == "awaiting_route")
+        .order_by(RidesQuoteJob.updated_at.desc()).limit(1))
+    return res.scalars().first()
+
+
 async def create_quote_job(db: AsyncSession, phone: str, body: str) -> str | None:
     """Webhook branch. Returns the user-facing reply text, or None when the
-    message is not a pilot quote request. Never orders a ride: quote only."""
+    message is not a pilot quote request. Never orders a ride: quote only.
+
+    Two-step UX: a ride-intent message without a route gets a clarification
+    ("awaiting_route" row, not claimable, outside the active-job index and
+    the daily cap); the next route-looking message completes the job. Any
+    unrelated message dissolves the awaiting state so normal Sabi flow is
+    never hijacked."""
     try:
         await recover_stale_jobs(db)
     except Exception:
         logger.exception("rides pilot recovery sweep failed")
-    if not (pilot_allowed(phone) and QUOTE_INTENT.search(body)):
+    if not pilot_allowed(phone):
+        return None
+    awaiting = await _latest_awaiting(db, phone)
+    if awaiting is not None:
+        if utcnow() - awaiting.updated_at > AWAITING_TTL:
+            awaiting.status = "expired"
+            await db.commit()
+        else:
+            origin, destination = extract_route(body)
+            if not (origin and destination):
+                m = ROUTE_FOLLOWUP_RE.search(body.strip().rstrip("?!."))
+                if m and "yummy" not in m.group(1).lower():
+                    origin, destination = m.group(1).strip(), m.group(2).strip()
+            if origin and destination:
+                if await cap_reached(db):
+                    awaiting.status = "expired"
+                    await db.commit()
+                    return "Llegu\u00e9 al l\u00edmite de cotizaciones de hoy; ma\u00f1ana puedo seguir."
+                awaiting.origin, awaiting.destination = origin, destination
+                awaiting.status = "pending"
+                awaiting.updated_at = utcnow()
+                await db.commit()
+                await dispatch_poke(db, awaiting)
+                return ("Consultando la tarifa en Yummy Rides, te mando la captura aqu\u00ed "
+                        "en unos minutos. Solo es consulta: no se pide ning\u00fan viaje.")
+            if CANCEL_RE.search(body.strip()):
+                awaiting.status = "expired"
+                await db.commit()
+                return "Listo, no cotizo nada. Aqu\u00ed sigo por si necesitas otra cosa."
+            if RIDE_INTENT.search(body) or QUOTE_INTENT.search(body):
+                return ("Dime la ruta as\u00ed: 'de [origen] a [destino]', por ejemplo "
+                        "'de MM Plaza a Puertos de Sucre'.")
+            # Unrelated message: dissolve the awaiting state, let normal Sabi flow answer.
+            awaiting.status = "expired"
+            await db.commit()
+    if not (QUOTE_INTENT.search(body) or RIDE_INTENT.search(body)):
         return None
     origin, destination = extract_route(body)
     if not (origin and destination):
-        return None
+        job = RidesQuoteJob(phone=phone, origin="", destination="",
+                            status="awaiting_route")
+        db.add(job)
+        await db.commit()
+        return ("Con gusto te cotizo el viaje en Yummy Rides. \u00bfDe d\u00f3nde a d\u00f3nde? "
+                "Escr\u00edbeme origen y destino, por ejemplo: 'de MM Plaza a Puertos de Sucre'. "
+                "Solo es consulta: no se pide ning\u00fan viaje.")
     if await active_job_for_phone(db, phone):
         return ("Ya tengo una cotización en curso para ti; "
                 "te mando la captura en cuanto termine.")

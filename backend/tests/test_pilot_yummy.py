@@ -234,3 +234,106 @@ async def test_phone_allowlist_digit_normalized(Session):
     assert pilot_yummy.pilot_allowed("+584248523168")
     assert pilot_yummy.pilot_allowed("584248523168")
     assert not pilot_yummy.pilot_allowed("+589999999999")
+
+
+# --- Routing fix (2026-11-04): natural phrasing + route clarification ---
+
+async def test_pedir_un_yummy_asks_route_not_food(client, Session, pokes):
+    """'Quiero pedir un yummy' must enter the pilot lane (clarify route),
+    not fall through to restaurant recommendations."""
+    async with Session() as db:
+        reply = await pilot_yummy.create_quote_job(db, PHONE, "Quiero pedir un yummy")
+    assert reply and "De dónde a dónde" in reply
+    assert "no se pide ningún viaje" in reply
+    assert len(pokes) == 0  # nothing dispatched before the route exists
+    async with Session() as db:
+        rows = (await db.execute(
+            pilot_yummy.select(pilot_yummy.RidesQuoteJob)
+            .where(pilot_yummy.RidesQuoteJob.phone == PHONE))).scalars().all()
+    assert len(rows) == 1 and rows[0].status == "awaiting_route"
+
+
+async def test_taxi_context_asks_route(Session, pokes):
+    """'Yummy un servicio de taxi' = ride context: clarify, never greet again."""
+    async with Session() as db:
+        reply = await pilot_yummy.create_quote_job(db, PHONE, "Yummy un servicio de taxi")
+    assert reply and "De dónde a dónde" in reply
+    assert len(pokes) == 0
+
+
+async def test_followup_route_completes_job(Session, pokes):
+    async with Session() as db:
+        await pilot_yummy.create_quote_job(db, PHONE, "Quiero pedir un yummy")
+        reply = await pilot_yummy.create_quote_job(
+            db, PHONE, "de MM Plaza a Puertos de Sucre")
+    assert reply and "no se pide ningún viaje" in reply
+    assert len(pokes) == 1
+    r_job = None
+    async with Session() as db:
+        r_job = (await db.execute(
+            pilot_yummy.select(pilot_yummy.RidesQuoteJob)
+            .where(pilot_yummy.RidesQuoteJob.phone == PHONE))).scalars().one()
+    assert r_job.status == "pending"
+    assert r_job.origin == "MM Plaza" and r_job.destination == "Puertos de Sucre"
+
+
+async def test_followup_route_without_de(Session, pokes):
+    async with Session() as db:
+        await pilot_yummy.create_quote_job(db, PHONE, "Yummy un servicio de taxi")
+        reply = await pilot_yummy.create_quote_job(
+            db, PHONE, "MM Plaza a Puertos de Sucre")
+    assert reply and "no se pide ningún viaje" in reply
+    assert len(pokes) == 1
+
+
+async def test_unrelated_message_dissolves_awaiting(Session, pokes):
+    """A normal food message while awaiting must NOT be hijacked: the pilot
+    steps aside and normal Sabi flow answers."""
+    async with Session() as db:
+        await pilot_yummy.create_quote_job(db, PHONE, "Quiero pedir un yummy")
+        reply = await pilot_yummy.create_quote_job(db, PHONE, "quiero pizza")
+    assert reply is None
+    async with Session() as db:
+        row = (await db.execute(
+            pilot_yummy.select(pilot_yummy.RidesQuoteJob)
+            .where(pilot_yummy.RidesQuoteJob.phone == PHONE))).scalars().one()
+    assert row.status == "expired"
+    assert await pilot_yummy.daily_job_count(db) == 0  # dissolved != consumption
+
+
+async def test_cancel_while_awaiting(Session, pokes):
+    async with Session() as db:
+        await pilot_yummy.create_quote_job(db, PHONE, "Quiero pedir un yummy")
+        reply = await pilot_yummy.create_quote_job(db, PHONE, "no, olvídalo")
+    assert reply and "no cotizo nada" in reply
+    assert len(pokes) == 0
+
+
+async def test_awaiting_expires_after_ttl(Session, pokes):
+    from datetime import timedelta
+    async with Session() as db:
+        await pilot_yummy.create_quote_job(db, PHONE, "Quiero pedir un yummy")
+        row = (await db.execute(
+            pilot_yummy.select(pilot_yummy.RidesQuoteJob)
+            .where(pilot_yummy.RidesQuoteJob.phone == PHONE))).scalars().one()
+        row.updated_at = pilot_yummy.utcnow() - timedelta(minutes=31)
+        await db.commit()
+        reply = await pilot_yummy.create_quote_job(
+            db, PHONE, "de MM Plaza a Puertos de Sucre")
+    assert reply is None  # window closed; route-only message is not a new intent
+    assert len(pokes) == 0
+
+
+async def test_non_allowlisted_pedir_yummy_untouched(Session, pokes):
+    async with Session() as db:
+        reply = await pilot_yummy.create_quote_job(db, "+581234567890", "Quiero pedir un yummy")
+    assert reply is None
+    assert len(pokes) == 0
+
+
+async def test_one_shot_al_connector(Session, pokes):
+    async with Session() as db:
+        reply = await pilot_yummy.create_quote_job(
+            db, PHONE, "cuánto cuesta el viaje de la plaza al centro")
+    assert reply and "no se pide ningún viaje" in reply
+    assert len(pokes) == 1
