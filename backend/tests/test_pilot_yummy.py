@@ -564,3 +564,19 @@ async def test_diag_requires_auth_and_valid_jpeg(client, Session, pokes):
     assert r.status_code == 400
     r = await client.get("/api/pilot/yummy/diag/99", headers={"Authorization": "Bearer x"})
     assert r.status_code == 401
+
+
+async def test_job_detail_admin_only(client, Session, pokes, admin_token):
+    from app.models import RidesQuoteJob
+    async with Session() as s:
+        s.add(RidesQuoteJob(id=1, phone="+584248523168", origin="Origen X",
+                            destination="Destino Y", idem_key="k1"))
+        await s.commit()
+    r = await client.get("/api/pilot/yummy/jobs/1", headers=AUTH)
+    assert r.status_code == 401                      # runner token is not enough
+    r = await client.get("/api/pilot/yummy/jobs/1", headers=ADMIN)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["origin"] == "Origen X" and body["destination"] == "Destino Y"
+    r = await client.get("/api/pilot/yummy/jobs/999", headers=ADMIN)
+    assert r.status_code == 404

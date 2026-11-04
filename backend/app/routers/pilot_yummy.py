@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import pilot_yummy
 from ..config import settings
 from ..db import get_db
-from ..models import RidesDiagShot
+from ..models import RidesDiagShot, RidesQuoteJob
 
 router = APIRouter(prefix="/api/pilot/yummy", tags=["pilot-yummy"])
 
@@ -30,6 +30,20 @@ async def _auth_admin(request: Request) -> None:
     scheme, _, value = token.partition(" ")
     if scheme.lower() != "bearer" or not pilot_yummy.verify_admin_token(value):
         raise HTTPException(status_code=401, detail="bad token")
+
+
+@router.get("/jobs/{job_id}", status_code=200)
+async def job_detail(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Admin-only private read of a pilot job (route is private data; never
+    appears in public runner logs)."""
+    await _auth_admin(request)
+    job = await db.get(RidesQuoteJob, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    return {"job_id": str(job.id), "status": job.status, "origin": job.origin,
+            "destination": job.destination, "error": job.error,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat()}
 
 
 @router.post("/jobs/redrive", status_code=200)
