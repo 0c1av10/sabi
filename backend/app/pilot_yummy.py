@@ -65,6 +65,31 @@ def verify_runner_token(token: str) -> bool:
     return bool(expected) and secrets.compare_digest(token, expected)
 
 
+def verify_admin_token(token: str) -> bool:
+    expected = settings.rides_pilot_admin_token
+    return bool(expected) and secrets.compare_digest(token, expected)
+
+
+async def redrive_latest_error_job(db: AsyncSession) -> RidesQuoteJob | None:
+    """Manual re-drive (validation/ops): reset the LATEST terminal 'error' job
+    to pending and poke dispatch. Terminal done/captured_nosend jobs are
+    untouched, and needs_review is NEVER re-driven here: an ambiguous send
+    stays under human review."""
+    res = await db.execute(
+        select(RidesQuoteJob).where(RidesQuoteJob.status == "error")
+        .order_by(RidesQuoteJob.id.desc()).limit(1))
+    job = res.scalar_one_or_none()
+    if job is None:
+        return None
+    job.status = "pending"
+    job.error = ""
+    job.dispatch_poked = False
+    job.updated_at = utcnow()
+    await db.commit()
+    await dispatch_poke(db, job)
+    return job
+
+
 def extract_route(text: str) -> tuple[str, str]:
     """'cuanto cuesta el viaje de X a Y?' -> ('X', 'Y'). Empty when unclear:
     the pilot only runs on an explicit origin AND destination in the message."""

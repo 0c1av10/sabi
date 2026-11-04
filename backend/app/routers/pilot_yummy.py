@@ -23,6 +23,24 @@ async def _auth(request: Request) -> None:
         raise HTTPException(status_code=401, detail="bad token")
 
 
+async def _auth_admin(request: Request) -> None:
+    token = request.headers.get("authorization", "")
+    scheme, _, value = token.partition(" ")
+    if scheme.lower() != "bearer" or not pilot_yummy.verify_admin_token(value):
+        raise HTTPException(status_code=401, detail="bad token")
+
+
+@router.post("/jobs/redrive", status_code=200)
+async def redrive(request: Request, db: AsyncSession = Depends(get_db)):
+    """Ops-only manual re-drive of the latest errored job (validation flow).
+    Separate admin token, NOT the runner token: capture/claim stay runner-only."""
+    await _auth_admin(request)
+    job = await pilot_yummy.redrive_latest_error_job(db)
+    if job is None:
+        return Response(status_code=204)
+    return {"job_id": str(job.id), "status": job.status}
+
+
 @router.post("/jobs/claim", status_code=200)
 async def claim(request: Request, db: AsyncSession = Depends(get_db)):
     await _auth(request)

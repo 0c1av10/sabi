@@ -455,3 +455,66 @@ async def test_nosend_second_timeout_does_not_text(Session, pokes, nosend):
         job = await db.get(RidesQuoteJob, job_id)
     assert job.status == "error"
     assert not [e for e in sent_log if e.get("body")]  # no user notice in validation mode
+
+
+# --- Manual redrive (ops endpoint, admin token) ---
+
+ADMIN = {"Authorization": "Bearer test-admin-token"}
+
+
+@pytest.fixture
+def admin_token(monkeypatch):
+    monkeypatch.setattr(settings, "rides_pilot_admin_token", "test-admin-token")
+    return True
+
+
+async def test_redrive_requires_admin_token(client, Session, pokes, admin_token):
+    job_id = await _make_job(Session, status="error")
+    r = await client.post("/api/pilot/yummy/jobs/redrive")
+    assert r.status_code == 401
+    r = await client.post("/api/pilot/yummy/jobs/redrive", headers=AUTH)  # runner token NO
+    assert r.status_code == 401
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.status == "error" and len(pokes) == 0
+
+
+async def test_redrive_resets_latest_error_and_pokes(client, Session, pokes, admin_token):
+    await _make_job(Session, status="done")
+    job_id = await _make_job(Session, status="error")
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+        job.error = "runner timeout after auto-retry"
+        await db.commit()
+    r = await client.post("/api/pilot/yummy/jobs/redrive", headers=ADMIN)
+    assert r.status_code == 200 and r.json()["job_id"] == str(job_id)
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.status == "pending" and job.error == ""
+    assert pokes == [job_id]  # poke fired; real poke persists dispatch_poked itself
+
+
+async def test_redrive_needs_review_never_touched(client, Session, pokes, admin_token):
+    job_id = await _make_job(Session, status="needs_review")
+    r = await client.post("/api/pilot/yummy/jobs/redrive", headers=ADMIN)
+    assert r.status_code == 204
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.status == "needs_review" and len(pokes) == 0
+
+
+async def test_nosend_capture_replay_refused_no_resend(client, Session, pokes, nosend):
+    job_id = await _make_job(Session)
+    r = await client.post("/api/pilot/yummy/jobs/claim", headers=AUTH)
+    job = r.json()
+    r = await client.post(f"/api/pilot/yummy/jobs/{job['job_id']}/capture",
+                          content=JPEG, headers={**AUTH, "Idempotency-Key": job["job_id"]})
+    assert r.status_code == 200
+    # Replay with the SAME idempotency key: refused, nothing re-sent
+    r = await client.post(f"/api/pilot/yummy/jobs/{job['job_id']}/capture",
+                          content=JPEG, headers={**AUTH, "Idempotency-Key": job["job_id"]})
+    assert r.status_code == 409
+    assert not [e for e in sent_log if "image_bytes" in e]
+    # And the job is not claimable again
+    r = await client.post("/api/pilot/yummy/jobs/claim", headers=AUTH)
+    assert r.status_code == 204
