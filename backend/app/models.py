@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import (Boolean, DateTime, Enum, Float, ForeignKey, Index,
-                        Integer, String, Text, text)
+                        Integer, LargeBinary, String, Text, text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -163,6 +163,18 @@ class OrderItem(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
 
     order: Mapped[Order] = relationship(back_populates="items")
+
+
+class RidesDiagShot(Base):
+    """Private diagnostic screenshot from a failed pilot run. Runner-token
+    upload, admin-token retrieval; NEVER sent anywhere (no-send evidence)."""
+    __tablename__ = "rides_diag_shots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(Integer, index=True)
+    reason: Mapped[str] = mapped_column(String(160), default="")
+    image: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class RidesQuoteJob(Base):

@@ -11,7 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import pilot_yummy
+from ..config import settings
 from ..db import get_db
+from ..models import RidesDiagShot
 
 router = APIRouter(prefix="/api/pilot/yummy", tags=["pilot-yummy"])
 
@@ -39,6 +41,36 @@ async def redrive(request: Request, db: AsyncSession = Depends(get_db)):
     if job is None:
         return Response(status_code=204)
     return {"job_id": str(job.id), "status": job.status}
+
+
+@router.post("/diag/{job_id}", status_code=200)
+async def diag_upload(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Runner uploads a private failure screenshot. Does NOT touch the job
+    row: diagnostics never advance or close a job."""
+    await _auth(request)
+    body = await request.body()
+    if len(body) > settings.rides_pilot_max_jpeg_bytes or not pilot_yummy.valid_jpeg(body):
+        raise HTTPException(status_code=400, detail="invalid_jpeg")
+    reason = request.headers.get("x-diag-reason", "")[:160]
+    db.add(RidesDiagShot(job_id=job_id, reason=reason, image=body))
+    await db.commit()
+    return {"stored": True}
+
+
+@router.get("/diag/{job_id}")
+async def diag_latest(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Admin-only retrieval of the latest diagnostic shot for a job."""
+    await _auth_admin(request)
+    from sqlalchemy import select
+    res = await db.execute(
+        select(RidesDiagShot).where(RidesDiagShot.job_id == job_id)
+        .order_by(RidesDiagShot.id.desc()).limit(1))
+    shot = res.scalar_one_or_none()
+    if shot is None:
+        return Response(status_code=204)
+    return Response(content=bytes(shot.image), media_type="image/jpeg",
+                    headers={"X-Diag-Reason": shot.reason,
+                             "X-Diag-At": shot.created_at.isoformat()})
 
 
 @router.post("/jobs/claim", status_code=200)

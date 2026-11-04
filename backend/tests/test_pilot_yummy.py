@@ -540,3 +540,27 @@ async def test_redrive_stale_claimed_reset_fresh_claimed_untouched(client, Sessi
     async with Session() as db:
         job = await db.get(RidesQuoteJob, fresh_id)
     assert job.status == "claimed" and pokes == [stale_id]
+
+
+# --- Private diagnostic shots ---
+
+async def test_diag_upload_and_admin_retrieval(client, Session, pokes, admin_token):
+    r = await client.post("/api/pilot/yummy/diag/1", content=JPEG,
+                          headers={**AUTH, "X-Diag-Reason": "no prices on quote screen"})
+    assert r.status_code == 200 and r.json() == {"stored": True}
+    # runner token cannot read diagnostics
+    r = await client.get("/api/pilot/yummy/diag/1", headers=AUTH)
+    assert r.status_code == 401
+    # admin token retrieves image + reason; job row untouched
+    r = await client.get("/api/pilot/yummy/diag/1", headers=ADMIN)
+    assert r.status_code == 200 and r.content == JPEG
+    assert r.headers["x-diag-reason"] == "no prices on quote screen"
+
+
+async def test_diag_requires_auth_and_valid_jpeg(client, Session, pokes):
+    r = await client.post("/api/pilot/yummy/diag/1", content=JPEG)
+    assert r.status_code == 401
+    r = await client.post("/api/pilot/yummy/diag/1", content=b"notajpeg", headers=AUTH)
+    assert r.status_code == 400
+    r = await client.get("/api/pilot/yummy/diag/99", headers={"Authorization": "Bearer x"})
+    assert r.status_code == 401

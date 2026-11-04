@@ -431,6 +431,17 @@ async def main():
         rc = 0
     except PilotAbort as e:
         log("ABORT", str(e))
+        try:  # private diagnostic shot for main; never public, never sent
+            img = await ph.screenshot()
+            r = await ph._http.post(
+                f"{API_BASE}/pilot/yummy/diag/{JOB_ID}",
+                headers={"Authorization": f"Bearer {RUNNER_TOKEN}",
+                         "X-Diag-Reason": str(e)[:120],
+                         "Content-Type": "image/jpeg"},
+                content=img, timeout=30.0)
+            log("diag", f"failure screenshot upload {r.status_code}")
+        except Exception:
+            pass
         rc = 1
     except FileNotFoundError as e:
         log("FAIL", f"missing executable: {e.filename}")
