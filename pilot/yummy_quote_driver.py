@@ -39,7 +39,9 @@ def norm(text):
     import unicodedata
     t = unicodedata.normalize("NFD", str(text))
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
-    return re.sub(r"\s+", " ", t.lower()).strip()
+    # punctuation-insensitive: app labels and user text disagree on commas
+    t = re.sub(r"[^\w\s]", " ", t.lower())
+    return re.sub(r"\s+", " ", t).strip()
 
 def content_text(result):
     return " ".join(c.get("text", "") for c in result.get("content", [])
@@ -154,10 +156,10 @@ def row_near(els, y_hint, needles, band=200):
             best = e
     return best
 
-PLACEHOLDERS = {"type pick up location", "where are we going?"}
+PLACEHOLDERS = {"type pick up location", "where are we going"}
 PLACEHOLDER_TOKENS = set(" ".join(sorted(PLACEHOLDERS)).split())
 SHEET_EXCLUDE = {"choose address on the map", "get fare quote", "your ride",
-                 "flights, new", "marketplace", "groceries", "gifts", "new"}
+                 "flights new", "marketplace", "groceries", "gifts", "new"}
 
 def sheet_fields(els):
     """Generic route-field locator, no address-specific strings or fixed
@@ -171,13 +173,37 @@ def sheet_fields(els):
     gq_y = int(gq[0]["center"][1])
     title = [e for e in els if str(e.get("text", "")) == "Your ride"]
     top_y = int(title[0]["center"][1]) if title else 0
+    # The sheet overlays the home grid; the accessibility tree includes both,
+    # so the plain title..GQ band can catch home promos. When the address
+    # edit-list container is exposed, only its own band holds the real rows.
+    edit = next((e for e in els
+                 if str(e.get("text", "")) == "rides_map_bs_address_edit_list"
+                 and "center" in e and e.get("h")), None)
+    # The home grid behind the sheet also exposes texts (e.g. its own
+    # "Where are we going?" button) inside any y band. Those nodes mirror a
+    # rides_* resource-id node at the same center; the sheet's real rows do
+    # not. Exclude candidates collocated with a rides_* node.
+    rides_centers = [(int(e["center"][0]), int(e["center"][1])) for e in els
+                     if str(e.get("text", "")).startswith("rides_")
+                     and "center" in e]
+
+    def near_rides(x, y):
+        return any(abs(x - rx) <= 15 and abs(y - ry) <= 15
+                   for rx, ry in rides_centers)
+
     rows = []
     for e in els:
         t = str(e.get("text", "")).strip()
         if not t or "center" not in e or t.startswith("rides_"):
             continue
-        y = int(e["center"][1])
-        if not (top_y < y < gq_y):
+        x, y = int(e["center"][0]), int(e["center"][1])
+        if edit is not None:
+            ey, eh = int(edit["center"][1]), int(edit["h"])
+            if not (ey - eh // 2 - 20 <= y <= ey + eh // 2 + 20):
+                continue
+        elif not (top_y < y < gq_y):
+            continue
+        if near_rides(x, y):
             continue
         n = norm(t)
         if n in SHEET_EXCLUDE:
@@ -207,16 +233,20 @@ async def clear_and_fill(ph, serial, row, value, tag):
                 raise PilotAbort(f"{tag}: field NOT empty after clear")
         log(tag, "EMPTY VERIFIED")
     await ph.tool("phone_type_keys", {"text": value})
-    await asyncio.sleep(2.5)
-    els = await ph.elements()
     tokens = set(norm(value).split())
     cand = {}
-    for e in els:
-        t = str(e.get("text", ""))
-        if "center" not in e or abs(int(e["center"][1]) - cy) < 28:
-            continue
-        if tokens and tokens <= set(norm(t).split()):
-            cand.setdefault(norm(t), []).append(e)
+    for _ in range(4):  # geocoder latency varies; poll ~8s then fail closed
+        await asyncio.sleep(2)
+        els = await ph.elements()
+        cand = {}
+        for e in els:
+            t = str(e.get("text", ""))
+            if "center" not in e or abs(int(e["center"][1]) - cy) < 28:
+                continue
+            if tokens and tokens <= set(norm(t).split()):
+                cand.setdefault(norm(t), []).append(e)
+        if cand:
+            break
     if len(cand) != 1:
         raise PilotAbort(f"{tag}: suggestions not unique ({len(cand)})")
     nodes = next(iter(cand.values()))
@@ -243,6 +273,35 @@ async def claim_job():
     if not (job.get("job_id") and job.get("origin") and job.get("dest")):
         raise PilotAbort("job payload incomplete")
     return job
+
+
+async def ensure_sheet(ph):
+    """The app does not open into the route edit sheet: with a saved route it
+    opens on the map (address card up top), on a fresh state on the home grid
+    ('Where are we going?'). Navigate to the sheet from either entry; retry
+    briefly for slow loads; fail closed if the sheet never appears."""
+    els = await ph.elements()
+    for attempt in range(3):
+        if any(str(e.get("text", "")) == "GET FARE QUOTE" for e in els):
+            if attempt:
+                log("sheet", f"open after nav step {attempt}")
+            return els
+        card = next((e for e in els
+                     if str(e.get("text", "")) == "rides_map_address_card_btn"
+                     and "center" in e), None)
+        wtg = next((e for e in els
+                    if norm(str(e.get("text", ""))) == "where are we going"
+                    and "center" in e), None)
+        target = card or wtg
+        if not target:
+            await asyncio.sleep(3)
+            els = await ph.elements()
+            continue
+        log("sheet", "nav via " + ("address card" if card else "where-to-go"))
+        await ph.tap(int(target["center"][0]), int(target["center"][1]))
+        await asyncio.sleep(2.5)
+        els = await ph.elements()
+    raise PilotAbort("edit sheet not reachable (GQ=0)")
 
 async def main():
     if not (KEY and PROFILE and API_BASE and RUNNER_TOKEN):
@@ -283,8 +342,8 @@ async def main():
         log("adb", "connected")
         adb(serial, "shell", "monkey", "-p", "com.yummyrides",
             "-c", "android.intent.category.LAUNCHER", "1", timeout=20)
-        await asyncio.sleep(5)
-        els = await ph.elements()
+        await asyncio.sleep(6)
+        els = await ensure_sheet(ph)
         row_o, row_d, gq_btn = sheet_fields(els)
         o_tok = set(norm(ORIGIN).split())
         d_tok = set(norm(DEST).split())
@@ -316,6 +375,11 @@ async def main():
         log("quote", f"prices found: {len(prices)} (values redacted)")
         jpeg = await ph.screenshot()
         log("screenshot", f"{len(jpeg)} bytes")
+        dbg = os.environ.get("PILOT_DEBUG_CAPTURE_PATH")
+        if dbg:
+            with open(dbg, "wb") as f:
+                f.write(jpeg)
+            log("screenshot", "local debug copy saved")
         # Deliver ONLY the image + job id. The endpoint owns recipient,
         # route and send authority; the runner supplies none of them.
         r = await ph._http.post(
