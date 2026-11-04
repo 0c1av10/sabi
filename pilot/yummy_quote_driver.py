@@ -364,25 +364,42 @@ async def main():
         log("verify", f"origin={ok_o} dest={ok_d} composite={composite}")
         if not (ok_o and ok_d) or composite:
             raise PilotAbort("route verification failed; NOT quoting")
-        await ph.tap(int(gq_btn["center"][0]), int(gq_btn["center"][1]))
+        UI_STRINGS = ("GET FARE QUOTE", "Your ride", "CONTINUE",
+                      "Choose address on the map",
+                      "rides_map_bs_vehicle_type_list", "rides_map_address_card_btn",
+                      "rides_map_bs_vehicle_back_btn")
+        def ui_flags(els):
+            return " ".join(
+                f"{tag}={any(str(e.get('text', '')) == s for e in els)}"
+                for tag, s in zip(("gq", "title", "cont", "maplink", "vlist",
+                                   "acard", "back"), UI_STRINGS))
+        def find_prices(els):
+            return [e for e in els
+                    if str(e.get("text", "")).strip().startswith("$")
+                    and str(e.get("text", "")).strip() != "$0.00"]
         prices = []
-        for _ in range(6):  # quote latency varies by route; poll ~12s
-            await asyncio.sleep(2)
-            els = await ph.elements()
-            prices = [e for e in els
-                      if str(e.get("text", "")).strip().startswith("$")
-                      and str(e.get("text", "")).strip() != "$0.00"]
+        for attempt in range(2):  # the tap can miss if the sheet shifts
+            await ph.tap(int(gq_btn["center"][0]), int(gq_btn["center"][1]))
+            for _ in range(6):  # quote latency varies by route; poll ~12s
+                await asyncio.sleep(2)
+                els = await ph.elements()
+                prices = find_prices(els)
+                if prices:
+                    break
+                if not any(str(e.get("text", "")) == "GET FARE QUOTE" for e in els):
+                    break  # left the sheet: re-tapping makes no sense
             if prices:
                 break
+            gq_now = next((e for e in els
+                           if str(e.get("text", "")) == "GET FARE QUOTE"
+                           and "center" in e), None)
+            if not gq_now:
+                break
+            gq_btn = gq_now  # button may have moved; re-tap fresh coords
+            log("quote", "GQ still present after tap; re-tapping")
         if not prices:
-            # privacy-safe diagnostics: counts and booleans only, no texts
-            has_list = any(str(e.get("text", "")) == "rides_map_bs_vehicle_type_list"
-                           for e in els)
-            has_cont = any(str(e.get("text", "")) == "CONTINUE" for e in els)
-            zero_only = any(str(e.get("text", "")).strip() == "$0.00" for e in els)
             raise PilotAbort(
-                f"no prices on quote screen (els={len(els)} list={has_list} "
-                f"continue={has_cont} zero_only={zero_only})")
+                f"no prices on quote screen (els={len(els)} {ui_flags(els)})")
         log("quote", f"prices found: {len(prices)} (values redacted)")
         jpeg = await ph.screenshot()
         log("screenshot", f"{len(jpeg)} bytes")
