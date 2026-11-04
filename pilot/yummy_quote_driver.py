@@ -156,6 +156,31 @@ def row_near(els, y_hint, needles, band=200):
             best = e
     return best
 
+# Venezuela bounding box (coarse; used only as a boolean in public logs)
+VE_LAT = (0.6, 12.4)
+VE_LON = (-73.5, -59.7)
+
+def parse_last_gps(dumpsys_text):
+    """Extract (lat, lon) from `dumpsys location` output, or None."""
+    m = re.findall(r"Location\[[^\]]*?(-?\d{1,2}\.\d{3,}),(-?\d{1,3}\.\d{3,})",
+                   dumpsys_text)
+    if not m:
+        return None
+    lat, lon = float(m[-1][0]), float(m[-1][1])
+    return (lat, lon)
+
+def in_venezuela(point):
+    if not point:
+        return None
+    lat, lon = point
+    return VE_LAT[0] <= lat <= VE_LAT[1] and VE_LON[0] <= lon <= VE_LON[1]
+
+SERVICE_OVERLAY = "no service available"
+
+def service_overlay_shown(els):
+    """True when the app shows the 'no service in this area' blocking overlay."""
+    return any(SERVICE_OVERLAY in norm(str(e.get("text", ""))) for e in els)
+
 PLACEHOLDERS = {"type pick up location", "where are we going"}
 PLACEHOLDER_TOKENS = set(" ".join(sorted(PLACEHOLDERS)).split())
 SHEET_EXCLUDE = {"choose address on the map", "get fare quote", "your ride",
@@ -348,10 +373,24 @@ async def main():
         if "ph-ok" not in probe:
             raise PilotAbort("adb link failed")
         log("adb", "connected")
+        try:  # diagnostic only; never blocks the run, logs booleans only
+            gps_txt = adb(serial, "shell", "dumpsys", "location", timeout=20)
+            pt = parse_last_gps(gps_txt)
+            in_ve = in_venezuela(pt)
+            log("gps", f"last-fix={'in_ve' if in_ve else ('OUTSIDE_ve' if in_ve is False else 'unknown')}")
+            avd = adb(serial, "emu", "avd", "name", timeout=15)
+            log("gps", f"emu-console={'ok' if 'OK' in avd.upper() or avd.strip() else 'unavailable'}")
+        except Exception:
+            log("gps", "probe failed (non-fatal)")
         adb(serial, "shell", "monkey", "-p", "com.yummyrides",
             "-c", "android.intent.category.LAUNCHER", "1", timeout=20)
         await asyncio.sleep(6)
+        els0 = await ph.elements()
+        if service_overlay_shown(els0):
+            raise PilotAbort("no_service_area overlay at app open (device location outside coverage?)")
         els = await ensure_sheet(ph)
+        if service_overlay_shown(els):
+            raise PilotAbort("no_service_area overlay on edit sheet")
         row_o, row_d, gq_btn = sheet_fields(els)
         o_tok = set(norm(ORIGIN).split())
         d_tok = set(norm(DEST).split())
@@ -464,4 +503,5 @@ async def main():
                 pass
     sys.exit(rc)
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
