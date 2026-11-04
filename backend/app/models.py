@@ -177,6 +177,16 @@ class RidesDiagShot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class RidesDiagReport(Base):
+    """Private text diagnostic report from a pilot diagnostic session."""
+    __tablename__ = "rides_diag_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_id: Mapped[int] = mapped_column(Integer, index=True)
+    report: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class RidesQuoteJob(Base):
     """Yummy Rides quote pilot job (pull model). Route and recipient live
     here; the external runner never supplies them. Status flow:

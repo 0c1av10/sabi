@@ -580,3 +580,16 @@ async def test_job_detail_admin_only(client, Session, pokes, admin_token):
     assert body["origin"] == "Origen X" and body["destination"] == "Destino Y"
     r = await client.get("/api/pilot/yummy/jobs/999", headers=ADMIN)
     assert r.status_code == 404
+
+
+async def test_diag_report_runner_or_admin_upload_admin_read(client, Session, pokes, admin_token):
+    r = await client.post("/api/pilot/yummy/diag/1/report", content=b"gps report", headers=AUTH)
+    assert r.status_code == 200
+    r = await client.post("/api/pilot/yummy/diag/1/report", content=b"local report", headers=ADMIN)
+    assert r.status_code == 200
+    r = await client.post("/api/pilot/yummy/diag/1/report", content=b"x")
+    assert r.status_code == 401
+    r = await client.get("/api/pilot/yummy/diag/1/report", headers=AUTH)
+    assert r.status_code == 401
+    r = await client.get("/api/pilot/yummy/diag/1/report", headers=ADMIN)
+    assert r.status_code == 200 and r.json()["report"] == "local report"  # latest wins

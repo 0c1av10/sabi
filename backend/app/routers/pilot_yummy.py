@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import pilot_yummy
 from ..config import settings
 from ..db import get_db
-from ..models import RidesDiagShot, RidesQuoteJob
+from ..models import RidesDiagReport, RidesDiagShot, RidesQuoteJob
 
 router = APIRouter(prefix="/api/pilot/yummy", tags=["pilot-yummy"])
 
@@ -30,6 +30,33 @@ async def _auth_admin(request: Request) -> None:
     scheme, _, value = token.partition(" ")
     if scheme.lower() != "bearer" or not pilot_yummy.verify_admin_token(value):
         raise HTTPException(status_code=401, detail="bad token")
+
+
+@router.post("/diag/{job_id}/report", status_code=200)
+async def diag_report_upload(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    """Private text diagnostics (GPS, permissions, network). Runner OR admin
+    token: local diagnostic sessions hold the admin token only."""
+    try:
+        await _auth(request)
+    except HTTPException:
+        await _auth_admin(request)
+    body = (await request.body())[:60000]
+    db.add(RidesDiagReport(job_id=job_id, report=body.decode("utf-8", "replace")))
+    await db.commit()
+    return {"stored": True}
+
+
+@router.get("/diag/{job_id}/report")
+async def diag_report_latest(job_id: int, request: Request, db: AsyncSession = Depends(get_db)):
+    await _auth_admin(request)
+    from sqlalchemy import select
+    res = await db.execute(
+        select(RidesDiagReport).where(RidesDiagReport.job_id == job_id)
+        .order_by(RidesDiagReport.id.desc()).limit(1))
+    rep = res.scalar_one_or_none()
+    if rep is None:
+        return Response(status_code=204)
+    return {"report": rep.report, "created_at": rep.created_at.isoformat()}
 
 
 @router.get("/jobs/{job_id}", status_code=200)
