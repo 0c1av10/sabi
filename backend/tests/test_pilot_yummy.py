@@ -518,3 +518,25 @@ async def test_nosend_capture_replay_refused_no_resend(client, Session, pokes, n
     # And the job is not claimable again
     r = await client.post("/api/pilot/yummy/jobs/claim", headers=AUTH)
     assert r.status_code == 204
+
+
+async def test_redrive_stale_claimed_reset_fresh_claimed_untouched(client, Session, pokes, admin_token):
+    from datetime import timedelta
+    stale_id = await _make_job(Session, status="claimed")
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, stale_id)
+        job.updated_at = pilot_yummy.utcnow() - timedelta(minutes=20)
+        await db.commit()
+    r = await client.post("/api/pilot/yummy/jobs/redrive", headers=ADMIN)
+    assert r.status_code == 200 and r.json()["job_id"] == str(stale_id)
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, stale_id)
+    assert job.status == "pending"
+    assert pokes == [stale_id]
+
+    fresh_id = await _make_job(Session, phone="p2", status="claimed")
+    r = await client.post("/api/pilot/yummy/jobs/redrive", headers=ADMIN)
+    assert r.status_code == 204
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, fresh_id)
+    assert job.status == "claimed" and pokes == [stale_id]

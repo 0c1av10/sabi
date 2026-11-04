@@ -75,8 +75,12 @@ async def redrive_latest_error_job(db: AsyncSession) -> RidesQuoteJob | None:
     to pending and poke dispatch. Terminal done/captured_nosend jobs are
     untouched, and needs_review is NEVER re-driven here: an ambiguous send
     stays under human review."""
+    now = utcnow()
     res = await db.execute(
-        select(RidesQuoteJob).where(RidesQuoteJob.status == "error")
+        select(RidesQuoteJob).where(
+            (RidesQuoteJob.status == "error") |
+            ((RidesQuoteJob.status == "claimed") &
+             (RidesQuoteJob.updated_at < now - CLAIMED_TTL)))
         .order_by(RidesQuoteJob.id.desc()).limit(1))
     job = res.scalar_one_or_none()
     if job is None:
