@@ -27,3 +27,18 @@ def test_service_overlay_detection():
     assert not drv.service_overlay_shown(
         [{"text": "Where are we going?"}, {"text": "Yummy Moto $2.10"}])
     assert not drv.service_overlay_shown([])
+
+
+def test_gps_report_distinguishes_stale_and_disabled():
+    fresh = """gps provider:
+    enabled
+    last location=Location[gps 10.4806,-66.9036 et=+2m30s]"""
+    out = drv.gps_report(fresh)
+    assert "fix=yes" in out and "fix_age=<5m" in out and "gps_enabled=True" in out
+    stale = """gps provider:
+    disabled
+    last location=Location[gps 10.4806,-66.9036 et=+3d4h10m5s]"""
+    out = drv.gps_report(stale)
+    assert "fix=yes" in out and "fix_age=>=76h" in out and "gps_enabled=False" in out
+    assert drv.gps_report("") == "unavailable"
+    assert "fix=no" in drv.gps_report("gps provider:\n  enabled\n  no last location")

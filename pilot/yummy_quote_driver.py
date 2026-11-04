@@ -156,6 +156,30 @@ def row_near(els, y_hint, needles, band=200):
             best = e
     return best
 
+def gps_report(dumpsys_text):
+    """Public-log-safe summary of `dumpsys location`: per-provider enabled
+    flags and fix age bracket. A stale/historical fix is distinguishable from
+    a current one via the elapsed-realtime (et=+...) age; a disabled provider
+    means its 'last location' may be historical only. Returns a short string
+    of booleans/brackets, never coordinates."""
+    if "dumpsys" in dumpsys_text[:40] or not dumpsys_text.strip():
+        return "unavailable"
+    low = dumpsys_text.lower()
+    enabled = None
+    m = re.search(r"gps provider[^\n]*", low)
+    if m:
+        seg = low[m.end():m.end() + 400]
+        enabled = ("enabled" in seg and "disabled" not in seg.split("enabled")[0][-12:])
+    age = "unknown"
+    m = re.search(r"et=\+?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?", low)
+    if m and any(m.groups()):
+        dd, hh, mm, ss = (int(g) if g else 0 for g in m.groups())
+        mins = dd * 1440 + hh * 60 + mm + (1 if ss else 0)
+        age = "<5m" if mins < 5 else ("<1h" if mins < 60 else f">={mins // 60}h")
+    has_fix = bool(re.findall(r"Location\[[^\]]*?(-?\d{1,2}\.\d{3,}),(-?\d{1,3}\.\d{3,})",
+                              dumpsys_text))
+    return f"fix={'yes' if has_fix else 'no'},gps_enabled={enabled},fix_age={age}"
+
 # Venezuela bounding box (coarse; used only as a boolean in public logs)
 VE_LAT = (0.6, 12.4)
 VE_LON = (-73.5, -59.7)
@@ -377,7 +401,8 @@ async def main():
             gps_txt = adb(serial, "shell", "dumpsys", "location", timeout=20)
             pt = parse_last_gps(gps_txt)
             in_ve = in_venezuela(pt)
-            log("gps", f"last-fix={'in_ve' if in_ve else ('OUTSIDE_ve' if in_ve is False else 'unknown')}")
+            log("gps", f"last-fix={'in_ve' if in_ve else ('OUTSIDE_ve' if in_ve is False else 'unknown')} "
+                       f"({gps_report(gps_txt)})")
             avd = adb(serial, "emu", "avd", "name", timeout=15)
             log("gps", f"emu-console={'ok' if 'OK' in avd.upper() or avd.strip() else 'unavailable'}")
         except Exception:
