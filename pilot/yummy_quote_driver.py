@@ -365,13 +365,24 @@ async def main():
         if not (ok_o and ok_d) or composite:
             raise PilotAbort("route verification failed; NOT quoting")
         await ph.tap(int(gq_btn["center"][0]), int(gq_btn["center"][1]))
-        await asyncio.sleep(4)
-        els = await ph.elements()
-        prices = [e for e in els
-                  if str(e.get("text", "")).strip().startswith("$")
-                  and str(e.get("text", "")).strip() != "$0.00"]
+        prices = []
+        for _ in range(6):  # quote latency varies by route; poll ~12s
+            await asyncio.sleep(2)
+            els = await ph.elements()
+            prices = [e for e in els
+                      if str(e.get("text", "")).strip().startswith("$")
+                      and str(e.get("text", "")).strip() != "$0.00"]
+            if prices:
+                break
         if not prices:
-            raise PilotAbort("no prices on quote screen")
+            # privacy-safe diagnostics: counts and booleans only, no texts
+            has_list = any(str(e.get("text", "")) == "rides_map_bs_vehicle_type_list"
+                           for e in els)
+            has_cont = any(str(e.get("text", "")) == "CONTINUE" for e in els)
+            zero_only = any(str(e.get("text", "")).strip() == "$0.00" for e in els)
+            raise PilotAbort(
+                f"no prices on quote screen (els={len(els)} list={has_list} "
+                f"continue={has_cont} zero_only={zero_only})")
         log("quote", f"prices found: {len(prices)} (values redacted)")
         jpeg = await ph.screenshot()
         log("screenshot", f"{len(jpeg)} bytes")
