@@ -8,7 +8,7 @@ endpoint only; with no pending job the run exits as a clean no-op.
 Always stops the phone. Hard billing cap: PH_MINUTES at session start.
 Exit: 0 delivered-or-nothing-pending | 1 guard abort | 2 infra failure.
 """
-import asyncio, base64, json, os, re, subprocess, sys, time
+import asyncio, base64, json, os, re, shutil, subprocess, sys, time
 import httpx
 
 PH_API = "https://api.phone-harness.com"
@@ -247,6 +247,10 @@ async def claim_job():
 async def main():
     if not (KEY and PROFILE and API_BASE and RUNNER_TOKEN):
         log("config", "missing PH_API_KEY / PH_PROFILE_ID / SABI_API_BASE / SABI_RUNNER_TOKEN")
+        sys.exit(2)
+    adb_path = shutil.which(ADB) or (ADB if os.path.isfile(ADB) and os.access(ADB, os.X_OK) else None)
+    if not adb_path:
+        log("config", "adb unavailable on this runner; aborting before claim (free)")
         sys.exit(2)
     job = await claim_job()
     if not job:

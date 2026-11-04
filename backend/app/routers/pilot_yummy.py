@@ -26,6 +26,12 @@ async def _auth(request: Request) -> None:
 @router.post("/jobs/claim", status_code=200)
 async def claim(request: Request, db: AsyncSession = Depends(get_db)):
     await _auth(request)
+    try:
+        # The runner's arrival doubles as the recovery heartbeat: a dead
+        # runner leaves no inbound traffic to drive the sweep.
+        await pilot_yummy.recover_stale_jobs(db)
+    except Exception:
+        pass
     job = await pilot_yummy.claim_next_job(db)
     if job is None:
         return Response(status_code=204)

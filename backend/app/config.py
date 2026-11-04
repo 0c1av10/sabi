@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     rides_pilot_allowed_phones: str = ""   # comma-separated; empty = pilot off
     rides_pilot_runner_token: str = ""     # shared bearer for claim/capture
     rides_pilot_daily_max: int = 10        # consumption limit (jobs/24h)
+    rides_pilot_no_send: bool = False      # validation mode: full journey, ZERO WhatsApp sends
     rides_pilot_max_jpeg_bytes: int = 1000000
     gh_dispatch_token: str = ""            # Actions-RW-only credential (separate from setup)
     gh_dispatch_repo: str = "0c1av10/sabi"

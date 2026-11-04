@@ -178,9 +178,10 @@ async def test_quote_reaches_pilot_without_restaurant(client, Session, pokes):
 
 
 async def test_recovery_repokes_and_expires_claimed(client, Session, pokes):
-    """Review blocker 4: pending with failed/stale dispatch gets re-poked
-    (duplicate-safe: claim is atomic); claimed past TTL errors out and frees
-    the phone with a one-time notice; needs_review is never auto-resent."""
+    """Review blocker 4, updated contract (2026-11-04): pending with
+    failed/stale dispatch gets re-poked (duplicate-safe: claim is atomic);
+    claimed past TTL is re-driven ONCE in place (same job, no user notice);
+    needs_review is never auto-resent."""
     from datetime import timedelta
     from app.models import utcnow
     async with Session() as db:
@@ -202,11 +203,12 @@ async def test_recovery_repokes_and_expires_claimed(client, Session, pokes):
         await pilot_yummy.recover_stale_jobs(db)
         await db.refresh(stale_claimed)
         await db.refresh(review)
-    assert stale_claimed.status == "error"
+    assert stale_claimed.status == "pending"  # re-driven once, not errored
+    assert stale_claimed.error == pilot_yummy.RETRY_MARK
     assert review.status == "needs_review"  # untouched: manual review only
-    assert pokes  # the unpoked pending job got poked
+    assert len(pokes) == 2  # unpoked pending job + re-driven claimed job
     notices = [e for e in sent_log if "No pude completar" in (e.get("body") or "")]
-    assert len(notices) == 1 and notices[0]["to"] == PHONE
+    assert len(notices) == 0  # no user notice on the first (auto-retried) failure
 
 
 async def test_zernio_conversation_fallback_off_cache(Session):
@@ -337,3 +339,119 @@ async def test_one_shot_al_connector(Session, pokes):
             db, PHONE, "cuánto cuesta el viaje de la plaza al centro")
     assert reply and "no se pide ningún viaje" in reply
     assert len(pokes) == 1
+
+
+# --- Bounded auto-retry of the SAME job (2026-11-04) ---
+
+async def test_claimed_timeout_redrives_same_job_once(client, Session, pokes):
+    """Runner died mid-quote: the sweep re-drives the same row (same route,
+    same recipient) exactly once, without texting the user."""
+    from datetime import timedelta
+    job_id = await _make_job(Session, status="claimed")
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+        job.updated_at = pilot_yummy.utcnow() - timedelta(minutes=16)
+        await db.commit()
+    r = await client.post("/api/pilot/yummy/jobs/claim", headers=AUTH)
+    assert r.status_code == 200  # claim endpoint sweeps, then claims the re-driven job
+    assert r.json()["job_id"] == str(job_id)  # SAME job, not a new request
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.error == pilot_yummy.RETRY_MARK
+    assert not [e for e in sent_log if "no pude completar" in str(e.get("body", "")).lower()]
+
+
+async def test_second_timeout_notifies_user_no_third_retry(client, Session, pokes):
+    from datetime import timedelta
+    job_id = await _make_job(Session, status="claimed")
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+        job.error = pilot_yummy.RETRY_MARK
+        job.updated_at = pilot_yummy.utcnow() - timedelta(minutes=16)
+        await db.commit()
+    await pilot_yummy.recover_stale_jobs(db) if False else None
+    async with Session() as db:
+        await pilot_yummy.recover_stale_jobs(db)
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.status == "error"
+    assert job.error == "runner timeout after auto-retry"
+    texts = [e for e in sent_log if e.get("body") and e.get("to") == PHONE]
+    assert any("No pude completar" in e["body"] for e in texts)
+    assert len(pokes) == 0
+
+
+async def test_fresh_runner_timeout_error_is_recovered(Session, pokes):
+    """If the old sweep already errored the job before the fix deployed,
+    a fresh 'runner timeout' still gets its single re-drive."""
+    from datetime import timedelta
+    job_id = await _make_job(Session, status="pending")
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+        job.status = "error"
+        job.error = "runner timeout"
+        job.updated_at = pilot_yummy.utcnow() - timedelta(minutes=20)
+        await db.commit()
+        await pilot_yummy.recover_stale_jobs(db)
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.status == "pending"
+    assert job.error == pilot_yummy.RETRY_MARK
+    assert len(pokes) == 1
+
+
+async def test_stale_runner_timeout_error_untouched(Session, pokes):
+    from datetime import timedelta
+    job_id = await _make_job(Session, status="pending")
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+        job.status = "error"
+        job.error = "runner timeout"
+        job.updated_at = pilot_yummy.utcnow() - timedelta(minutes=61)
+        await db.commit()
+        await pilot_yummy.recover_stale_jobs(db)
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.status == "error"  # too old: no blind re-drive
+    assert len(pokes) == 0
+
+
+# --- No-send validation mode (2026-11-04): full journey, zero WhatsApp ---
+
+@pytest.fixture
+def nosend(monkeypatch):
+    monkeypatch.setattr(settings, "rides_pilot_no_send", True)
+    return True
+
+
+async def test_nosend_capture_validates_without_sending(client, Session, pokes, nosend):
+    job_id = await _make_job(Session)
+    r = await client.post("/api/pilot/yummy/jobs/claim", headers=AUTH)
+    assert r.status_code == 200
+    job = r.json()
+    r = await client.post(f"/api/pilot/yummy/jobs/{job['job_id']}/capture",
+                          content=JPEG, headers={**AUTH, "Idempotency-Key": job["job_id"]})
+    assert r.status_code == 200 and r.json().get("no_send") is True
+    assert not [e for e in sent_log if "image_bytes" in e]  # ZERO WhatsApp sends
+    async with Session() as db:
+        row = await db.get(RidesQuoteJob, int(job["job_id"]))
+    assert row.status == "captured_nosend"  # terminal: phone freed, never re-driven
+
+
+async def test_nosend_webhook_branch_silent(Session, pokes, nosend):
+    async with Session() as db:
+        reply = await pilot_yummy.create_quote_job(
+            db, PHONE, "cuánto cuesta el viaje de MM Plaza a Puertos de Sucre")
+    assert reply is None  # no job, no reply text: pilot quiet during validation
+    assert len(pokes) == 0
+
+
+async def test_nosend_second_timeout_does_not_text(Session, pokes, nosend):
+    from datetime import timedelta
+    job_id = await _make_job(Session, status="claimed")
+    async with Session() as db:
+        job = await db.get(RidesQuoteJob, job_id)
+        job.error = pilot_yummy.RETRY_MARK
+        job.updated_at = pilot_yummy.utcnow() - timedelta(minutes=16)
+        await db.commit()
+        await pilot_yummy.recover_stale_jobs(db)
+        job = await db.get(RidesQuoteJob, job_id)
+    assert job.status == "error"
+    assert not [e for e in sent_log if e.get("body")]  # no user notice in validation mode

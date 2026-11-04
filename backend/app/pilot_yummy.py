@@ -127,7 +127,9 @@ async def dispatch_poke(db: AsyncSession, job: RidesQuoteJob) -> bool:
 
 
 REPOKE_AFTER = timedelta(minutes=10)   # pending but dispatch poked long ago -> poke again
-CLAIMED_TTL = timedelta(minutes=15)    # runner crashed mid-quote -> free the phone
+CLAIMED_TTL = timedelta(minutes=15)    # runner crashed mid-quote -> one bounded auto-retry
+ERROR_RETRY_WINDOW = timedelta(minutes=60)  # fresh "runner timeout" errors get the same single retry
+RETRY_MARK = "auto-retry#1"            # stored in job.error: the job already used its one retry
 
 async def recover_stale_jobs(db: AsyncSession) -> None:
     """Best-effort recovery driven by inbound traffic. Duplicate-safe: an
@@ -142,17 +144,38 @@ async def recover_stale_jobs(db: AsyncSession) -> None:
         if not job.dispatch_poked or age > REPOKE_AFTER:
             job.updated_at = now
             await dispatch_poke(db, job)
+    # Runner died mid-quote: re-drive the SAME job once (same row, same
+    # route, same recipient; capture stays idempotent, needs_review is never
+    # re-driven). Only a second failure notifies the user.
+    def retryable(job) -> bool:
+        if job.error.startswith(RETRY_MARK):
+            return False
+        if job.status == "claimed":
+            return now - job.updated_at > CLAIMED_TTL
+        return (job.status == "error" and job.error == "runner timeout"
+                and now - job.updated_at <= ERROR_RETRY_WINDOW)
     res = await db.execute(
-        select(RidesQuoteJob).where(RidesQuoteJob.status == "claimed"))
+        select(RidesQuoteJob).where(
+            (RidesQuoteJob.status == "claimed") |
+            ((RidesQuoteJob.status == "error") &
+             (RidesQuoteJob.error == "runner timeout"))))
     for job in res.scalars():
-        if now - job.updated_at > CLAIMED_TTL:
-            job.status = "error"
-            job.error = "runner timeout"
+        if retryable(job):
+            job.status = "pending"
+            job.dispatch_poked = False
+            job.error = RETRY_MARK
+            job.updated_at = now
             await db.commit()
-            await send_whatsapp_message(
-                job.phone,
-                "No pude completar la cotización esta vez; si quieres, "
-                "pídemela de nuevo en unos minutos.")
+            await dispatch_poke(db, job)
+        elif job.status == "claimed" and now - job.updated_at > CLAIMED_TTL:
+            job.status = "error"
+            job.error = "runner timeout after auto-retry"
+            await db.commit()
+            if not settings.rides_pilot_no_send:
+                await send_whatsapp_message(
+                    job.phone,
+                    "No pude completar la cotización esta vez; si quieres, "
+                    "pídemela de nuevo en unos minutos.")
 
 async def _latest_awaiting(db: AsyncSession, phone: str) -> RidesQuoteJob | None:
     res = await db.execute(
@@ -178,6 +201,8 @@ async def create_quote_job(db: AsyncSession, phone: str, body: str) -> str | Non
         logger.exception("rides pilot recovery sweep failed")
     if not pilot_allowed(phone):
         return None
+    if settings.rides_pilot_no_send:
+        return None  # validation mode: no new jobs, no user-facing pilot replies
     awaiting = await _latest_awaiting(db, phone)
     if awaiting is not None:
         if utcnow() - awaiting.updated_at > AWAITING_TTL:
@@ -285,6 +310,14 @@ async def capture_job(db: AsyncSession, job_id: int, idem: str, body: bytes) -> 
     if not valid_jpeg(body):
         return 400, {"error": "invalid_jpeg"}
     job.idem_key = idem
+    if settings.rides_pilot_no_send:
+        # Validation mode: prove the whole journey (claim -> Yummy -> JPEG ->
+        # ingest) with ZERO WhatsApp sends. Status frees the phone; the row
+        # keeps the route private and is never re-driven.
+        job.status = "captured_nosend"
+        await db.commit()
+        logger.info("rides pilot: job %s captured in no-send mode (%d bytes)", job.id, len(body))
+        return 200, {"deduped": False, "no_send": True}
     job.status = "sending"
     await db.commit()
     caption = f"Tarifa Yummy Rides: {job.origin} → {job.destination}"
