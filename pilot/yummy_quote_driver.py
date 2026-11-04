@@ -219,19 +219,27 @@ async def clear_and_fill(ph, serial, row, value, tag):
     cx, cy = int(row["center"][0]), int(row["center"][1])
     old_tokens = set(norm(str(row.get("text", ""))).split()) - PLACEHOLDER_TOKENS
     log(tag, f"row found, {len(str(row.get('text','')))} chars")
-    await ph.tap(cx, cy)
-    await asyncio.sleep(1)
     if old_tokens:  # pre-filled saved profile: clear; placeholder means already empty
-        adb(serial, "shell", "input", "keyevent", "KEYCODE_MOVE_END")
-        adb(serial, "shell", "input", "keyevent", *(["KEYCODE_DEL"] * 220))
-        await asyncio.sleep(1)
-        els = await ph.elements()
-        for e in els:
-            if "center" not in e or abs(int(e["center"][1]) - cy) > 35:
-                continue
-            if old_tokens & set(norm(str(e.get("text", ""))).split()):
-                raise PilotAbort(f"{tag}: field NOT empty after clear")
+        for attempt in range(3):  # focus/clear is flaky on this app; retry
+            await ph.tap(cx, cy)
+            await asyncio.sleep(1)
+            adb(serial, "shell", "input", "keyevent", "KEYCODE_MOVE_END")
+            adb(serial, "shell", "input", "keyevent", *(["KEYCODE_DEL"] * 250))
+            await asyncio.sleep(1)
+            els = await ph.elements()
+            leftover = any(
+                "center" in e and abs(int(e["center"][1]) - cy) <= 35
+                and old_tokens & set(norm(str(e.get("text", ""))).split())
+                for e in els)
+            if not leftover:
+                break
+            log(tag, f"clear attempt {attempt + 1} left text; retrying")
+        else:
+            raise PilotAbort(f"{tag}: field NOT empty after clear")
         log(tag, "EMPTY VERIFIED")
+    else:
+        await ph.tap(cx, cy)
+        await asyncio.sleep(1)
     await ph.tool("phone_type_keys", {"text": value})
     tokens = set(norm(value).split())
     cand = {}
