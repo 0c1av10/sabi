@@ -20,11 +20,15 @@
     },
     {
       "input": "Hola busca en marketplace",
-      "reply": "¿Cuál marketplace te gustaría consultar? La búsqueda automática de productos aún no está conectada en Sabi; puedo ayudarte a comparar enlaces que me compartas, sin inventar precios."
+      "reply": "¿Cuál marketplace te gustaría consultar? La búsqueda automática de productos aún no está conectada en Sabi; no tengo precios vigentes sin una fuente."
     },
     {
       "input": "Cuánto sale una laptop Dell",
       "reply": "Para comparar ese producto necesito el modelo o un enlace. Aún no tengo una búsqueda de precios conectada y no puedo darte un precio vigente sin una fuente. ¿Tienes alguno que quieras comparar?"
+    },
+    {
+      "input": "Yummy marketplace",
+      "reply": "Entendido: Yummy Marketplace. Mantengo tu consulta de Cuánto sale una laptop Dell. La búsqueda automática de productos aún no está conectada. No tengo un precio vigente para mostrarte; necesito un modelo o un enlace como referencia."
     }
   ]
 }

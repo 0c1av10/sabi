@@ -24,7 +24,7 @@ async def test_quality_replay(Session,monkeypatch):
         await memory.note(db,'111','Me llamo Ana')
         await memory.note(db,'111','Dime entonces del cine Regina de puerto la cruz')
         evidence.append({'name_after_command':(await memory.get(db,'111')).name})
-        for body in ['Hola','Sabi','Me interesa algo de comida china','Hola busca en marketplace','Cuánto sale una laptop Dell']:
+        for body in ['Hola','Sabi','Me interesa algo de comida china','Hola busca en marketplace','Cuánto sale una laptop Dell','Yummy marketplace']:
             reply=await webhook._events_route(db,'111',body)
             if reply is None:
                 rest,_,reply=await webhook._resolve(db,'111',body)

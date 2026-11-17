@@ -25,6 +25,10 @@
     {
       "input": "Cuánto sale una laptop Dell",
       "reply": "CINEMA_ROUTE_MODEL_BLOCKED"
+    },
+    {
+      "input": "Yummy marketplace",
+      "reply": "CINEMA_ROUTE_MODEL_BLOCKED"
     }
   ]
 }
