@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     events_admin_password: str = ""
 
     # Public cinema discovery only. Requires a separate activation decision.
-    cinema_mcp_enabled: bool = False
+    cinema_mcp_enabled: bool = True
     cinema_mcp_url: str = "https://cinve.kevinbravo.com/mcp"
     cinema_cache_seconds: int = 60
     cinema_timeout_seconds: float = 12.0

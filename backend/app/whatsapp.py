@@ -169,7 +169,7 @@ async def send_whatsapp_typing(to_phone: str) -> bool:
     WhatsApp also marks the recent inbound read. No timer/refresh or artificial delay.
     success reports upstream acceptance only, not the recipient's visible bubble.
     """
-    if settings.whatsapp_mock_mode or not settings.zernio_native_typing or _provider() != 'zernio':
+    if settings.whatsapp_mock_mode or not settings.zernio_native_typing or whatsapp_provider() != 'zernio':
         return False
     conv_id = zernio_conversations.get(digits(to_phone))
     if not conv_id:
