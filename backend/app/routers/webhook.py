@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import restaurant_for_message, restaurant_by_mention
+from ..auth import restaurant_for_message, restaurant_by_mention, named_business_query
 from ..config import settings
 from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
@@ -58,6 +58,15 @@ async def _close_open_conversations(db: AsyncSession, phone: str) -> None:
         await db.commit()
 
 
+async def _unresolved_place_reply(db,phone,body):
+    named=named_business_query(body)
+    if not named or await restaurant_by_mention(db,named[0]):return None
+    entity,city=named
+    await focus.save(db,phone,domain='place',entity=entity,city=city)
+    return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
+            ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
+
+
 async def _resolve(db: AsyncSession, phone: str, body: str):
     """(restaurant, body, reply). `reply` is Sabi's concierge text when no business is named
     (None when a plain welcome was already sent recently)."""
@@ -66,6 +75,8 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         await _close_open_conversations(db, phone)
         text, _ = await concierge.reply(db, body, phone)
         return None, body, text
+    unresolved=await _unresolved_place_reply(db,phone,body)
+    if unresolved:return None,body,unresolved
     requested,unknown=concierge.cuisine_request(body)
     if (requested or unknown) and not await restaurant_by_mention(db,body):
         await memory.set_topic(db,phone,'comida')
@@ -76,6 +87,9 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         await memory.set_topic(db, phone, f"tu pedido en {restaurant.name}")
         await focus.save(db,phone,domain='restaurant',entity=restaurant.name)
         return restaurant, routed_body, None
+    active=await focus.get(db,phone)
+    if active and active.domain=='place':
+        return None,body,f'Mantengo tu consulta de {active.entity}'+(f' en {active.city}.' if active.city else '.')+' Aún no tengo una fuente verificada para su menú, horario o delivery. ¿Tienes su enlace oficial?'
     text, is_welcome = await concierge.reply(db, body, phone)
     if is_welcome:
         now = datetime.now(timezone.utc)
@@ -110,6 +124,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone, reply)
         return reply
     await memory.note(db, phone, body, profile_name)
+    unresolved=await _unresolved_place_reply(db,phone,body)
+    if unresolved:
+        await send_whatsapp_message(phone,unresolved)
+        return unresolved
     place_reply=await focus.place_reply(db,phone,body)
     if place_reply:
         await send_whatsapp_message(phone,place_reply)
