@@ -112,7 +112,7 @@ def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dic
     }, rejected
 
 
-SYSTEM_PROMPT = """Eres Sabi, el agente de ventas por WhatsApp de un restaurante. No eres un bot de preguntas frecuentes: asesoras al cliente como el mejor mesonero de la casa y lo ayudas a elegir. Hablas en español venezolano, ameno y cercano. No te presentes cada vez como "el asistente de" un local: preséntate solo como Sabi y atiende con calidez; si el cliente duda o pregunta qué hay, recomiéndale platos concretos del menú.
+SYSTEM_PROMPT = """Eres Sabi, un asistente personal que ayuda a consultar distintos comercios. No eres empleado ni representante del restaurante y nunca digas «Sabi de [local]». No eres un bot de preguntas frecuentes: asesoras al cliente como el mejor mesonero de la casa y lo ayudas a elegir. Hablas en español venezolano, ameno y cercano. No te presentes cada vez como "el asistente de" un local: preséntate solo como Sabi y atiende con calidez; si el cliente duda o pregunta qué hay, recomiéndale platos concretos del menú.
 Reglas:
 - Tono cercano y venezolano, tutea al cliente (nunca uses voseo), mensajes cortos para WhatsApp.
 - No incluyas emojis en el texto. Las reacciones nativas se gestionan fuera de tu respuesta.
@@ -124,7 +124,7 @@ Reglas:
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
 - Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
 - Mantén los precios compactos en una sola línea: "$X · Bs Y".
-- Si el cliente pide algo fuera del menú o no sabes algo, dilo y ofrece pasar la conversación al dueño (action=handoff).
+- Si no sabes algo, di qué dato falta. Nunca ofrezcas ni afirmes pasar la conversación al dueño: no hay un canal humano verificado. No uses action=handoff.
 - Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba. No afirmes que se envió o recibió ni prometas una aprobación o un plazo. Elegir método de pago no prueba pago. Una referencia es una declaración no verificada.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
@@ -171,19 +171,31 @@ RESPONDER_TOOL = {
 }
 
 
+def guard_representation(result: AgentResult,restaurant: Restaurant) -> AgentResult:
+    """No verified human escalation destination exists in this chat path."""
+    result.reply=re.sub(r'(?i)soy Sabi de\s+'+re.escape(restaurant.name), 'Soy Sabi',result.reply)
+    if result.action=='handoff' or re.search(r'(?i)(?:(?:te|le) (?:paso|pase|pasaré|pasare|puedo pasar)|pasar (?:la|esta) conversaci[oó]n).{0,60}(?:due[nñ]o|encargad[oa]|humano)',result.reply):
+        result.action='continue'
+        result.reply=f'No tengo ese dato verificado de {restaurant.name} ni un canal humano confirmado para consultarlo por ti. Puedo ayudarte con la información que sí está registrada.'
+    return result
+
+
 async def run_agent(db: AsyncSession, restaurant: Restaurant, conversation: Conversation,
                     history: list[tuple[str, str]], incoming: str) -> AgentResult:
     items = (await db.execute(
         select(MenuItem).where(MenuItem.restaurant_id == restaurant.id)
     )).scalars().all()
 
+    if re.search(r'\b(horarios?|abierto|atienden|abren|cierran)\b',incoming,re.I):
+        hours=(restaurant.opening_hours or '').strip()
+        return AgentResult(reply=(f'El horario registrado de {restaurant.name} es: {hours}. Confírmalo con el local antes de ir.' if hours else f'No tengo un horario verificado de {restaurant.name}. No tengo un contacto humano confirmado para consultarlo por ti.'),state=json.loads(conversation.state_json or '{}'))
     if settings.agent_mock_mode or not settings.anthropic_api_key:
-        return run_mock_agent(restaurant, items, conversation, incoming)
+        return guard_representation(run_mock_agent(restaurant, items, conversation, incoming),restaurant)
     customer = await db.get(Customer, conversation.customer_id)
     from . import memory
     contact = await memory.get(db, customer.phone) if customer else None
     known = memory.first_name((contact.name if contact else None) or (customer.name if customer else ""))
-    return await run_llm_agent(restaurant, items, conversation, history, incoming, known)
+    return guard_representation(await run_llm_agent(restaurant, items, conversation, history, incoming, known),restaurant)
 
 
 def _llm_messages(history: list[tuple[str, str]], incoming: str) -> list[dict]:

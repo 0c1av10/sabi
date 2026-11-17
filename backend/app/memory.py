@@ -31,7 +31,7 @@ _NOT_NAMES = {"principiante", "intermedio", "avanzado", "nuevo", "nueva", "clien
               "un", "una", "yo", "tu", "de", "del", "que", "quien", "usuario", "persona", "amigo", "amiga",
               "hola", "buenas", "ok", "si", "no", "sabi", "boxeador", "estudiante", "mama", "papa"}
 _INTRO = re.compile(
-    r"\b(?:me\s+llamo|mi\s+nombre\s+es|ll[aá]mame|dime|soy)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}){0,2})",
+    r"^(?:hola[,! ]+)?(?:me\s+llamo|mi\s+nombre\s+es|ll[aá]mame|soy)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}){0,2})",
     re.I)
 FORGET = re.compile(r"\b(olv[ií]dame|olvida\s+mi\s+nombre|borra\s+mis\s+datos|no\s+me\s+recuerdes)\b", re.I)
 

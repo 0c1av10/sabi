@@ -1,0 +1,34 @@
+{
+  "candidate": true,
+  "model": "blocked",
+  "outbound": "recording fake",
+  "observed": [
+    {
+      "name_after_command": "Ana"
+    },
+    {
+      "input": "Hola",
+      "reply": "¡Hola, Ana! 👋 Soy Sabi. ¿En qué te echo una mano hoy?"
+    },
+    {
+      "input": "Sabi",
+      "reply": "Aquí estoy. ¿En qué te ayudo?"
+    },
+    {
+      "input": "Me interesa algo de comida china",
+      "reply": "No tengo un local de comida china verificado en el catálogo actual. No te voy a recomendar otro tipo de comida como si coincidiera. La búsqueda web automática aún no está conectada."
+    },
+    {
+      "input": "Hola busca en marketplace",
+      "reply": "¿Cuál marketplace te gustaría consultar? La búsqueda automática de productos aún no está conectada en Sabi; no tengo precios vigentes sin una fuente."
+    },
+    {
+      "input": "Cuánto sale una laptop Dell",
+      "reply": "Para comparar ese producto necesito el modelo o un enlace. Aún no tengo una búsqueda de precios conectada y no puedo darte un precio vigente sin una fuente. ¿Tienes alguno que quieras comparar?"
+    },
+    {
+      "input": "Yummy marketplace",
+      "reply": "Entendido: Yummy Marketplace. Mantengo tu consulta de Cuánto sale una laptop Dell. La búsqueda automática de productos aún no está conectada. No tengo un precio vigente para mostrarte; necesito un modelo o un enlace como referencia."
+    }
+  ]
+}

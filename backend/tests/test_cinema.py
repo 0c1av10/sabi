@@ -85,7 +85,7 @@ async def test_router_cinema_context(monkeypatch):
     async def no(*args):return None
     monkeypatch.setattr(w,'restaurant_by_mention',no)
     class DB:
-        async def get(self,*args):return type('Session',(),{'updated_at':w.utcnow()})()
+        async def get(self,model,*args):return type('Session',(),{'updated_at':w.utcnow()})() if model.__name__=='EventSession' else None
     assert await w.wants_cinema(DB(),'123','¿y mañana?')
     assert not await w.wants_cinema(DB(),'123','[sabi:bizza] pizza')
     assert not await w.wants_cinema(DB(),'123','hola')
@@ -126,7 +126,7 @@ async def test_exit_cinema_context(body,monkeypatch):
     async def no(*args):return None
     monkeypatch.setattr(w,'restaurant_by_mention',no)
     class DB:
-        async def get(self,*args):return type('Session',(),{'updated_at':w.utcnow()})()
+        async def get(self,model,*args):return type('Session',(),{'updated_at':w.utcnow()})() if model.__name__=='EventSession' else None
     assert not await w.wants_cinema(DB(),'123',body)
 
 async def test_merchant_name_wins_over_cinema(monkeypatch):

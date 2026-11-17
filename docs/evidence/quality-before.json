@@ -1,0 +1,34 @@
+{
+  "candidate": false,
+  "model": "blocked",
+  "outbound": "recording fake",
+  "observed": [
+    {
+      "name_after_command": "Entonces"
+    },
+    {
+      "input": "Hola",
+      "reply": "¡Hola, Entonces! 👋 Soy Sabi. ¿En qué te echo una mano hoy?"
+    },
+    {
+      "input": "Sabi",
+      "reply": "CINEMA_ROUTE_MODEL_BLOCKED"
+    },
+    {
+      "input": "Me interesa algo de comida china",
+      "reply": "¡Uy, qué rico, Entonces! 😋 Te sugiero:\n• *Criollo fixture* — Pollo y cocina criolla\n\n¿Te armo el pedido en alguno? Si se te antoja otra cosa, dime qué y lo busco."
+    },
+    {
+      "input": "Hola busca en marketplace",
+      "reply": "CINEMA_ROUTE_MODEL_BLOCKED"
+    },
+    {
+      "input": "Cuánto sale una laptop Dell",
+      "reply": "CINEMA_ROUTE_MODEL_BLOCKED"
+    },
+    {
+      "input": "Yummy marketplace",
+      "reply": "CINEMA_ROUTE_MODEL_BLOCKED"
+    }
+  ]
+}

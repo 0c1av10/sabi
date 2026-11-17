@@ -35,12 +35,33 @@ def wants_food(body: str) -> bool:
     return bool(FOOD_INTENT.search(_plain(body)))
 
 
+CUISINES={
+    'china':('chin[ao]s?',), 'italiana':('italian[ao]s?',),
+    'japonesa':('japones(?:a|as|es)?','sushi'), 'mexicana':('mexican[ao]s?',),
+    'arabe':('arabes?',), 'venezolana':('venezolan[ao]s?',),
+    'peruana':('peruan[ao]s?',),'india':('hind[uú]','india'),
+    'tailandesa':('tailandes(?:a|as|es)?',),'criolla':('crioll[ao]s?',)}
+
+def cuisine_request(body):
+    text=_plain(body)
+    hits=[name for name,patterns in CUISINES.items() if any(re.search(r'\b'+p+r'\b',text) for p in patterns)]
+    if len(hits)>1 or (hits and re.search(r'\b(?:no quiero|menos|excepto|sin)\b',text)):
+        return '',True  # Multiple or negated restrictions need clarification, not a random pick.
+    if hits:return hits[0],False
+    m=re.search(r'\b(?:comida|cocina)\s+(?:de\s+)?([a-z]+)\b',text)
+    if not m:return '',False
+    if m[1] in {'rica','sabrosa','buena','deliciosa','rapida','casera','barata','economica','saludable'}:return '',False
+    return '',True
+
+
 async def recommendations(db: AsyncSession, pick: int = 2, body: str = "") -> str:
     """One or two suggestions, not the whole list; varied between asks. Internal test
     businesses ("Prueba ...") are never recommended."""
     rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
                              .order_by(Restaurant.id))).scalars().all()
     if not rows:
+        requested,unknown=cuisine_request(body)
+        if requested or unknown:return "No tengo opciones verificadas que coincidan con esa cocina en el catálogo actual. La búsqueda web automática aún no está conectada."
         return ("Todavía no tengo locales para recomendarte por aquí, pero cuéntame qué se te antoja "
                 "y lo tengo en cuenta. 😊 Si buscas entradas para un evento, dímelo y te ayudo.")
     # Cuisine requests must match verified available menu evidence, never random cuisine.
@@ -49,13 +70,19 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "") -> st
         italian_ids={m.restaurant_id for m in menus if (re.fullmatch(r'(pizzas?|pastas?|risottos?|ravioli|lasagna|lasana|gnocchi|panini)',_plain(m.category or '').strip()) or re.match(r'^(pizza|pasta|risotto|ravioli|lasagna|lasana|gnocchi|panini)\b',_plain(m.name).strip()))}
         rows=[r for r in rows if r.id in italian_ids]
         if not rows:return 'No tengo un menú italiano verificado en el catálogo actual. No te voy a recomendar otro tipo de comida como si fuera italiana.'
+    requested,unknown=cuisine_request(body)
+    if unknown:return '¿Qué tipo de cocina te gustaría? No tengo clara esa preferencia y prefiero no sustituirla por otra.'
+    if requested and requested!='italiana':
+        exact=re.compile(r'\b(?:'+ '|'.join(CUISINES[requested])+r')\b')
+        rows=[r for r in rows if exact.search(_plain(r.tagline or ''))]
+        if not rows:return f'No tengo un local de comida {requested} verificado en el catálogo actual. No te voy a recomendar otro tipo de comida como si coincidiera. La búsqueda web automática aún no está conectada.'
     chosen = random.sample(rows, min(pick, len(rows)))
     lines = []
     for r in chosen:
         tag = (r.tagline or "").strip()
         lines.append(f"• *{r.name}*" + (f" — {tag}" if tag else ""))
     return ("¡Uy, qué rico! 😋 Te sugiero:\n" + "\n".join(lines) +
-            "\n\n¿Te armo el pedido en alguno? Si se te antoja otra cosa, dime qué y lo busco.")
+            "\n\n¿Qué local te gustaría consultar?")
 
 
 GREETING = re.compile(
@@ -80,13 +107,15 @@ async def _hello(db: AsyncSession, name: str, returning: bool) -> str:
 
 async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool]:
     """(text, is_plain_welcome). The welcome is rate-limited by the caller; recommendations are not."""
+    if _plain(body).strip(' ¡!¿?.,')=='sabi':return 'Aquí estoy. ¿En qué te ayudo?',False
     contact = await memory.get(db, phone) if phone else None
     name = memory.first_name(contact.name if contact else None)
     said = memory.extract_name(body)
     if said and len(body.split()) <= 6:
         return (f"¡Mucho gusto, {memory.first_name(said)}! 😊 Ya me quedo con tu nombre. "
                 "¿Qué se te antoja hoy: comida, entradas o una clase de boxeo?"), False
-    if re.search(r'\bitalian[ao]s?\b',_plain(body)):
+    requested,unknown=cuisine_request(body)
+    if requested or unknown or re.search(r'\bitalian[ao]s?\b',_plain(body)):
         return await recommendations(db,body=body), False
     sellers = await restaurants_by_product(db, body)
     if len(sellers) >= 2:
