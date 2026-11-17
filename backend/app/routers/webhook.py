@@ -13,8 +13,9 @@ from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
 from ..reactions import reaction_for
 from ..inbound_receipts import claim_inbound
-from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
+from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
+from ..cinema_whatsapp import explicit_cinema, wants_cinema, handle_cinema_whatsapp
 from ..event_whatsapp import handle_event_whatsapp, wants_events
 from .. import concierge, gym_whatsapp, memory, pilot_yummy
 
@@ -94,8 +95,12 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone, reply)
         return reply
     await memory.note(db, phone, body, profile_name)
+    if explicit_cinema(body) and await wants_cinema(db, phone, body):
+        return await handle_cinema_whatsapp(db, phone, body, external_id)
     if await gym_whatsapp.wants_gym(db, phone, body):
         return await gym_whatsapp.handle_gym_whatsapp(db, phone, body)
+    if await wants_cinema(db, phone, body):
+        return await handle_cinema_whatsapp(db, phone, body, external_id)
     if not await wants_events(db, phone, body):
         return None
     await memory.set_topic(db, phone, "entradas para eventos")
@@ -219,6 +224,7 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
         return {'status':'ignored'}
     if not await claim_inbound(db,'zernio',phone,msg.get('id'),platform_id=msg.get('platformMessageId') or ''):
         return {'status':'duplicate_or_unidentified'}
+    await send_whatsapp_typing(phone)
     # Claim occurs before reaction, quote context or any route side effect.
     # Use only the WhatsApp platform ID for quote replies, not Zernio's internal id.
     with incoming_reply_context(phone, msg.get("platformMessageId") or ""):

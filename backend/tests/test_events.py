@@ -511,3 +511,16 @@ async def test_demo_event_link_falls_back_to_cartelera(tools, make_event):
     ev = await make_event(is_demo=True, url="")
     res = await tools.call("obtener_enlace_compra", {"evento_id": ev.id})
     assert res["habilitado"] is False and res["cartelera"]["habilitado"]
+
+async def test_payment_question_gets_one_warm_question(client):
+    result = await chat(client, '¿Te pago a ti las entradas?')
+    assert 'el pago lo haces en la página oficial' in result['reply']
+    assert '¿Qué evento te gustaría ver?' in result['reply']
+    assert result['reply'].count('?') == 1
+    assert len(result['reply']) < 190
+
+async def test_greeting_is_invitational_not_policy_block(client):
+    result = await chat(client, 'hola')
+    assert '¿Qué te gustaría hacer?' in result['reply']
+    assert 'reserva' not in result['reply'].lower()
+    assert 'pago' not in result['reply'].lower()

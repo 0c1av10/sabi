@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     shared_whatsapp_number: str = ""
     frontend_base_url: str = "https://www.holasabi.com"
 
+    zernio_native_typing: bool = True
     zernio_api_key: str = ""
     zernio_account_id: str = ""
     zernio_webhook_secret: str = ""
@@ -88,6 +89,15 @@ class Settings(BaseSettings):
     # Admin: allowed emails (comma separated) + shared password. Empty = admin disabled.
     events_admin_emails: str = ""
     events_admin_password: str = ""
+
+    # Public cinema discovery only. Requires a separate activation decision.
+    cinema_mcp_enabled: bool = True
+    cinema_mcp_url: str = "https://cinve.kevinbravo.com/mcp"
+    cinema_cache_seconds: int = 60
+    cinema_timeout_seconds: float = 12.0
+    cinema_agent_timeout_seconds: float = 35.0
+    cinema_max_tool_calls: int = 4
+    cinema_max_message_chars: int = 1000
 
     backend_base_url: str = "http://localhost:8000"
     demo_autoseed: bool = False
