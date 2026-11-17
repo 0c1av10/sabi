@@ -1,6 +1,7 @@
 """Cinema discovery, public reads only. Uses existing session tables, no account credentials."""
 import asyncio
 import json
+import logging
 import re
 import uuid
 import httpx
@@ -23,7 +24,7 @@ _TAG = re.compile(r'\[sabi:cine\]', re.I)
 _OTHER = re.compile(r'\[sabi:(?!cine\])[a-z0-9-]+\]', re.I)
 _INTENT = re.compile(r'\b(cine|cines|cinex|cinepic|cines\s*unidos|supercines|gran\s*cine|cartelera\s+de\s+cine|pel[ií]culas?)\b', re.I)
 _NAMESPACE = uuid.UUID('932de586-6a60-4c01-9018-0dfd4f872385')
-UNAVAILABLE = 'No pude consultar la cartelera ahora. Podemos intentarlo en un rato.'
+UNAVAILABLE = 'No logré verificar los horarios de esa consulta. No tengo una cartelera confirmada para mostrarte.'
 SYSTEM = '''Eres Sabi. Habla en español de Venezuela, cercano, breve, sin discurso legal.
 Pregunta una sola cosa que falte usando «qué te gustaría» cuando sea natural. Usa ciudad,
 fecha y gustos que el usuario ya compartió en esta conversación, sin volver a pedirlos.
@@ -94,7 +95,37 @@ async def _anthropic_llm(messages, tools):
         resp = await client.messages.create(model=settings.anthropic_model, max_tokens=700,
             system=SYSTEM + '\nFecha/hora actual: ' + local_now().isoformat(),
             messages=messages, tools=tools)
+        logging.getLogger('sabi.cinema').info('cinema_model_result stop=%s blocks=%s',resp.stop_reason, ','.join(b.type for b in resp.content))
         return {'content': [b.model_dump() for b in resp.content]}
+
+
+def verified_answer(results):
+    """Data-only recovery: never claim a booking, genre, recommendation or missing schedule."""
+    if not results:return ''
+    result=results[-1]
+    rows=[]
+    for item in result.get('items',[]):
+        try:
+            start=datetime.fromisoformat(item.get('starts_at','').replace('Z','+00:00'))
+            if start.tzinfo is None or start<=local_now():continue
+            if not item.get('cinema_name') or not item.get('name'):continue
+            if start.astimezone(ZoneInfo('America/Caracas')).date().isoformat()!=item.get('date'):continue
+        except (ValueError,TypeError):continue
+        rows.append(item)
+    if not rows:return ''
+    # Preserve the exact returned venue/day, never merge two cinema catalogs.
+    venue,day=rows[0]['cinema_name'],rows[0]['date']
+    rows=[x for x in rows if x['cinema_name']==venue and x['date']==day]
+    grouped={}
+    for x in sorted(rows,key=lambda x:x['starts_at']):grouped.setdefault(x['name'],[]).append(x['time'])
+    lines=[f'Para {venue}, el {day}, encontré estas funciones:']
+    for name,times in list(grouped.items())[:8]:lines.append('• '+name+': '+', '.join(dict.fromkeys(times)))
+    if any(x.get('sales_channel')=='box_office_only' for x in rows):lines.append('Las funciones indicadas por la fuente son sólo por taquilla.')
+    if result.get('partial') or result.get('next_offset') is not None or len(grouped)>8:lines.append('Esta es una parte de la cartelera, no la lista completa.')
+    url=rows[0].get('url','')
+    if url.startswith('https://'):lines.append(url)
+    lines.append('¿Cuál te llama la atención?')
+    return '\n'.join(lines)[:1600]
 
 
 async def run_cinema_agent(message: str, *, history=None, client=None, llm=None) -> str:
@@ -115,6 +146,7 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
     llm = llm or _anthropic_llm
     budget = settings.cinema_max_tool_calls
     context="\n".join(t for r,t in (history or []) if r=="user")+"\n"+message
+    verified=[]
     async def run():
         nonlocal budget
         fallback_used=False
@@ -122,9 +154,11 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
             resp = await llm(merged, llm_tool_specs() if budget > 0 else [])
             uses = [b for b in resp['content'] if b['type'] == 'tool_use']
             if not uses:
-                return ''.join(b.get('text', '') for b in resp['content'] if b['type'] == 'text').strip()[:1600] or UNAVAILABLE
+                text=''.join(b.get('text', '') for b in resp['content'] if b['type'] == 'text').strip()[:1600]
+                if not text:logging.getLogger('sabi.cinema').warning('cinema_answer_empty verified_sets=%s',len(verified))
+                return text or verified_answer(verified) or UNAVAILABLE
             if budget <= 0:
-                return UNAVAILABLE
+                return verified_answer(verified) or UNAVAILABLE
             merged.append({'role': 'assistant', 'content': resp['content']})
             results = []
             for b in uses:
@@ -148,16 +182,21 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
                                 pass
                     except (CinemaUnavailable, ValueError, httpx.HTTPError):
                         out = {'error': 'query_unavailable'}
+                if b['name']=='get_showtimes' and out.get('status') in ('available','partial') and out.get('items'):
+                    verified.append(out)
+                if out.get('official_plaza_mayor_showtimes'):
+                    verified.append(out['official_plaza_mayor_showtimes'])
                 encoded = json.dumps(out, ensure_ascii=False)
                 if len(encoded) > 22000:
                     encoded = json.dumps({'error': 'result_too_large', 'hint': 'use smaller limit'})
                 results.append({'type': 'tool_result', 'tool_use_id': b['id'], 'content': encoded})
             merged.append({'role': 'user', 'content': results})
-        return UNAVAILABLE
+        return verified_answer(verified) or UNAVAILABLE
     try:
         return await asyncio.wait_for(run(), timeout=settings.cinema_agent_timeout_seconds)
-    except Exception:
-        return UNAVAILABLE
+    except Exception as exc:
+        logging.getLogger('sabi.cinema').warning('cinema_answer_failed type=%s verified_sets=%s',type(exc).__name__,len(verified))
+        return verified_answer(verified) or UNAVAILABLE
 
 
 async def handle_cinema_whatsapp(db, phone: str, body: str, external_id=None) -> str:
