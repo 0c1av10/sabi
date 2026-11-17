@@ -22,3 +22,7 @@ Laptop Dell3380 32GBX4GB, $209, conditionNuevo as displayed. Product condition i
 New provider code executed separately at08:04:29UTC, statusok, verified details:209,132,600. No real WhatsApp send, no purchase, no model call. Source can change. New link routes for further API verified products are not a checkout or stock confirmation.
 
 Full offline suite288passed after integration with PR14 and PR15; original search suite261passed/3pre-existing baseline failures. Includes clean-process app import, SSRF/destination/method/payload/budget tests, raw-source filtering, malformed prices, rate-limit fallback, durable Dell→Yummy sequence, generic category, ride routing, and stale search suppression after reset. Real-provider read is separate from fake-send dialog tests. Preview health must pass before main. A healthy deployment does not prove WhatsApp delivery or model prose.
+
+## Unhappy-path review
+
+17Nov2026 isolated handler replay checked missing product, unavailable provider, empty verified results, unsupported platform, missing restaurant/city, unverifiable source, elapsed response deadline and suppression after a topic change. Provider failures were injected and no WhatsApp/model/network request was made by this replay. This is not WhatsApp E2E. Empty search output now offers another model or a product link as a next step. Source unavailability still uses a generic source-verification explanation; do not claim detailed outage diagnostics.

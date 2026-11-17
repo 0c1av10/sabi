@@ -77,5 +77,5 @@ async def test_generic_explicit_yummy_search_and_rides_not_stolen(Session,monkey
     monkeypatch.setattr(p,'search_yummy',search)
     async with Session() as db:
         text=await shopping.reply(db,'111','busca cafetera en Yummy Marketplace')
-        assert seen==['cafetera'] and 'no prueba que no existan' in text
+        assert seen==['cafetera'] and 'no prueba que no existan' in text and 'otro modelo' in text
         assert await shopping.reply(db,'111','Cuánto cuesta el taxi en Yummy') is None

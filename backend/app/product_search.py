@@ -82,7 +82,7 @@ async def search_yummy(query):
 def format_result(result,query):
     if result.status=='missing_query':return '¿Qué producto buscas en Yummy Marketplace?'
     if result.status=='unavailable':return 'No pude verificar el catálogo de Yummy Marketplace ahora. No te voy a dar precios sin comprobar. Podemos seguir con un enlace de producto.'
-    if not result.products:return f'No encontré publicaciones verificables para {label(query)} en esta consulta de Yummy Marketplace. Eso no prueba que no existan.'
+    if not result.products:return f'No encontré publicaciones verificables para {label(query)} en esta consulta de Yummy Marketplace. Eso no prueba que no existan. ¿Probamos con otro modelo o me pasas un enlace de producto?'
     lines=[f'En Yummy Marketplace encontré estas publicaciones para {label(query)}:']
     for p in result.products:lines.append(f'{p.title}: ${p.price}\n{p.url}')
     # UI uses "$" without an ISO currency code. Do not silently assert USD or final checkout total.
