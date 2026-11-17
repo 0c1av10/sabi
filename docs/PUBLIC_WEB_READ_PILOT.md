@@ -72,3 +72,26 @@ expiry and concurrent claims on the target DB, private result retention, current
 provider billing and visible delivery for the one permitted phone, preserve all
 existing behaviors, and retain rollback. Read-only tasks do not authorize carts,
 merchant logins, messages to sellers, bookings, purchases or payments.
+
+## Verified host proposal (no service created)
+
+Current Render account: Hobby, one existing service; no self-hosted GitHub runner
+registered. Propose separate Render 1 CPU/2GB worker at $25/month compute,
+prorated, initially one day then stop/delete, no disk/new DB. Bandwidth/workspace
+and any extras remain subject to final confirmation before creation. 512MB at
+$7/month is not assumed enough for Chromium. Existing promo credits are money,
+not authority, and were NOT used. Separate approval must cover them and any cap.
+Do not assume deleting code or turning a feature flag off stops host billing.
+
+Render worker model and pricing verified:
+https://render.com/docs/background-workers
+https://render.com/docs/compute-plans
+https://render.com/pricing
+
+GitHub standard public-repository compute is free, but Actions terms restrict
+application/serverless service use. It is not recommended as Sabi's production
+worker, only bounded software tests. A new manual workflow also needs to exist
+on the default branch and needs permissions outside current token scope.
+https://docs.github.com/en/billing/concepts/product-billing/github-actions
+https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features
+https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows

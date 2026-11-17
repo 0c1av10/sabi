@@ -75,19 +75,21 @@ async def claim(db):
 
 
 async def complete(db,job_id,nonce,jpeg):
-    job=await db.get(PublicWebJob,job_id)
-    if not job or job.status!='claimed' or job.expires_at<=utcnow() or not secrets.compare_digest(job.claim_hash,hashlib.sha256(nonce.encode()).hexdigest()):
-        raise ValueError('invalid_or_expired_claim')
     if not jpeg.startswith(b'\xff\xd8\xff') or len(jpeg)>1_000_000:
         raise ValueError('invalid_image')
+    delivery=settings.public_web_delivery_enabled
+    claimed_hash=hashlib.sha256(nonce.encode()).hexdigest()
+    # Transition before any send, atomically. Concurrent completion cannot send twice.
+    row=(await db.execute(update(PublicWebJob).where(PublicWebJob.id==job_id,
+        PublicWebJob.status=='claimed',PublicWebJob.expires_at>utcnow(),
+        PublicWebJob.claim_hash==claimed_hash).values(status='needs_review' if delivery else 'captured_nosend',claim_hash='').returning(PublicWebJob.phone))).first()
+    await db.commit()
+    if not row:raise ValueError('invalid_or_expired_claim')
+    job=await db.get(PublicWebJob,job_id)
     job.summary=f'Captura de una consulta pública sobre {job.query}. Fuente: {source_url(job)}. No es confirmación de disponibilidad, carrito, reserva ni compra.'
-    job.status='captured_nosend'
-    # No image is stored or exposed by an endpoint. No user phone in worker response.
-    if settings.public_web_delivery_enabled and allowed(job.phone):
-        job.status='needs_review'
-        await db.commit()  # Crash or ambiguous send stays here, never requeued.
+    if delivery and allowed(job.phone):
+        # An exception/crash remains needs_review; never resend automatically.
         result=await send_whatsapp_image(job.phone,jpeg,job.summary,idempotency_key=f'public-web-{job.id}')
-        if result.get('success'):
-            job.status='done'
+        if result.get('success'):job.status='done'
     await db.commit()
     return {'status':job.status,'sent':job.status=='done'}

@@ -84,8 +84,9 @@ def request_policy(site, url, method='GET', body=None, *, query=''):
             if (not isinstance(supplied,dict) or set(supplied)-{'query','page','hitsPerPage','filters'}
                     or supplied.get('query') != query or supplied.get('page',0) != 0
                     or not isinstance(supplied.get('filters',{}),dict)
-                    or set(supplied.get('filters',{}))-{'includeBusinessPosts','sortBy'}
-                    or supplied.get('filters',{}).get('sortBy','relevance') != 'relevance'):
+                    or set(supplied.get('filters',{}))-{'includeBusinessPosts','sortBy','minPrice'}
+                    or supplied.get('filters',{}).get('sortBy','relevance') != 'relevance'
+                    or supplied.get('filters',{}).get('minPrice',0) != 0):
                 raise PublicWebError('search_scope_mismatch')
         except (TypeError,json.JSONDecodeError) as exc:
             raise PublicWebError('invalid_search_body') from exc

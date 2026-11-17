@@ -64,6 +64,9 @@ async def run_public_read(site,query,out):
             await page.evaluate('document.fonts.ready')
             text=await page.locator('body').inner_text()
             # Anonymous public viewport only. Never fill account or personal fields.
+            if site=='yummy' and not results:
+                (out/'blocked.json').write_text(json.dumps(blocked))
+                raise PublicWebError('no_verified_search_evidence')
             shots=[]
             for stage in ('page_loaded','results_review'):
                 if stage=='results_review':
