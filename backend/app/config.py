@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     shared_whatsapp_number: str = ""
     frontend_base_url: str = "https://www.holasabi.com"
 
+    zernio_native_typing: bool = True
     zernio_api_key: str = ""
     zernio_account_id: str = ""
     zernio_webhook_secret: str = ""

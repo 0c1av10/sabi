@@ -163,6 +163,30 @@ async def _zernio_conversation_id(client: httpx.AsyncClient, to_phone: str) -> s
     return conv_id or ""
 
 
+async def send_whatsapp_typing(to_phone: str) -> bool:
+    """Native Zernio typing, at most one best-effort request, never a text message.
+
+    WhatsApp also marks the recent inbound read. No timer/refresh or artificial delay.
+    success reports upstream acceptance only, not the recipient's visible bubble.
+    """
+    if settings.whatsapp_mock_mode or not settings.zernio_native_typing or _provider() != 'zernio':
+        return False
+    conv_id = zernio_conversations.get(digits(to_phone))
+    if not conv_id:
+        return False  # only a conversation resolved by the current inbound
+    try:
+        async with httpx.AsyncClient(timeout=3.0, follow_redirects=False) as client:
+            resp = await client.post(f"{ZERNIO_API}/inbox/conversations/{quote(conv_id, safe='')}/typing",
+                json={'accountId': settings.zernio_account_id},
+                headers={'Authorization': f'Bearer {settings.zernio_api_key}'})
+            ok = resp.status_code == 200 and resp.json().get('success') is True
+            logger.info('Zernio typing accepted=%s status=%s', ok, resp.status_code)
+            return ok
+    except (httpx.HTTPError, ValueError, TypeError):
+        logger.warning('Zernio typing unavailable')
+        return False
+
+
 async def _send_zernio(client: httpx.AsyncClient, to_phone: str, body: str) -> dict:
     headers = {"Authorization": f"Bearer {settings.zernio_api_key}"}
     conv_id = await _zernio_conversation_id(client, to_phone)

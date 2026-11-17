@@ -103,3 +103,33 @@ async def test_explicit_cinema_beats_old_gym_context(monkeypatch):
     monkeypatch.setattr(webhook.gym_whatsapp,'wants_gym',gym)
     assert await webhook._events_route(None,'123','quiero ir al cine')=='cine'
     assert seen==['cinema']
+
+@pytest.mark.parametrize('hour',[0,2,3])
+async def test_midnight_relative_date_no_model(hour,monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    monkeypatch.setattr(w,'local_now',lambda:datetime(2026,11,17,hour,0,tzinfo=ZoneInfo('America/Caracas')))
+    async def llm(*a):raise AssertionError('no model before day is resolved')
+    assert await w.run_cinema_agent('¿qué películas hay mañana?',llm=llm)=='Para ubicar el día: ¿te refieres al martes 17/11 o al miércoles 18/11?'
+
+@pytest.mark.parametrize('text',['hoy 2026-11-18','mañana 18 de noviembre'])
+def test_explicit_date_not_reasked(text):
+    from datetime import datetime
+    assert w.midnight_question(text,datetime(2026,11,17,2,0)) is None
+
+def test_after_four_not_ambiguous():
+    from datetime import datetime
+    assert w.midnight_question('hoy',datetime(2026,11,17,4,0)) is None
+
+@pytest.mark.parametrize('body',['quiero un concierto','quiero comer pizza','quiero ir a boxeo','hola','[sabi:eventos] entradas'])
+async def test_exit_cinema_context(body,monkeypatch):
+    async def no(*args):return None
+    monkeypatch.setattr(w,'restaurant_by_mention',no)
+    class DB:
+        async def get(self,*args):return type('Session',(),{'updated_at':w.utcnow()})()
+    assert not await w.wants_cinema(DB(),'123',body)
+
+async def test_merchant_name_wins_over_cinema(monkeypatch):
+    async def restaurant(*args):return object()
+    monkeypatch.setattr(w,'restaurant_by_mention',restaurant)
+    assert not await w.wants_cinema(None,'123','pizza en Bizza antes del cine')

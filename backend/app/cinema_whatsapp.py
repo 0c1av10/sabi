@@ -13,6 +13,7 @@ from .cinema_mcp import CinemaUnavailable, call_tool, llm_tool_specs
 from .config import settings
 from .event_models import EventMessage, EventSession
 from .event_service import get_or_create_session, recent_user_messages
+from .event_whatsapp import EVENTS_INTENT
 from .models import utcnow
 from .whatsapp import digits, send_whatsapp_message
 
@@ -57,10 +58,29 @@ async def wants_cinema(db, phone: str, body: str) -> bool:
         return False
     if explicit_cinema(body):
         return True
+    if EVENTS_INTENT.search(body) or re.search(r'\b(pizza|hamburguesa|comer|cenar|almorzar|delivery|comida|boxeo|gimnasio)\b', body, re.I):
+        return False
     if concierge.is_greeting(body):
         return False
     session = await db.get(EventSession, session_id_for(phone))
     return bool(session and session.updated_at >= utcnow() - timedelta(minutes=30))
+
+
+def local_now():
+    return datetime.now(ZoneInfo('America/Caracas'))
+
+
+def midnight_question(message: str, now=None) -> str | None:
+    now = now or local_now()
+    if now.hour >= 4 or not re.search(r"\b(hoy|ma[ñn]ana)\b", message, re.I):
+        return None
+    if re.search(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\s+(?:de\s+)?(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b", message, re.I):
+        return None
+    weekdays = ('lunes','martes','miércoles','jueves','viernes','sábado','domingo')
+    a = now.date()
+    b = a + timedelta(days=1)
+    return (f"Para ubicar el día: ¿te refieres al {weekdays[a.weekday()]} {a.day}/{a.month} "
+            f"o al {weekdays[b.weekday()]} {b.day}/{b.month}?")
 
 
 async def _anthropic_llm(messages, tools):
@@ -68,12 +88,15 @@ async def _anthropic_llm(messages, tools):
     async with anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key,
             timeout=settings.cinema_agent_timeout_seconds, max_retries=0) as client:
         resp = await client.messages.create(model=settings.anthropic_model, max_tokens=700,
-            system=SYSTEM + '\nFecha/hora actual: ' + datetime.now(ZoneInfo('America/Caracas')).isoformat(),
+            system=SYSTEM + '\nFecha/hora actual: ' + local_now().isoformat(),
             messages=messages, tools=tools)
         return {'content': [b.model_dump() for b in resp.content]}
 
 
 async def run_cinema_agent(message: str, *, history=None, client=None, llm=None) -> str:
+    question = midnight_question(message)
+    if question:
+        return question
     messages = [{'role': r, 'content': t} for r, t in (history or [])[-8:]]
     # Keep adjacent roles legal even after a failed prior request.
     messages.append({'role': 'user', 'content': _TAG.sub(' ', message).strip()[:settings.cinema_max_message_chars]})
