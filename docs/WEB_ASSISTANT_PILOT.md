@@ -10,6 +10,8 @@
 
 ## Límites de esta entrega
 
+Capturas paso a paso: se generan JPEG legibles en hitos de página cargada, selección actualizada y decisión necesaria. La prueba conserva URL, fecha, etapa e idempotencia y evita volver a subir imágenes idénticas. Los JPEG reales se pasan por el adaptador de imagen Zernio existente, con HTTP enteramente interceptado por MockTransport. No hay envío real ni prueba de recepción visible en WhatsApp. El camino vivo para artículos públicos, privacidad y recortes de páginas largas sigue pendiente. No hay acceso a cámara.
+
 No se ha integrado búsqueda pública, navegación de comercios reales, login, carritos reales, pagos ni un modelo nuevo. La prueba local NO demuestra integración con Mercado Libre, Yummy o MiTickera. Las páginas se tratan como datos, no instrucciones. El modelo web está separado del webhook de producción. No hay nuevos endpoints públicos ni credenciales en código. Las autorizaciones de compra reales no se obtienen de texto de páginas ni de un plan generado.
 
 El envío real de WhatsApp sigue sin probarse. Una respuesta HTTP 200 no equivale a visibilidad de typing/reacciones. No se reintentan timeouts ambiguos. Typing marca leído el mensaje entrante y dura hasta 25 segundos según Zernio. La activación futura exige revisión y autorización aparte; no activar contra todo el público.
@@ -19,7 +21,7 @@ El envío real de WhatsApp sigue sin probarse. Una respuesta HTTP 200 no equival
 Desde `backend/`, instalar `requirements-dev.txt` en un entorno virtual y ejecutar:
 
 ```
-python -m pytest tests/test_presence_pilot.py tests/test_web_tasks.py -q
+python -m pytest tests/test_presence_pilot.py tests/test_web_tasks.py tests/test_web_captures.py -q
 ```
 
 Para el recorrido de navegador, instalar `pilot/requirements-web.txt` en el mismo entorno y disponer de Chromium local (`google-chrome-stable` o `chromium`):
@@ -53,3 +55,7 @@ Documentación: https://vercel.com/docs/project-configuration/git-configuration
 - https://playwright.dev/python/docs/intro
 
 Las funciones son código preparado y probado localmente, no una promesa de servicio en producción.
+
+## Capturas y contrato de imagen
+
+https://docs.zernio.com/messages/send-inbox-message y https://docs.zernio.com/products/messaging documentan adjunto binario multipart con accountId/message/attachment y cabecera Idempotency-Key. Su aceptación no es recibo visible. El piloto no publica las capturas en URL abierta ni usa upload-direct. En páginas reales hace falta excluir secretos y datos privados no necesarios, limitarse a contenido accesible sin eludir paywall y tomar recortes legibles de hitos/decisiones, no una imagen diminuta de todo el artículo ni cada clic.
