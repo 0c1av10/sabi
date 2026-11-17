@@ -90,12 +90,37 @@ def _same(a: str, b: str) -> bool:
     return a == b or (min(len(a), len(b)) >= 6 and (a.startswith(b) or b.startswith(a)))
 
 
+def named_business_query(body: str) -> tuple[str,str] | None:
+    """Conservative explicit place references, not an inferred city or product match."""
+    text=body.strip().strip('¿?!. ')
+    # City is a location qualifier, never positive product/tenant evidence.
+    explicit_visit=re.search(r'\b(?:pedir|comer|cenar|almorzar|ir)\s+(?:en|a|al)\s+(.+)$',text,re.I)
+    if explicit_visit:text=explicit_visit[1]
+    city_match=re.search(r'\s+en\s+([A-Za-zÁÉÍÓÚÑáéíóúñ ]+)$',text,re.I)
+    city=city_match[1].strip() if city_match else ''
+    head=text[:city_match.start()].strip() if city_match else text
+    prefix=re.match(r'^(?:hola[, ]+)?(?:(?:que|qué) sabes de|sabes de|conoces|sobre|de|del|y de)\s+(?:(?:el|la)\s+)?(?:(?:restaurante|pizzer[ií]a|local|caf[eé])\s+)?(.+)$',head,re.I)
+    business_word=re.search(r'\b(?:restaurante|pizzer[ií]a|caf[eé]|local)\s+(.+)$',head,re.I)
+    candidate=(prefix or business_word)
+    if candidate:entity=candidate[1].strip()
+    elif (city or explicit_visit) and len(head.split())<=4:entity=head
+    else:return None
+    # These identify an order/food task, not a named place.
+    food={'delivery','retiro','pedido','comida','cocina','pizza','pizzas','pastelitos','cachapa','cachapas','sushi','pollo','cine','pelicula','evento','entradas','laptop','taxi','viaje','direccion','precio','horario'}
+    words=_norm(entity)
+    if not words or len(words)>5 or any(w in food for w in words):return None
+    if words[0] in {'hola','busca','buscame','dime','me','nos','cuentame','recomienda','recomiendame','quiero','tengo','necesito','mandame','una','un','dos','tres','para','cuanto','cuantos','hay','tienen','que','cuando','residencias','avenida','calle'}:return None
+    if re.search(r'[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9 &\'-]',entity):return None
+    return entity[:100],city[:100]
+
+
 async def restaurants_by_product(db: AsyncSession, body: str) -> list[Restaurant]:
     """Businesses that sell what the message asks for ("quiero unos pastelitos", "quiero pizza").
     Only distinctive words count (4+ letters, not filler). A word that is the category or the first
     word of a product name (Pizzas, Pastelitos) outweighs one that is only a flavor inside another
     product ("Pastelito de Pizza"), so only the best-matching businesses are returned."""
-    wanted = {_stem(w) for w in _norm(body) if len(w) >= 4 and w not in _PRODUCT_STOP}
+    product_body=re.split(r'\s+en\s+',body,flags=re.I)[0]
+    wanted = {_stem(w) for w in _norm(product_body) if len(w) >= 4 and w not in _PRODUCT_STOP}
     if not wanted:
         return []
     best: dict[int, tuple[int, Restaurant]] = {}
@@ -117,6 +142,7 @@ async def restaurants_by_product(db: AsyncSession, body: str) -> list[Restaurant
     if not best:
         return []
     top = max(sc for sc, _ in best.values())
+    if top<2:return []  # A flavor or city suffix alone cannot choose a merchant.
     return [r for sc, r in best.values() if sc == top]
 
 
@@ -134,10 +160,15 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
         if restaurant:
             return restaurant, re.sub(r"\s*\[sabi:[a-z0-9-]+\]\s*", " ", body, flags=re.I).strip()
 
-    mentioned = await restaurant_by_mention(db, body)
+    named=named_business_query(body)
+    mentioned = await restaurant_by_mention(db,named[0] if named else body)
     if mentioned:
         return mentioned, body
 
+    # Unknown explicit entity must not inherit an unrelated open restaurant.
+    if named_business_query(body) or re.search(r'https?://',body,re.I):return None,body
+    from . import conversation_focus
+    active=await conversation_focus.get(db,phone)
     restaurant = (await db.execute(
         select(Restaurant)
         .join(Customer, Customer.restaurant_id == Restaurant.id)
@@ -145,8 +176,9 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
         .where(Customer.phone == phone, Conversation.status == "open")
         .order_by(Conversation.updated_at.desc())
     )).scalars().first()
-    if restaurant:
+    if restaurant and active and active.domain=='restaurant' and active.entity==restaurant.name:
         return restaurant, body
+    if active and active.domain=='place':return None,body
     # No business named and no open conversation: a product only one business sells decides it.
     by_product = await restaurants_by_product(db, body)
     if len(by_product) == 1:
