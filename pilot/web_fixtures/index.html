@@ -1,0 +1,8 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><title>Sabi - prueba local</title>
+<style>body{font:18px/1.6 system-ui;max-width:660px;margin:40px auto;padding:20px;color:#263d34}aside{background:#fff1c7;padding:14px}label{display:block;margin-top:20px}input,select{font:inherit;padding:8px}section{border:1px solid #cbd8ce;padding:20px;margin-top:20px}</style>
+<h1>Sabi: selección para revisar</h1><aside>PRUEBA LOCAL. Datos ficticios. No es una tienda ni una reserva real.</aside>
+<label>Buscar producto o evento <input id="query" placeholder="Producto o evento"></label>
+<label>Cantidad <select id="quantity"><option>1</option><option>2</option><option>3</option></select></label>
+<section><h2 id="item">Selecciona una búsqueda</h2><p>Precio de prueba: US$10 por unidad</p><p>Total de prueba: <strong id="total">US$10</strong></p><p>Estado: pendiente de tu revisión. Sin enviar ni pagar.</p></section>
+<script>const q=document.getElementById('query'), n=document.getElementById('quantity');q.addEventListener('input',()=>document.getElementById('item').textContent=q.value);n.addEventListener('change',()=>document.getElementById('total').textContent='US$'+Number(n.value)*10)</script>
+</html>

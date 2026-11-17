@@ -1,0 +1,7 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "pilot/web-assistant-20261117": false
+    }
+  }
+}

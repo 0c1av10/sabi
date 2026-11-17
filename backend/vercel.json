@@ -1,5 +1,13 @@
 {
   "crons": [
-    { "path": "/api/events/sync", "schedule": "0 9 * * *" }
-  ]
+    {
+      "path": "/api/events/sync",
+      "schedule": "0 9 * * *"
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "pilot/web-assistant-20261117": false
+    }
+  }
 }

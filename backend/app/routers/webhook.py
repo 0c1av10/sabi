@@ -12,7 +12,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
 from ..reactions import reaction_for
-from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
+from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
 from .. import concierge, gym_whatsapp, memory, pilot_yummy
@@ -210,6 +210,10 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
     if msg.get("conversationId"):
         zernio_conversations[phone] = msg["conversationId"]
     external_id = msg.get("platformMessageId") or msg.get("id")
+    # Scoped to authenticated inbound messages, disabled unless explicitly enabled.
+    if phone and body and settings.whatsapp_presence_enabled:
+        await send_whatsapp_typing(phone)
+        await _react(phone, external_id, body)
     if phone and body and await _pilot_route(db, phone, body):
         return {"status": "ok"}
     if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:

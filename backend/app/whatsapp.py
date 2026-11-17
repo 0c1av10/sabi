@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import quote
 
 import httpx
 
@@ -42,8 +43,8 @@ async def send_whatsapp_message(to_phone: str, body: str) -> dict:
 
 async def send_whatsapp_reaction(to_phone: str, message_id: str, emoji: str) -> dict:
     """React to an inbound message with an emoji (Cloud API `reaction` message).
-    Supported through Meta and Kapso. Zernio has no documented reaction endpoint, so there
-    the agent's emoji-rich text reply carries the tone instead. Never raises."""
+    Meta/Kapso retain their existing behavior. Zernio is opt-in for the pilot.
+    Provider acceptance does not prove the reaction is visible. Never raises."""
     if not (message_id and emoji):
         return {"skipped": "empty"}
     provider = whatsapp_provider()
@@ -52,7 +53,7 @@ async def send_whatsapp_reaction(to_phone: str, message_id: str, emoji: str) -> 
         sent_log.append({"to": to_phone, "reaction": emoji, "message_id": message_id})
         return {"mock": True}
     if provider == "zernio":
-        return {"skipped": "unsupported_provider"}
+        return await _zernio_presence(to_phone, message_id=message_id, emoji=emoji)
     if provider == "kapso":
         url = (f"https://api.kapso.ai/meta/whatsapp/{settings.kapso_api_version}/"
                f"{settings.kapso_phone_number_id}/messages")
@@ -205,3 +206,50 @@ async def send_whatsapp_image(to_phone: str, image_bytes: bytes, caption: str,
         payload = {"messaging_product": "whatsapp", "to": to_phone, "type": "image",
                    "image": {"id": media_id, "caption": caption}}
         return await _post(client, f"{base}/messages", payload, headers, to_phone)
+
+
+def _presence_allowed(phone: str) -> bool:
+    allowed = {digits(p) for p in settings.whatsapp_presence_allowed_phones.split(",") if digits(p)}
+    return settings.whatsapp_presence_enabled and digits(phone) in allowed
+
+
+async def _zernio_presence(to_phone: str, *, message_id: str = "", emoji: str = "") -> dict:
+    """No conversation lookup: only a verified inbound webhook may supply context.
+
+    Deliberately no automatic retries: a timeout can have an unknown outcome.
+    Typing also marks the inbound message read (Zernio documented behavior).
+    """
+    if not _presence_allowed(to_phone):
+        return {"skipped": "pilot_disabled_or_not_allowed"}
+    if settings.whatsapp_mock_mode:
+        sent_log.append({"to": to_phone, "kind": "reaction" if emoji else "typing", "mock": True})
+        return {"mock": True}
+    if not settings.zernio_api_key or not settings.zernio_account_id:
+        return {"skipped": "missing_configuration"}
+    conversation_id = zernio_conversations.get(digits(to_phone))
+    if not conversation_id:
+        return {"skipped": "no_inbound_conversation"}
+    base = f"{ZERNIO_API}/inbox/conversations/{quote(conversation_id, safe='')}"
+    suffix = f"/messages/{quote(message_id, safe='')}/reactions" if emoji else "/typing"
+    payload = {"accountId": settings.zernio_account_id}
+    if emoji:
+        payload["emoji"] = emoji
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.post(base + suffix, json=payload,
+                                        headers={"Authorization": f"Bearer {settings.zernio_api_key}"})
+        if response.status_code >= 400:
+            return {"error": "presence_rejected", "status": response.status_code}
+        data = response.json()
+        return {"accepted": isinstance(data, dict) and data.get("success") is True,
+                "visible_verified": False}
+    except (httpx.HTTPError, ValueError):
+        # Do not log response bodies, credentials, or private message content.
+        return {"error": "presence_outcome_unknown"}
+
+
+async def send_whatsapp_typing(to_phone: str) -> dict:
+    """Best-effort Zernio typing, disabled unless pilot flag + phone allowlist match."""
+    if whatsapp_provider() != "zernio":
+        return {"skipped": "provider_not_supported_in_pilot"}
+    return await _zernio_presence(to_phone)

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     whatsapp_mock_mode: bool = True
 
     whatsapp_provider: str = ""  # zernio | kapso | meta; empty = first configured
+    # Opt-in only. Pilot changes must not enable real effects by default.
+    whatsapp_presence_enabled: bool = False
+    whatsapp_presence_allowed_phones: str = ""
     shared_whatsapp_number: str = ""
     frontend_base_url: str = "https://www.holasabi.com"
 
