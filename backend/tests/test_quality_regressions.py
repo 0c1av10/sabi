@@ -127,6 +127,29 @@ async def test_new_task_keeps_actual_name_and_does_not_search_vocative(Session,m
         for body in ['Dime entonces del cine Regina de puerto la cruz']:
             # Name state update independent of paid domain execution.
             await memory.note(db,'111',body)
-        for body in ['Sabi','Hola busca en marketplace','Cuánto sale una laptop Dell']:
+        for body in ['Sabi']:
             assert await webhook._events_route(db,'111',body) is None
         assert (await memory.get(db,'111')).name=='Ana'
+
+async def test_marketplace_product_sequence_does_not_assume_platform(Session,monkeypatch):
+    from app.routers import webhook
+    from app.event_models import EventSession
+    from app.models import utcnow
+    from app.config import settings
+    monkeypatch.setattr(settings,'cinema_mcp_enabled',True)
+    outputs=[]
+    async def fake_send(phone,text):outputs.append(text);return True
+    async def forbidden(*a,**k):raise AssertionError('no model/provider allowed')
+    monkeypatch.setattr(webhook,'send_whatsapp_message',fake_send)
+    monkeypatch.setattr(webhook,'handle_cinema_whatsapp',forbidden)
+    async with Session() as db:
+        db.add(EventSession(id=w.session_id_for('111'),channel='cinema',updated_at=utcnow()))
+        await db.commit()
+        a=await webhook._events_route(db,'111','Hola busca en marketplace')
+        b=await webhook._events_route(db,'111','Cuánto sale una laptop Dell')
+        assert 'Cuál marketplace' in a and 'modelo o un enlace' in b
+        assert all('cine' not in text.lower() and 'Facebook' not in text and 'MercadoLibre' not in text for text in outputs)
+        assert 'Dell' in (await memory.get(db,'111')).last_topic
+    async with Session() as db:
+        assert 'Dell' in (await memory.get(db,'111')).last_topic
+        assert await memory.get(db,'222') is None

@@ -17,7 +17,7 @@ from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, se
 from ..service import handle_inbound_message, recent_inbound_count
 from ..cinema_whatsapp import explicit_cinema, wants_cinema, handle_cinema_whatsapp
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge, gym_whatsapp, memory, pilot_yummy
+from .. import concierge, gym_whatsapp, memory, pilot_yummy, shopping_inquiry
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -100,6 +100,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone, reply)
         return reply
     await memory.note(db, phone, body, profile_name)
+    shopping_reply=await shopping_inquiry.reply(db,phone,body)
+    if shopping_reply:
+        await send_whatsapp_message(phone,shopping_reply)
+        return shopping_reply
     if explicit_cinema(body) and await wants_cinema(db, phone, body):
         return await handle_cinema_whatsapp(db, phone, body, external_id)
     if await gym_whatsapp.wants_gym(db, phone, body):
