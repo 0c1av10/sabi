@@ -3,6 +3,7 @@ import copy
 import json
 import re
 import time
+import logging
 from datetime import date
 
 import httpx
@@ -106,6 +107,7 @@ async def call_tool(name: str, args: dict, client: httpx.AsyncClient | None = No
     finally:
         if own:
             await client.aclose()
+    logging.getLogger('sabi.cinema').info('cinema_tool_result tool=%s provider=%s status=%s items=%s partial=%s', name, args.get('provider', ''), data.get('status',''),len(data.get('items',[])),bool(data.get('partial')))
     if data.get('status') not in (None, 'available', 'partial'):
         raise CinemaUnavailable('Provider unavailable')
     if len(_CACHE) >= 128:
