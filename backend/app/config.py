@@ -105,3 +105,15 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# INTERNAL STARTUP CANARY ONLY. This branch is never merged or promoted.
+# Isolated disposable DB, no paid model, no WhatsApp transport, no external sync.
+settings.database_url = 'sqlite+aiosqlite:////tmp/sabi-startup-canary.db'
+settings.whatsapp_mock_mode = True
+settings.anthropic_api_key = ''
+settings.agent_mock_mode = True
+settings.events_demo_seed = False
+settings.events_source_url = ''
+settings.demo_autoseed = False
+settings.cinema_mcp_enabled = False
+settings.rides_pilot_enabled = False
