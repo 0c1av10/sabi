@@ -67,6 +67,9 @@ async def wants_cinema(db, phone: str, body: str) -> bool:
         return False
     if concierge.is_greeting(body):
         return False
+    from .conversation_focus import get as get_focus
+    focus=await get_focus(db,phone)
+    if focus and focus.domain!='cinema':return False
     session = await db.get(EventSession, session_id_for(phone))
     return bool(session and session.updated_at >= utcnow() - timedelta(minutes=30))
 

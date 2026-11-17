@@ -90,7 +90,7 @@ async def test_router_cinema_context(monkeypatch):
     assert not await w.wants_cinema(DB(),'123','[sabi:bizza] pizza')
     assert not await w.wants_cinema(DB(),'123','hola')
 
-async def test_explicit_cinema_beats_old_gym_context(monkeypatch):
+async def test_explicit_cinema_beats_old_gym_context(monkeypatch,Session):
     from app.routers import webhook
     seen=[]
     async def no_memory(*a,**k):pass
@@ -101,7 +101,8 @@ async def test_explicit_cinema_beats_old_gym_context(monkeypatch):
     monkeypatch.setattr(webhook,'wants_cinema',yes)
     monkeypatch.setattr(webhook,'handle_cinema_whatsapp',reply)
     monkeypatch.setattr(webhook.gym_whatsapp,'wants_gym',gym)
-    assert await webhook._events_route(None,'123','quiero ir al cine')=='cine'
+    async with Session() as db:
+        assert await webhook._events_route(db,'123','quiero ir al cine')=='cine'
     assert seen==['cinema']
 
 @pytest.mark.parametrize('hour',[0,2,3])
