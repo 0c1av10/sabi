@@ -116,4 +116,4 @@ settings.events_demo_seed = False
 settings.events_source_url = ''
 settings.demo_autoseed = False
 settings.cinema_mcp_enabled = False
-settings.rides_pilot_enabled = False
+settings.rides_pilot_allowed_phones = ''
