@@ -11,6 +11,7 @@ _RULES: list[tuple[str, str]] = [
     (r"\b(gracias|muchas gracias|te agradezco|mil gracias)\b", "🙏"),
     (r"\b(ya pague|pague|transferi|pago movil|comprobante)\b", "🙌"),
     (r"\b(queja|reclamo|problema|molesto|molesta|mal servicio|tarde|demor|no llego|equivoc)\w*", "😔"),
+    (r"\b(cine|cines|cinex|cinepic|cines unidos|supercines|cartelera|peliculas?)\b", "🎟️"),
     (r"\b(entradas?|boletos?|tickets?|concierto|evento)s?\b", "🎟️"),
     (r"\b(quiero|quisiera|pedir|pedido|ordenar|comprar|dame|anota|anotame|llevo)\b", "🍽️"),
     (r"\b(hola|buenas|buenos dias|buenas tardes|buenas noches|saludos|epa|hey)\b", "👋"),
