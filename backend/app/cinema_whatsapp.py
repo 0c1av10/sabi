@@ -158,6 +158,33 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
     budget = settings.cinema_max_tool_calls
     context="\n".join(t for r,t in (history or []) if r=="user")+"\n"+message
     verified=[]
+    discoveries=[]
+    async def recover_showtimes():
+        nonlocal budget
+        # Only venues actually returned by discovery, in a city explicitly requested.
+        dates=re.findall(r'\b\d{4}-\d{2}-\d{2}\b',context)
+        day=dates[-1] if dates else local_now().date().isoformat()
+        plain=concierge._plain(context)
+        seen=set()
+        for result in discoveries:
+            provider=result.get('provider')
+            for venue in result.get('items',[]):
+                city=venue.get('city','')
+                if not city or concierge._plain(city) not in plain:continue
+                key=(provider,venue.get('id'))
+                if key in seen or budget<=0:continue
+                seen.add(key)
+                try:
+                    if provider=='cinex' and concierge._plain(venue.get('name',''))=='plaza mayor' and concierge._plain(city)=='lecheria':
+                        budget-=1
+                        out=await read_plaza(requested_date=day,client=client)
+                    elif venue.get('code_status')=='verified' and venue.get('id') and not venue['id'].startswith('directory-'):
+                        budget-=1
+                        out=await call_tool('get_showtimes',{'provider':provider,'city':city,'cinema_id':venue['id'],'date':day},client=client)
+                    else:continue
+                    if out.get('status') in ('available','partial') and out.get('items'):verified.append(out)
+                except (CinemaUnavailable,ValueError,httpx.HTTPError):continue
+        return verified_answer(verified)
     async def run():
         nonlocal budget
         fallback_used=False
@@ -167,6 +194,7 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
             if not uses:
                 text=''.join(b.get('text', '') for b in resp['content'] if b['type'] == 'text').strip()[:1600]
                 if not text:logging.getLogger('sabi.cinema').warning('cinema_answer_empty verified_sets=%s',len(verified))
+                if not text and not verified:await recover_showtimes()
                 return text or verified_answer(verified) or UNAVAILABLE
             if budget <= 0:
                 return verified_answer(verified) or UNAVAILABLE
@@ -175,16 +203,19 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
             for b in uses:
                 if budget <= 0:
                     out = {'error': 'query_budget_exhausted'}
+                elif b['name']!='get_showtimes' and discoveries and budget<=min(2,settings.cinema_max_tool_calls-1):
+                    out={'error':'schedule_budget_reserved','hint':'Use verified discovered venue and get_showtimes next.'}
                 else:
                     budget -= 1
                     try:
                         out = await call_tool(b['name'], b.get('input', {}), client=client)
                         a=b.get('input',{})
-                        if (not fallback_used and a.get('provider')=='cinex'
+                        if (budget>0 and not fallback_used and a.get('provider')=='cinex'
                                 and b['name'] in ('list_cinemas','get_showtimes')
                                 and 'plaza mayor' in (message+' '+a.get('query','')).casefold()
                                 and (out.get('partial') or out.get('status')=='unavailable')):
                             fallback_used=True
+                            budget-=1
                             dates=re.findall(r'\b\d{4}-\d{2}-\d{2}\b',context)
                             try:
                                 official=await read_plaza(requested_date=a.get('date') or (dates[-1] if dates else None),client=client)
@@ -193,6 +224,7 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
                                 pass
                     except (CinemaUnavailable, ValueError, httpx.HTTPError):
                         out = {'error': 'query_unavailable'}
+                if b['name']=='list_cinemas' and out.get('items'):discoveries.append(out)
                 if b['name']=='get_showtimes' and out.get('status') in ('available','partial') and out.get('items'):
                     verified.append(out)
                 if out.get('official_plaza_mayor_showtimes'):
@@ -206,6 +238,9 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
     try:
         return await asyncio.wait_for(run(), timeout=settings.cinema_agent_timeout_seconds)
     except Exception as exc:
+        if not verified and budget>0:
+            try:await asyncio.wait_for(recover_showtimes(),timeout=settings.cinema_timeout_seconds)
+            except Exception:pass
         logging.getLogger('sabi.cinema').warning('cinema_answer_failed type=%s verified_sets=%s',type(exc).__name__,len(verified))
         return verified_answer(verified) or UNAVAILABLE
 

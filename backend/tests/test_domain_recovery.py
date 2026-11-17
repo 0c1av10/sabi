@@ -70,3 +70,21 @@ async def test_plc_without_cinema_context_is_not_assumed(Session,monkeypatch):
     async with Session() as db:
         assert await webhook._events_route(db,'111','plc') is None
         assert await focus.get(db,'111') is None
+
+async def test_approved_returning_greeting_omits_invalid_name_without_mutation(Session):
+    from app import concierge,memory
+    async with Session() as db:
+        db.add(memory.Contact(phone='111',name='Entonces',name_source='user',last_topic='cine'));await db.commit()
+        text,_=await concierge.reply(db,'hola','111')
+        assert text=='Hola de nuevo. ¿Cómo te puedo ayudar hoy? ¿Quieres comer o se te antoja ir al cine?'
+        assert (await memory.get(db,'111')).name=='Entonces'
+        assert 'Ana' in await concierge._hello(db,'Ana',True)
+
+async def test_active_cinema_greeting_keeps_task(Session,monkeypatch):
+    async def send(*args):return {'mock':True}
+    monkeypatch.setattr(webhook,'send_whatsapp_message',send)
+    async with Session() as db:
+        await focus.save(db,'111',domain='cinema',city='Puerto La Cruz')
+        reply=await webhook._events_route(db,'111','hola')
+        assert reply=='Seguimos con cine en Puerto La Cruz.'
+        assert (await focus.get(db,'111')).city=='Puerto La Cruz'

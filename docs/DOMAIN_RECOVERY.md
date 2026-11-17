@@ -11,3 +11,19 @@ The city is passed into the cinema query and retained across those turns. This i
 ## Scope
 
 This change does not provide a national city directory, geocoding, geographic filtering for shopping/gym/events, or verified showtime coverage for Puerto La Cruz. It does not repair previously stored names. The isolated replay uses a replacement cinema answer, so it verifies routing and city propagation, not a live provider response or WhatsApp delivery.
+
+## Returning welcome
+
+For a new bare greeting, the approved returning welcome is:
+
+"Hola de nuevo, {nombre}. ¿Cómo te puedo ayudar hoy? ¿Quieres comer o se te antoja ir al cine?"
+
+A doubtful name is omitted from the greeting without changing the saved record. A bare greeting during an active cinema query keeps the city and task instead of restarting this welcome. There is no random rotation among the three drafts.
+
+## Empty answer after cinema discovery
+
+Venue discovery is not a showtime lookup. Once discovery has returned a venue, a small part of the existing query budget is reserved for showtimes. If synthesis returns no text, the recovery can consult a verified venue returned by discovery, only where its city is explicit in the query context. It can read the official Plaza Mayor page when that discovered venue is in explicitly requested Lechería.
+
+The recovery does not increase the configured maximum number of public queries or call a paid model again. Only future functions with a coherent venue and date enter the data-only answer. A paginated response is labelled as part of the showtimes, not a complete billboard. A directory entry from another city does not authorize a local recommendation.
+
+This still needs a real WhatsApp journey check after deployment. Synthetic model replies verify the control flow without using paid inference; separate live public reads prove source availability only.
