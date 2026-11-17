@@ -12,6 +12,7 @@ from ..config import settings
 from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
 from ..reactions import reaction_for
+from ..inbound_receipts import claim_inbound
 from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
@@ -128,6 +129,8 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                     if c.get("wa_id") == phone:
                         name = c.get("profile", {}).get("name", "")
                 if phone and body:
+                    if not await claim_inbound(db,'meta',digits(phone),msg.get('id'),platform_id=msg.get('id') or ''):
+                        continue
                     await _react(phone, msg.get("id"), body)
                     if await _pilot_route(db, phone, body):
                         continue
@@ -159,6 +162,8 @@ async def receive_kapso(request: Request, db: AsyncSession = Depends(get_db)):
         phone = msg.get("from") or conv.get("phone_number") or ""
         body = (msg.get("text") or {}).get("body", "")
         if phone and body:
+            if not await claim_inbound(db,'kapso',digits(phone),msg.get('id')):
+                continue
             await _react(phone, msg.get("id"), body)
             if await _pilot_route(db, phone, body):
                 continue
@@ -210,6 +215,10 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
     if msg.get("conversationId"):
         zernio_conversations[phone] = msg["conversationId"]
     external_id = msg.get("platformMessageId") or msg.get("id")
+    if not phone or not body:
+        return {'status':'ignored'}
+    if not await claim_inbound(db,'zernio',phone,msg.get('id'),platform_id=msg.get('platformMessageId') or ''):
+        return {'status':'duplicate_or_unidentified'}
     if phone and body and await _pilot_route(db, phone, body):
         return {"status": "ok"}
     if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
