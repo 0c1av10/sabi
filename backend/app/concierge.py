@@ -49,6 +49,13 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "") -> st
         italian_ids={m.restaurant_id for m in menus if (re.fullmatch(r'(pizzas?|pastas?|risottos?|ravioli|lasagna|lasana|gnocchi|panini)',_plain(m.category or '').strip()) or re.match(r'^(pizza|pasta|risotto|ravioli|lasagna|lasana|gnocchi|panini)\b',_plain(m.name).strip()))}
         rows=[r for r in rows if r.id in italian_ids]
         if not rows:return 'No tengo un menú italiano verificado en el catálogo actual. No te voy a recomendar otro tipo de comida como si fuera italiana.'
+    # Explicit cuisine is a constraint, never permission to pick unrelated tenants.
+    cuisine=re.search(r'\b(?:comida|cocina)\s+(?:de\s+)?([a-z]+)\b',_plain(body))
+    if cuisine and cuisine[1] not in ('italiana','italiano'):
+        requested=cuisine[1]
+        exact=re.compile(r'\b(?:comida|cocina)\s+'+re.escape(requested)+r'\b')
+        rows=[r for r in rows if exact.search(_plain(r.tagline or ''))]
+        if not rows:return f'No tengo un local de comida {requested} verificado en el catálogo actual. No te voy a recomendar otro tipo de comida como si coincidiera. La búsqueda web automática aún no está conectada.'
     chosen = random.sample(rows, min(pick, len(rows)))
     lines = []
     for r in chosen:
@@ -80,6 +87,7 @@ async def _hello(db: AsyncSession, name: str, returning: bool) -> str:
 
 async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool]:
     """(text, is_plain_welcome). The welcome is rate-limited by the caller; recommendations are not."""
+    if _plain(body).strip(' ¡!¿?.,')=='sabi':return 'Aquí estoy. ¿En qué te ayudo?',False
     contact = await memory.get(db, phone) if phone else None
     name = memory.first_name(contact.name if contact else None)
     said = memory.extract_name(body)

@@ -57,6 +57,7 @@ def explicit_cinema(body: str) -> bool:
 
 
 async def wants_cinema(db, phone: str, body: str) -> bool:
+    if concierge._plain(body).strip(' ¡!¿?.,')=='sabi':return False
     if not settings.cinema_mcp_enabled or _OTHER.search(body):
         return False
     if await restaurant_by_mention(db, body):
