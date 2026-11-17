@@ -137,8 +137,8 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone,place_reply)
         return place_reply
     shopping_reply=await shopping_inquiry.reply(db,phone,body)
-    if shopping_reply:
-        await send_whatsapp_message(phone,shopping_reply)
+    if shopping_reply is not None:
+        if shopping_reply:await send_whatsapp_message(phone,shopping_reply)
         return shopping_reply
     if explicit_cinema(body) and await wants_cinema(db, phone, body):
         return await handle_cinema_whatsapp(db, phone, body, external_id)

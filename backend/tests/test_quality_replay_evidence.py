@@ -7,6 +7,9 @@ from app.event_models import EventSession
 from app.config import settings
 
 async def test_quality_replay(Session,monkeypatch):
+    from app import product_search
+    async def offline(query):return product_search.SearchResult((),'','unavailable')
+    monkeypatch.setattr(product_search,'search_yummy',offline)
     async def no(*a,**k):return False
     async def cinema(*a,**k):return 'CINEMA_ROUTE_MODEL_BLOCKED'
     sent=[]

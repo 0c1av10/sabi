@@ -156,14 +156,16 @@ async def test_marketplace_product_sequence_does_not_assume_platform(Session,mon
         assert 'Dell' in (await focus.get(db,'111')).entity
         assert await memory.get(db,'222') is None
 
-async def test_explicit_yummy_keeps_previous_product_without_inventing_price(Session):
-    from app import shopping_inquiry
+async def test_explicit_yummy_keeps_previous_product_without_inventing_price(Session,monkeypatch):
+    from app import shopping_inquiry,product_search
+    async def unavailable(query):return product_search.SearchResult((),'', 'unavailable')
+    monkeypatch.setattr(product_search,'search_yummy',unavailable)
     async with Session() as db:
         await shopping_inquiry.reply(db,'111','Hola busca en marketplace')
         await shopping_inquiry.reply(db,'111','Cuánto sale una laptop Dell')
     async with Session() as db:
         reply=await shopping_inquiry.reply(db,'111','Yummy marketplace')
-        assert 'Yummy Marketplace' in reply and 'laptop Dell' in reply
+        assert 'Yummy Marketplace' in reply and 'verificar' in reply
         assert '$' not in reply and 'Facebook' not in reply and 'cine' not in reply.lower()
         from app import conversation_focus as focus
         assert 'Yummy Marketplace' in (await focus.get(db,'111')).platform
