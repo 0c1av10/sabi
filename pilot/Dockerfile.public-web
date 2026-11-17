@@ -1,0 +1,9 @@
+FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
+WORKDIR /app
+RUN pip install --no-cache-dir playwright==1.58.0 httpx==0.28.1
+COPY backend/app/public_web.py backend/app/public_web_worker.py /app/backend/app/
+COPY pilot/render_public_smoke.py /app/pilot/
+RUN useradd --create-home sabi && chown -R sabi:sabi /app
+USER sabi
+ENV PYTHONUNBUFFERED=1
+CMD ["python", "pilot/render_public_smoke.py"]
