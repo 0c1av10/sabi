@@ -29,9 +29,9 @@ class Contact(Base):
 
 _NOT_NAMES = {"principiante", "intermedio", "avanzado", "nuevo", "nueva", "cliente", "alumno", "alumna", "el", "la",
               "un", "una", "yo", "tu", "de", "del", "que", "quien", "usuario", "persona", "amigo", "amiga",
-              "hola", "buenas", "ok", "si", "no", "sabi", "entonces", "horario", "cual", "donde", "boxeador", "estudiante", "mama", "papa"}
+              "hola", "buenas", "ok", "si", "no", "sabi", "boxeador", "estudiante", "mama", "papa"}
 _INTRO = re.compile(
-    r"\b(?:me\s+llamo|mi\s+nombre\s+es|ll[aá]mame|soy)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}){0,2})",
+    r"^(?:hola[,! ]+)?(?:me\s+llamo|mi\s+nombre\s+es|ll[aá]mame|soy)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}){0,2})",
     re.I)
 FORGET = re.compile(r"\b(olv[ií]dame|olvida\s+mi\s+nombre|borra\s+mis\s+datos|no\s+me\s+recuerdes)\b", re.I)
 
@@ -63,8 +63,7 @@ def extract_name(body: str) -> str:
 
 
 def first_name(name: str | None) -> str:
-    clean=clean_name(name)
-    return clean.split()[0] if clean else ""
+    return (name or "").split()[0] if name else ""
 
 
 async def get(db: AsyncSession, phone: str) -> Contact | None:

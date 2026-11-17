@@ -68,6 +68,14 @@ async def wants_cinema(db, phone: str, body: str) -> bool:
         return False
     if concierge.is_greeting(body):
         return False
+    requested,unknown=concierge.cuisine_request(body)
+    if requested or unknown:return False
+    from . import memory
+    contact=await memory.get(db,phone)
+    if contact and contact.last_topic and contact.last_topic!='cine':return False
+    # A live cinema session is evidence only for bounded follow-ups, not a wildcard domain lock.
+    followup=concierge._plain(body).strip(' ¡!¿?.,')
+    if not re.fullmatch(r'(?:y )?(?:hoy|manana|pasado manana|mas tarde|en la noche|que me recomiendas|que horarios hay|a que hora|[0-2]?\d(?::[0-5]\d)?(?: ?(?:am|pm))?)',followup):return False
     session = await db.get(EventSession, session_id_for(phone))
     return bool(session and session.updated_at >= utcnow() - timedelta(minutes=30))
 
@@ -205,6 +213,8 @@ async def run_cinema_agent(message: str, *, history=None, client=None, llm=None)
 async def handle_cinema_whatsapp(db, phone: str, body: str, external_id=None) -> str:
     if external_id and (await db.execute(select(EventMessage.id).where(EventMessage.external_id == external_id))).first():
         return ''
+    from . import memory
+    await memory.set_topic(db,phone,'cine')
     session = await get_or_create_session(db, session_id_for(phone), channel='cinema', trusted_id=True)
     if await recent_user_messages(db, session.id) >= settings.events_chat_limit_hour or await recent_user_messages(db) >= settings.events_global_limit_hour:
         text = 'Vamos un poco rápido. Intenta de nuevo en un rato.'

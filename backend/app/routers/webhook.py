@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import restaurant_for_message
+from ..auth import restaurant_for_message, restaurant_by_mention
 from ..config import settings
 from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
@@ -65,6 +65,11 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         await _close_open_conversations(db, phone)
         text, _ = await concierge.reply(db, body, phone)
         return None, body, text
+    requested,unknown=concierge.cuisine_request(body)
+    if (requested or unknown) and not await restaurant_by_mention(db,body):
+        await memory.set_topic(db,phone,'comida')
+        text,_=await concierge.reply(db,body,phone)
+        return None,body,text
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
         await memory.set_topic(db, phone, f"tu pedido en {restaurant.name}")

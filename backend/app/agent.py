@@ -174,7 +174,7 @@ RESPONDER_TOOL = {
 def guard_representation(result: AgentResult,restaurant: Restaurant) -> AgentResult:
     """No verified human escalation destination exists in this chat path."""
     result.reply=re.sub(r'(?i)soy Sabi de\s+'+re.escape(restaurant.name), 'Soy Sabi',result.reply)
-    if result.action=='handoff' or re.search(r'(?i)(?:te|le) (?:paso|pase|pasaré|pasare|puedo pasar)|pasar (?:la|esta) conversaci[oó]n al due[nñ]o',result.reply):
+    if result.action=='handoff' or re.search(r'(?i)(?:(?:te|le) (?:paso|pase|pasaré|pasare|puedo pasar)|pasar (?:la|esta) conversaci[oó]n).{0,60}(?:due[nñ]o|encargad[oa]|humano)',result.reply):
         result.action='continue'
         result.reply=f'No tengo ese dato verificado de {restaurant.name} ni un canal humano confirmado para consultarlo por ti. Puedo ayudarte con la información que sí está registrada.'
     return result
