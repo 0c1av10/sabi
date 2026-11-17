@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -6,6 +7,7 @@ from .config import settings
 from .models import Base
 from . import event_models  # noqa: F401  (registers the events tables on Base.metadata)
 from . import gym_models  # noqa: F401  (registers the gym tables on Base.metadata)
+from . import conversation_focus  # registers isolated expiring task state
 from . import memory  # noqa: F401  (registers the contacts memory table)
 
 
@@ -40,6 +42,11 @@ async def init_db() -> None:
             # blocks the anon/authenticated Data API roles; the backend owns the tables.
             for table in Base.metadata.sorted_tables:
                 await conn.execute(text(f"ALTER TABLE {table.name} ENABLE ROW LEVEL SECURITY"))
+            verified=(await conn.execute(text("SELECT relrowsecurity FROM pg_class WHERE oid='public.conversation_focus'::regclass"))).scalar_one()
+            if not verified:raise RuntimeError('focus RLS not enabled')
+        focus_pk=await conn.run_sync(lambda c: inspect(c).get_pk_constraint('conversation_focus')['constrained_columns'])
+        if focus_pk!=['phone']:raise RuntimeError('focus primary key not verified')
+        logging.getLogger('sabi.focus').info('focus_schema_ready primary_key=phone rls=%s',IS_POSTGRES)
 
 
 def _add_missing_columns(conn) -> None:

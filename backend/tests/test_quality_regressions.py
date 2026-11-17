@@ -1,6 +1,6 @@
 import pytest
 from app import memory,concierge,cinema_whatsapp as w
-from app.models import Restaurant
+from app.models import Restaurant,utcnow
 
 def test_real_name_contamination_no_model():
     assert memory.extract_name('Dime entonces del cine Regina de puerto la cruz')==''
@@ -149,9 +149,11 @@ async def test_marketplace_product_sequence_does_not_assume_platform(Session,mon
         b=await webhook._events_route(db,'111','Cuánto sale una laptop Dell')
         assert 'Cuál marketplace' in a and 'modelo o un enlace' in b
         assert all('cine' not in text.lower() and 'Facebook' not in text and 'MercadoLibre' not in text for text in outputs)
-        assert 'Dell' in (await memory.get(db,'111')).last_topic
+        from app import conversation_focus as focus
+        assert 'Dell' in (await focus.get(db,'111')).entity
     async with Session() as db:
-        assert 'Dell' in (await memory.get(db,'111')).last_topic
+        from app import conversation_focus as focus
+        assert 'Dell' in (await focus.get(db,'111')).entity
         assert await memory.get(db,'222') is None
 
 async def test_explicit_yummy_keeps_previous_product_without_inventing_price(Session):
@@ -163,5 +165,16 @@ async def test_explicit_yummy_keeps_previous_product_without_inventing_price(Ses
         reply=await shopping_inquiry.reply(db,'111','Yummy marketplace')
         assert 'Yummy Marketplace' in reply and 'laptop Dell' in reply
         assert '$' not in reply and 'Facebook' not in reply and 'cine' not in reply.lower()
-        assert 'Yummy Marketplace' in (await memory.get(db,'111')).last_topic
+        from app import conversation_focus as focus
+        assert 'Yummy Marketplace' in (await focus.get(db,'111')).platform
         assert await memory.get(db,'222') is None
+
+@pytest.mark.parametrize('text',['Del restaurante Beijing qué sabes','Beijing en Lechería','Qué sabes del restaurante Nacional'])
+async def test_named_place_not_forced_into_cinema(Session,monkeypatch,text):
+    from app.event_models import EventSession
+    from app.config import settings
+    monkeypatch.setattr(settings,'cinema_mcp_enabled',True)
+    async with Session() as db:
+        db.add(EventSession(id=w.session_id_for('111'),channel='cinema',updated_at=utcnow()))
+        await db.commit()
+        assert not await w.wants_cinema(db,'111',text)
