@@ -18,7 +18,10 @@ class ConversationFocus(Base):
 
 async def get(db,phone,now=None):
     now=now or utcnow()
-    return (await db.execute(select(ConversationFocus).where(ConversationFocus.phone==digits(phone),ConversationFocus.expires_at>now).execution_options(populate_existing=True))).scalar_one_or_none()
+    row=(await db.execute(select(ConversationFocus).where(ConversationFocus.phone==digits(phone),ConversationFocus.expires_at>now).execution_options(populate_existing=True))).scalar_one_or_none()
+    from .auth import response_format_request
+    if row and row.domain in ('place','restaurant') and response_format_request(row.entity+' en '+row.city):return None
+    return row
 
 async def save(db,phone,*,domain,entity='',city='',platform='',now=None):
     now=now or utcnow()

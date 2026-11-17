@@ -124,6 +124,36 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone, reply)
         return reply
     await memory.note(db, phone, body, profile_name)
+    # A new explicit domain outranks both unresolved-place and sticky sessions.
+    text=concierge._plain(body).strip(' ¿?!.')
+    active=await focus.get(db,phone)
+    plc_question=bool(re.search(r'\bque hay para ver en plc\b',text))
+    city_answer=re.sub(r'^(?:hola|alo|buenas)[, ]+', '',text)
+    city_clarification=city_answer=='puerto la cruz' and active and active.domain=='cinema'
+    if city_answer=='plc' and active and active.domain=='cinema' and active.entity=='awaiting_city':city_clarification=True
+    if active and active.domain=='cinema' and re.search(r'\b(?:no entiendes|no me entiendes|no entendiste)\b',text):
+        reply='Seguimos con la cartelera de cine'+(f' en {active.city}.' if active.city else '. ¿En qué ciudad quieres verla?')
+        if active.city:reply+=' Aún necesito horarios verificados de esa ciudad; no he comprado entradas.'
+        await send_whatsapp_message(phone,reply)
+        return reply
+    if concierge.is_greeting(body) and active and active.domain=='cinema':
+        reply='Seguimos con cine'+(f' en {active.city}.' if active.city else '. ¿En qué ciudad te gustaría ver la cartelera?')
+        await send_whatsapp_message(phone,reply)
+        return reply
+    if plc_question:
+        await focus.save(db,phone,domain='cinema')
+        reply='¿Con PLC te refieres a Puerto La Cruz para ver cine?'
+        await send_whatsapp_message(phone,reply)
+        return reply
+    if explicit_cinema(body) or city_clarification:
+        city='Puerto La Cruz' if city_clarification else (active.city if active and active.domain=='cinema' else '')
+        await focus.save(db,phone,domain='cinema',city=city)
+        cinema_body=body if not city_clarification else 'Cine en Puerto La Cruz'
+        if await wants_cinema(db,phone,cinema_body):
+            return await handle_cinema_whatsapp(db,phone,cinema_body,external_id)
+        reply='La consulta ahora es de cine. No tengo una cartelera verificada disponible en este momento.'
+        await send_whatsapp_message(phone,reply)
+        return reply
     source_reply=await place_source.reply(db,phone,body)
     if source_reply is not None:
         if source_reply:await send_whatsapp_message(phone,source_reply)

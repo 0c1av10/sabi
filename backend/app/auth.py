@@ -119,7 +119,7 @@ def named_business_query(body: str) -> tuple[str,str] | None:
     elif (city or explicit_visit) and len(head.split())<=4:entity=head
     else:return None
     # These identify an order/food task, not a named place.
-    food={'delivery','retiro','pedido','comida','cocina','pizza','pizzas','pastelitos','cachapa','cachapas','sushi','pollo','cine','pelicula','evento','entradas','laptop','taxi','viaje','direccion','precio','horario'}
+    food={'delivery','retiro','pedido','comida','cocina','pizza','pizzas','pastelitos','cachapa','cachapas','sushi','pollo','cine','cines','pelicula','peliculas','evento','entradas','laptop','taxi','viaje','direccion','precio','horario'}
     words=_norm(entity)
     if not words or len(words)>5 or any(w in food for w in words):return None
     if words[0] in {'hola','busca','buscame','dime','me','nos','cuentame','recomienda','recomiendame','quiero','tengo','necesito','mandame','mandamelo','enviamelo','pasamelo','dimelo','damelo','muestramelo','dividelo','separalo','resumelo','ponlo','hazlo','escribelo','una','un','dos','tres','para','cuanto','cuantos','hay','tienen','que','cuando','residencias','avenida','calle'}:return None

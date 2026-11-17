@@ -99,9 +99,10 @@ def is_greeting(body: str) -> bool:
 async def _hello(db: AsyncSession, name: str, returning: bool) -> str:
     """Short on purpose: Sabi answers the greeting and lets the person say what they want;
     food, events or classes are then handled by what they write."""
-    who = f", {name}" if name else ""
+    reliable=memory.extract_name("Me llamo "+name) if name else ""
+    who = f", {reliable}" if reliable else ""
     if returning:
-        return f"¡Hola de nuevo{who}! 👋 ¿Qué se te antoja hoy?"
+        return f"Hola de nuevo{who}. ¿Cómo te puedo ayudar hoy? ¿Quieres comer o se te antoja ir al cine?"
     return f"¡Hola{who}! 👋 Soy Sabi. ¿En qué te echo una mano hoy?"
 
 
