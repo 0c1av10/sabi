@@ -109,7 +109,9 @@ def verified_answer(results):
             start=datetime.fromisoformat(item.get('starts_at','').replace('Z','+00:00'))
             if start.tzinfo is None or start<=local_now():continue
             if not item.get('cinema_name') or not item.get('name'):continue
-            if start.astimezone(ZoneInfo('America/Caracas')).date().isoformat()!=item.get('date'):continue
+            local=start.astimezone(ZoneInfo('America/Caracas'))
+            if local.date().isoformat()!=item.get('date'):continue
+            item={**item,'time':local.strftime('%H:%M')}
         except (ValueError,TypeError):continue
         rows.append(item)
     if not rows:return ''
@@ -123,7 +125,7 @@ def verified_answer(results):
     if any(x.get('sales_channel')=='box_office_only' for x in rows):lines.append('Las funciones indicadas por la fuente son sólo por taquilla.')
     if result.get('partial') or result.get('next_offset') is not None or len(grouped)>8:lines.append('Esta es una parte de la cartelera, no la lista completa.')
     url=rows[0].get('url','')
-    if url.startswith('https://'):lines.append(url)
+    if url.startswith('https://'):lines.append('Fuente de '+rows[0]['name']+': '+url)
     lines.append('¿Cuál te llama la atención?')
     return '\n'.join(lines)[:1600]
 
