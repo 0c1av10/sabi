@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -17,7 +18,7 @@ from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, se
 from ..service import handle_inbound_message, recent_inbound_count
 from ..cinema_whatsapp import explicit_cinema, wants_cinema, handle_cinema_whatsapp
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge, gym_whatsapp, memory, pilot_yummy, shopping_inquiry
+from .. import concierge, gym_whatsapp, memory, pilot_yummy, shopping_inquiry, conversation_focus as focus
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -73,6 +74,7 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
         await memory.set_topic(db, phone, f"tu pedido en {restaurant.name}")
+        await focus.save(db,phone,domain='restaurant',entity=restaurant.name)
         return restaurant, routed_body, None
     text, is_welcome = await concierge.reply(db, body, phone)
     if is_welcome:
@@ -94,12 +96,24 @@ async def _route_or_explain(db: AsyncSession, phone: str, body: str):
 async def _events_route(db: AsyncSession, phone: str, body: str, external_id: str | None = None,
                         profile_name: str = ""):
     """Events assistant channel. Returns the reply text, or None if the message is not for it."""
-    if memory.FORGET.search(body):
-        await memory.forget(db, phone)
-        reply = "Listo, ya no recuerdo tu nombre ni lo que hablamos antes. Si quieres, dime cómo te llamas de nuevo. 🙂"
+    reset_context=bool(re.search(r'\b(?:olvida|reinicia|borra) (?:el )?contexto\b',concierge._plain(body)))
+    if memory.FORGET.search(body) or reset_context:
+        if not reset_context:await memory.forget(db, phone)
+        else:await memory.set_topic(db,phone,'general')
+        await focus.forget(db,phone)
+        from ..event_models import EventSession
+        from ..cinema_whatsapp import session_id_for
+        await db.execute(update(EventSession).where(EventSession.id==session_id_for(phone)).values(updated_at=datetime(1970,1,1)))
+        await db.commit()
+        await _close_open_conversations(db,phone)
+        reply = ('Listo, dejé atrás la tarea anterior. Conservé tu nombre.' if reset_context else 'Listo, borré tu nombre guardado y la tarea activa. El historial de mensajes no se ha eliminado.')
         await send_whatsapp_message(phone, reply)
         return reply
     await memory.note(db, phone, body, profile_name)
+    place_reply=await focus.place_reply(db,phone,body)
+    if place_reply:
+        await send_whatsapp_message(phone,place_reply)
+        return place_reply
     shopping_reply=await shopping_inquiry.reply(db,phone,body)
     if shopping_reply:
         await send_whatsapp_message(phone,shopping_reply)
