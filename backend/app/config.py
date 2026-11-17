@@ -79,6 +79,10 @@ class Settings(BaseSettings):
     cron_secret: str = ""
     # Panel PINs set at startup for existing businesses: "slug:1234,other:5678". Empty = untouched.
     business_pins: str = ""
+    # Enabled under owner approval of truthful registration, reactions and quote replies.
+    whatsapp_plain_text: bool = True
+    whatsapp_quote_replies: bool = True
+    zernio_native_reactions: bool = True
     # Google Calendar for gym classes: service-account key JSON (raw or base64). Empty = off.
     google_service_account_json: str = ""
     # Admin: allowed emails (comma separated) + shared password. Empty = admin disabled.

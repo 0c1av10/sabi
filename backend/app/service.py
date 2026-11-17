@@ -1,6 +1,7 @@
 """Core flow: inbound WhatsApp message -> agent -> (maybe) pending order -> owner notification.
 And: owner approves/edits/rejects -> customer confirmation via WhatsApp."""
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
@@ -13,6 +14,8 @@ from .agent import delivery_fee_for, fmt_money, rates_of, run_agent, summarize_o
 from .models import (Conversation, Customer, MenuItem, Message, Order,
                      OrderItem, OrderStatus, PaymentStatus, Restaurant, utcnow)
 from .whatsapp import send_whatsapp_message
+
+logger = logging.getLogger("sabi.orders")
 
 
 async def get_or_create_conversation(db: AsyncSession, restaurant: Restaurant,
@@ -84,16 +87,27 @@ async def handle_inbound_message(db: AsyncSession, restaurant: Restaurant,
     if result.action == "handoff":
         conv.status = "handed_to_owner"
 
-    if result.reply:
-        db.add(Message(conversation_id=conv.id, direction="outbound", body=result.reply))
-        await send_whatsapp_message(phone, result.reply)
-
+    reply = result.reply
     if result.action == "submit_order" and result.order:
         order = await create_pending_order(db, restaurant, conv, result.order)
-        await notify_owner_new_order(db, restaurant, order)
+        # A customer acknowledgement must never precede the durable write.
+        # Saving locally and a transport acknowledgement are not merchant receipt.
+        await db.commit()
+        reply = (f"Registré tu solicitud #{order.id} en Sabi, pendiente de revisión. "
+                 "Aún no tengo confirmación de recepción ni aceptación del restaurante. "
+                 "Elegir un método no confirma el pago; no pagues basándote en este mensaje.")
+        try:
+            await notify_owner_new_order(db, restaurant, order)
+        except Exception:
+            logger.warning("owner_notification_outcome_unknown order_id=%s", order.id)
+
+    if reply:
+        db.add(Message(conversation_id=conv.id, direction="outbound", body=reply))
+        await db.commit()
+        await send_whatsapp_message(phone, reply)
 
     await db.commit()
-    return result.reply
+    return reply
 
 
 async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
@@ -115,7 +129,7 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
         delivery_zone=draft.get("delivery_zone") or "",
         payment_method=draft.get("payment_method") or "",
         payment_reference=draft.get("payment_reference") or "",
-        payment_status=PaymentStatus.submitted if draft.get("payment_method") else PaymentStatus.pending,
+        payment_status=PaymentStatus.submitted if draft.get("payment_reference") else PaymentStatus.pending,
     )
     db.add(order)
     await db.flush()
@@ -140,16 +154,20 @@ async def create_pending_order(db: AsyncSession, restaurant: Restaurant,
     return order
 
 
-async def notify_owner_new_order(db: AsyncSession, restaurant: Restaurant, order: Order) -> None:
+async def notify_owner_new_order(db: AsyncSession, restaurant: Restaurant, order: Order) -> dict:
     if not restaurant.owner_phone:
-        return
+        logger.info("owner_notification_skipped order_id=%s reason=no_owner_phone", order.id)
+        return {"skipped": "no_owner_phone"}
     await db.refresh(order, ["items"])
     items = ", ".join(f"{i.quantity}x {i.name}" for i in order.items)
-    await send_whatsapp_message(
+    outcome = await send_whatsapp_message(
         restaurant.owner_phone,
-        f"🔔 Nuevo pedido #{order.id} pendiente de pago y aprobación: {items} — "
+        f"Nueva solicitud #{order.id} pendiente de pago y aprobación: {items} - "
         f"total {fmt_money(order.total, *rates_of(restaurant))}. Confirma el pago y apruébalo en el panel de Sabi.",
     )
+    logger.info("owner_notification_attempted order_id=%s transport_error=%s mock=%s",
+                order.id, bool(outcome.get("error")), bool(outcome.get("mock")))
+    return outcome
 
 
 async def get_customer_phone(db: AsyncSession, order: Order) -> str:

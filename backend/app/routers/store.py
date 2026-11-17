@@ -179,7 +179,7 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
                   address=data.address.strip() if data.order_type == "delivery" else "",
                   notes=data.notes.strip(), total=sum(mi.price * q for mi, q in lines) + fee,
                   payment_method=data.payment_method, payment_reference=data.payment_reference.strip(),
-                  payment_status="submitted")
+                  payment_status="submitted" if data.payment_reference.strip() else "pending")
     db.add(order)
     await db.flush()
     for mi, q in lines:
@@ -187,8 +187,8 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
                          unit_price=mi.price))
     conv.status = "closed"
     await db.flush()
+    await db.commit()  # persist before any external notification
     await notify_owner_new_order(db, r, order)
-    await db.commit()
     return {"order_id": order.id, "status": "pending", "total": order.total}
 
 

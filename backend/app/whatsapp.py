@@ -1,4 +1,8 @@
 import logging
+import re
+from contextlib import contextmanager
+from contextvars import ContextVar
+from urllib.parse import quote
 
 import httpx
 
@@ -9,10 +13,44 @@ logger = logging.getLogger("sabi.whatsapp")
 # In-memory log of "sent" messages for mock mode / local testing.
 sent_log: list[dict] = []
 
+# Request-local target, never a process-global "last message" per phone.
+_reply_context: ContextVar[tuple[str, str] | None] = ContextVar("sabi_reply_context", default=None)
+
+
+@contextmanager
+def incoming_reply_context(phone: str, platform_message_id: str):
+    token = _reply_context.set((digits(phone), platform_message_id))
+    try:
+        yield
+    finally:
+        _reply_context.reset(token)
+
+
+def plain_message(body: str) -> str:
+    # Strip emoji sequences while preserving accents, currency, prices and newlines.
+    body = re.sub(r"[#*0-9]\ufe0f?\u20e3", "", body)
+    body = re.sub(r"[\U0001F000-\U0001FAFF\u2600-\u27bf\u200d\ufe0e\ufe0f]", "", body)
+    return "\n".join(re.sub(r"[ \t]{2,}", " ", line).strip() for line in body.split("\n")).strip()
+
+
+def _quote_target(phone: str) -> str:
+    ctx = _reply_context.get()
+    if not settings.whatsapp_quote_replies or not ctx or ctx[0] != digits(phone):
+        return ""
+    target = ctx[1]
+    # Zernio internal IDs are not valid quote targets on WhatsApp.
+    return target if target.startswith("wamid.") else ""
+
+
 
 async def send_whatsapp_message(to_phone: str, body: str) -> dict:
     """Send a text message via WhatsApp Cloud API, or log it in mock mode."""
+    if settings.whatsapp_plain_text:
+        body = plain_message(body)
     entry = {"to": to_phone, "body": body}
+    reply_to = _quote_target(to_phone)
+    if reply_to:
+        entry["reply_to"] = reply_to
     sent_log.append(entry)
 
     provider = whatsapp_provider()
@@ -37,13 +75,15 @@ async def send_whatsapp_message(to_phone: str, body: str) -> dict:
             "type": "text",
             "text": {"body": body},
         }
+        if reply_to:
+            payload["context"] = {"message_id": reply_to}
         return await _post(client, url, payload, headers, to_phone)
 
 
 async def send_whatsapp_reaction(to_phone: str, message_id: str, emoji: str) -> dict:
     """React to an inbound message with an emoji (Cloud API `reaction` message).
-    Supported through Meta and Kapso. Zernio has no documented reaction endpoint, so there
-    the agent's emoji-rich text reply carries the tone instead. Never raises."""
+    Zernio uses the documented reaction endpoint; a success is acceptance,
+    not proof of visible placement. No automatic retries."""
     if not (message_id and emoji):
         return {"skipped": "empty"}
     provider = whatsapp_provider()
@@ -52,7 +92,17 @@ async def send_whatsapp_reaction(to_phone: str, message_id: str, emoji: str) -> 
         sent_log.append({"to": to_phone, "reaction": emoji, "message_id": message_id})
         return {"mock": True}
     if provider == "zernio":
-        return {"skipped": "unsupported_provider"}
+        if not settings.zernio_native_reactions:
+            return {"skipped": "feature_disabled"}
+        conv_id = zernio_conversations.get(digits(to_phone))
+        if not conv_id:
+            return {"skipped": "no_inbound_conversation"}
+        url = (f"{ZERNIO_API}/inbox/conversations/{quote(conv_id, safe='')}"
+               f"/messages/{quote(message_id, safe='')}/reactions")
+        async with httpx.AsyncClient(timeout=5) as client:
+            return await _post(client, url,
+                               {"accountId": settings.zernio_account_id, "emoji": emoji},
+                               {"Authorization": f"Bearer {settings.zernio_api_key}"}, to_phone)
     if provider == "kapso":
         url = (f"https://api.kapso.ai/meta/whatsapp/{settings.kapso_api_version}/"
                f"{settings.kapso_phone_number_id}/messages")
@@ -119,8 +169,12 @@ async def _send_zernio(client: httpx.AsyncClient, to_phone: str, body: str) -> d
     if not conv_id:
         logger.error("Zernio: no conversation for %s", to_phone)
         return {"error": "no_conversation"}
+    payload = {"accountId": settings.zernio_account_id, "message": body}
+    target = _quote_target(to_phone)
+    if target:
+        payload["replyTo"] = target
     return await _post(client, f"{ZERNIO_API}/inbox/conversations/{conv_id}/messages",
-                       {"accountId": settings.zernio_account_id, "message": body}, headers, to_phone)
+                       payload, headers, to_phone)
 
 
 async def _post(client: httpx.AsyncClient, url: str, payload: dict, headers: dict,

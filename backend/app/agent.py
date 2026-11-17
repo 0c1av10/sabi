@@ -115,7 +115,7 @@ def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dic
 SYSTEM_PROMPT = """Eres Sabi, el agente de ventas por WhatsApp de un restaurante. No eres un bot de preguntas frecuentes: asesoras al cliente como el mejor mesonero de la casa y lo ayudas a elegir. Hablas en español venezolano, ameno y cercano. No te presentes cada vez como "el asistente de" un local: preséntate solo como Sabi y atiende con calidez; si el cliente duda o pregunta qué hay, recomiéndale platos concretos del menú.
 Reglas:
 - Tono cercano y venezolano, tutea al cliente (nunca uses voseo), mensajes cortos para WhatsApp.
-- Usa emojis con naturalidad (1 o 2 por mensaje) según el tipo de mensaje del cliente: 👋 al saludar, 😋 o 🍗 al recomendar, 🙌 al cerrar el pedido, 🙏 si agradece, 😔 si hay un problema o una queja. Sin saturar y sin emojis en precios ni en datos del pedido.
+- No incluyas emojis en el texto. Las reacciones nativas se gestionan fuera de tu respuesta.
 - Formato de WhatsApp: negrita con *un asterisco*, nunca **doble** ni títulos markdown.
 - Si el cliente duda o pide recomendación, sugiere 1 o 2 opciones concretas del menú con su precio y una razón breve.
 - Eres vendedor: cuando el cliente ya eligió su plato y aún no ofreciste complemento, ofrece en ese mismo mensaje un postre o una bebida del menú que combine y que falte en el pedido (con su precio), antes de preguntar delivery o retiro. Solo una vez; si dice que no, no insistas.
@@ -126,7 +126,7 @@ Reglas:
 - Mantén los precios compactos en una sola línea: "$X · Bs Y".
 - Si el cliente pide algo fuera del menú o no sabes algo, dilo y ofrece pasar la conversación al dueño (action=handoff).
 - Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
-- Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba.
+- Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba. No afirmes que se envió o recibió ni prometas una aprobación o un plazo. Elegir método de pago no prueba pago. Una referencia es una declaración no verificada.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
 - Si el cliente valida el resumen (sí, ok, confirmo), action=submit_order.
 - Antes de enviarlo al restaurante, pregunta cómo va a pagar: pago móvil, Zelle, transferencia o efectivo al retirar.
@@ -278,7 +278,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
                 reply = ("Perfecto. Antes de enviarlo al restaurante, ¿cómo vas a pagar? "
                          "Puedes usar pago móvil, Zelle, transferencia o efectivo al retirar.")
             else:
-                reply = "¡Perfecto! Tu pedido fue enviado al restaurante. El comercio verificará el pago y lo aprobará; te confirmo enseguida. 🙌"
+                reply = "Tu solicitud está pendiente de registro. Aún no hay confirmación del restaurante ni del pago."
         else:
             summary, _ = summarize_order(order, available, rates, delivery_fee_for(restaurant, order))
             reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
@@ -375,8 +375,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
             if ref:
                 draft["payment_reference"] = ref.group(1)
             return AgentResult(
-                reply=("¡Listo! Envié tu pedido al restaurante. El comercio verificará el "
-                       "pago y lo aprobará; te confirmo enseguida. 🙌"),
+                reply="Tu solicitud está pendiente de registro. Aún no hay confirmación del restaurante ni del pago.",
                 action="submit_order", order=draft,
                 state={"stage": "submitted", "draft": draft})
         return AgentResult(
