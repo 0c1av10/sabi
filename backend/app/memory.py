@@ -30,9 +30,22 @@ class Contact(Base):
 _NOT_NAMES = {"principiante", "intermedio", "avanzado", "nuevo", "nueva", "cliente", "alumno", "alumna", "el", "la",
               "un", "una", "yo", "tu", "de", "del", "que", "quien", "usuario", "persona", "amigo", "amiga",
               "hola", "buenas", "ok", "si", "no", "sabi", "boxeador", "estudiante", "mama", "papa"}
+# Conversational words, health/role statements and call-time requests are not names.
+# Conservative recognition is preferable to persisting a plausible but wrong name.
+_NAME_AMBIGUOUS = {
+    "entonces", "ahora", "hoy", "manana", "luego", "despues", "pronto", "tarde", "noche",
+    "alergico", "alergica", "intolerante", "vegetariano", "vegetariana", "vegano", "vegana",
+    "celiaco", "celiaca", "diabetico", "diabetica", "mayor", "menor", "adulto", "adulta",
+    "estudiante", "profesor", "profesora", "doctor", "doctora", "cliente", "taxista",
+    "conductor", "conductora", "repartidor", "repartidora", "venezolano", "venezolana",
+    "extranjero", "extranjera", "nuevo", "nueva", "buscando", "interesado", "interesada",
+    "tambien", "aqui", "alla", "listo", "lista", "feliz", "solo", "sola", "yo", "tu",
+    "tengo", "estoy", "tiene", "tenemos", "somos", "puedo", "puedes", "puede", "gusta",
+    "llama", "llamas", "llamar", "llames", "saber", "hace", "hacer", "comer", "comprar",
+}
 _INTRO = re.compile(
-    r"^(?:hola[,! ]+)?(?:me\s+llamo|mi\s+nombre\s+es|ll[aá]mame|soy)\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,20}){0,2})",
-    re.I)
+    r"^(?:hola[,! ]+)?(?:me\s+llamo|mi\s+nombre\s+es|ll[aá]mame|soy)\s+(.+)$", re.I)
+_NAME_WORD = re.compile(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,20}(?:[-'][A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,20})?")
 FORGET = re.compile(r"\b(olv[ií]dame|olvida\s+mi\s+nombre|borra\s+mis\s+datos|no\s+me\s+recuerdes)\b", re.I)
 
 
@@ -53,13 +66,15 @@ def extract_name(body: str) -> str:
     m = _INTRO.search(body or "")
     if not m:
         return ""
-    words = m.group(1).split()
-    kept = []
-    for w in words:
-        if _plain(w) in _NOT_NAMES or _plain(w) in {"y", "quiero", "busco", "necesito", "para", "con", "de"}:
-            break
-        kept.append(w)
-    return clean_name(" ".join(kept))
+    # Only a complete short introduction, or a name before an explicit new clause.
+    # Never take an arbitrary prefix of a longer sentence as the person's name.
+    candidate = re.split(r"[,!?.;]|\s+(?:y\s+)?(?:quiero|busco|necesito|para)\b", m.group(1), maxsplit=1, flags=re.I)[0].strip()
+    words = candidate.split()
+    if not 1 <= len(words) <= 3:
+        return ""
+    if any(not _NAME_WORD.fullmatch(w) or _plain(w) in _NOT_NAMES | _NAME_AMBIGUOUS | {"y", "al", "con", "sin", "en"} for w in words):
+        return ""
+    return clean_name(candidate)
 
 
 def first_name(name: str | None) -> str:
