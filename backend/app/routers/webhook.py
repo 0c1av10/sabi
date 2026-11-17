@@ -13,7 +13,7 @@ from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
 from ..reactions import reaction_for
 from ..inbound_receipts import claim_inbound
-from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
+from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, send_whatsapp_reaction, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
 from .. import concierge, gym_whatsapp, memory, pilot_yummy
@@ -219,13 +219,18 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
         return {'status':'ignored'}
     if not await claim_inbound(db,'zernio',phone,msg.get('id'),platform_id=msg.get('platformMessageId') or ''):
         return {'status':'duplicate_or_unidentified'}
-    if phone and body and await _pilot_route(db, phone, body):
+    # Claim occurs before reaction, quote context or any route side effect.
+    # Use only the WhatsApp platform ID for quote replies, not Zernio's internal id.
+    with incoming_reply_context(phone, msg.get("platformMessageId") or ""):
+        if settings.zernio_native_reactions:
+            await _react(phone, external_id, body)
+        if phone and body and await _pilot_route(db, phone, body):
+            return {"status": "ok"}
+        if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
+            return {"status": "ok"}
+        restaurant, body = await _route_or_explain(db, phone, body)
+        if not (restaurant and phone and body):
+            return {"status": "ignored"}
+        await handle_inbound_message(db, restaurant, phone, body, sender.get("name") or "",
+                                     external_id=msg.get("platformMessageId") or msg.get("id"))
         return {"status": "ok"}
-    if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
-        return {"status": "ok"}
-    restaurant, body = await _route_or_explain(db, phone, body)
-    if not (restaurant and phone and body):
-        return {"status": "ignored"}
-    await handle_inbound_message(db, restaurant, phone, body, sender.get("name") or "",
-                                 external_id=msg.get("platformMessageId") or msg.get("id"))
-    return {"status": "ok"}
