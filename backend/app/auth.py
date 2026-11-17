@@ -90,8 +90,21 @@ def _same(a: str, b: str) -> bool:
     return a == b or (min(len(a), len(b)) >= 6 and (a.startswith(b) or b.startswith(a)))
 
 
+def response_format_request(body: str) -> bool:
+    """Presentation instructions refer to the current answer, not a new merchant.
+
+    Recognize a command plus a formatting target; do not globally ban ordinary
+    merchant names containing words such as Mensajes or Letras.
+    """
+    text=' '.join(_norm(body))
+    command=re.match(r'^(?:por favor )?(?:mandamelo|enviamelo|pasamelo|damelo|dimelo|muestramelo|mandame|enviame|pasame|dame|dime|muestra|muestrame|divide|dividelo|separa|separalo|resume|resumelo|ponlo|hazlo|escribelo|puedes (?:mandarlo|enviarlo|pasarlo|dividirlo|resumirlo))\b',text)
+    target=re.search(r'\b(?:mensajes?|partes?|parrafos?|lineas?|palabras?|lista|tabla|resumen|detalle|detallado|corto|breve|viñetas|vinetas|puntos|mayusculas|minusculas|ingles|espanol)\b',text)
+    return bool(command and target)
+
+
 def named_business_query(body: str) -> tuple[str,str] | None:
     """Conservative explicit place references, not an inferred city or product match."""
+    if response_format_request(body):return None
     text=body.strip().strip('¿?!. ')
     # City is a location qualifier, never positive product/tenant evidence.
     explicit_visit=re.search(r'\b(?:pedir|comer|cenar|almorzar|ir)\s+(?:en|a|al)\s+(.+)$',text,re.I)
@@ -109,7 +122,7 @@ def named_business_query(body: str) -> tuple[str,str] | None:
     food={'delivery','retiro','pedido','comida','cocina','pizza','pizzas','pastelitos','cachapa','cachapas','sushi','pollo','cine','pelicula','evento','entradas','laptop','taxi','viaje','direccion','precio','horario'}
     words=_norm(entity)
     if not words or len(words)>5 or any(w in food for w in words):return None
-    if words[0] in {'hola','busca','buscame','dime','me','nos','cuentame','recomienda','recomiendame','quiero','tengo','necesito','mandame','una','un','dos','tres','para','cuanto','cuantos','hay','tienen','que','cuando','residencias','avenida','calle'}:return None
+    if words[0] in {'hola','busca','buscame','dime','me','nos','cuentame','recomienda','recomiendame','quiero','tengo','necesito','mandame','mandamelo','enviamelo','pasamelo','dimelo','damelo','muestramelo','dividelo','separalo','resumelo','ponlo','hazlo','escribelo','una','un','dos','tres','para','cuanto','cuantos','hay','tienen','que','cuando','residencias','avenida','calle'}:return None
     if re.search(r'[^A-Za-zÁÉÍÓÚÑáéíóúñ0-9 &\'-]',entity):return None
     return entity[:100],city[:100]
 
