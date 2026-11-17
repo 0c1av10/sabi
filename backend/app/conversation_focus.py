@@ -5,7 +5,6 @@ from sqlalchemy import String,DateTime,select,delete
 from sqlalchemy.orm import Mapped,mapped_column
 from .models import Base,utcnow
 from .whatsapp import digits
-from . import concierge
 
 class ConversationFocus(Base):
     __tablename__='conversation_focus'
@@ -40,6 +39,7 @@ async def forget(db,phone):
 ENTITY=re.compile(r'^(?:sabes? (?:que|qué) es|conoces|busca(?:me)? (?:el |la )?(?:restaurante|pizzer[ií]a))\s+(.+?)\??$',re.I)
 
 async def place_reply(db,phone,body):
+    from . import concierge
     text=concierge._plain(body).strip(' ¿?!.')
     match=ENTITY.match(body.strip())
     if match:
