@@ -28,6 +28,11 @@ SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=
 
 async def init_db() -> None:
     async with engine.begin() as conn:
+        if IS_POSTGRES:
+            # create_all(checkfirst=True) still races across serverless cold starts.
+            # Serialize schema inspection/DDL in this transaction; auto-released on
+            # commit, rollback or disconnect. This is not a webhook dispatch lock.
+            await conn.execute(text("SELECT pg_advisory_xact_lock(1935762025, 1)"))
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_add_missing_columns)
         if IS_POSTGRES:
