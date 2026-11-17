@@ -15,7 +15,7 @@ def test_non_introductions_not_saved(text):
     else:assert memory.extract_name(text)==''
 
 @pytest.mark.parametrize('text,expected',[
-    ('Me llamo Ana','Ana'),('Mi nombre es Octavio Caamaño','Octavio Caamaño'),
+    ('Me llamo Ana','Ana'),('Mi nombre es Carlos Pérez','Carlos Pérez'),
     ('Hola soy Maria y quiero una clase','Maria'),('Soy Ana, quiero pedir','Ana'),
     ('Llámame Luis','Luis'),('Me llamo Ana para pedir','Ana'),
 ])
