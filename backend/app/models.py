@@ -210,3 +210,15 @@ class RidesQuoteJob(Base):
               postgresql_where=text("status IN ('pending','claimed','sending','needs_review')"),
               sqlite_where=text("status IN ('pending','claimed','sending','needs_review')")),
     )
+
+
+class InboundReceipt(Base):
+    """Durable at-most-once dispatch gate before any webhook side effects.
+
+    Committed before handling. A crash/uncertain send is not automatically retried:
+    operator review is safer than duplicate customer messages or orders.
+    """
+    __tablename__ = 'inbound_receipts'
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
