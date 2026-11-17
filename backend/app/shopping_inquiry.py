@@ -8,7 +8,7 @@ async def reply(db,phone,body):
     text=concierge._plain(body)
     if 'marketplace' in text:
         await memory.set_topic(db,phone,'compras:marketplace_sin_elegir')
-        return '¿Cuál marketplace te gustaría consultar? La búsqueda automática de productos aún no está conectada en Sabi; puedo ayudarte a comparar enlaces que me compartas, sin inventar precios.'
+        return '¿Cuál marketplace te gustaría consultar? La búsqueda automática de productos aún no está conectada en Sabi; no tengo precios vigentes sin una fuente.'
     if PRODUCT.search(text):
         # Keep only explicit product words, not an invented platform, budget or preference.
         await memory.set_topic(db,phone,'compras:'+body.strip()[:65])
