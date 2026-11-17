@@ -14,6 +14,7 @@ from .agent import delivery_fee_for, fmt_money, rates_of, run_agent, summarize_o
 from .models import (Conversation, Customer, MenuItem, Message, Order,
                      OrderItem, OrderStatus, PaymentStatus, Restaurant, utcnow)
 from .whatsapp import send_whatsapp_message
+from .response_format import requested_parts, split_reply
 
 logger = logging.getLogger("sabi.orders")
 
@@ -104,7 +105,11 @@ async def handle_inbound_message(db: AsyncSession, restaurant: Restaurant,
     if reply:
         db.add(Message(conversation_id=conv.id, direction="outbound", body=reply))
         await db.commit()
-        await send_whatsapp_message(phone, reply)
+        # Presentation only: one logical reply/history entry, bounded sequential sends.
+        # Order/handoff acknowledgements must keep their original single-message flow.
+        count = requested_parts(body) if result.action == "continue" else None
+        for part in split_reply(reply, count) if count else [reply]:
+            await send_whatsapp_message(phone, part)
 
     await db.commit()
     return reply
