@@ -15,7 +15,7 @@ from ..reactions import reaction_for
 from ..whatsapp import digits, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge, gym_whatsapp, memory, pilot_yummy
+from .. import concierge, gym_whatsapp, memory, pilot_yummy, public_web_jobs
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -87,6 +87,11 @@ async def _route_or_explain(db: AsyncSession, phone: str, body: str):
 async def _events_route(db: AsyncSession, phone: str, body: str, external_id: str | None = None,
                         profile_name: str = ""):
     """Events assistant channel. Returns the reply text, or None if the message is not for it."""
+    public_reply = await public_web_jobs.enqueue(db, phone, body, external_id)
+    if public_reply is not None:
+        if settings.public_web_delivery_enabled:
+            await send_whatsapp_message(phone, public_reply)
+        return public_reply
     if memory.FORGET.search(body):
         await memory.forget(db, phone)
         reply = "Listo, ya no recuerdo tu nombre ni lo que hablamos antes. Si quieres, dime cómo te llamas de nuevo. 🙂"

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .db import init_db
 from .known_menus import BIZZA_MENU
-from .routers import events, events_admin, panel, pilot_yummy, store, webhook
+from .routers import events, events_admin, panel, pilot_yummy, public_web, store, webhook
 
 
 _ready = False
@@ -192,6 +192,7 @@ async def init_on_first_request(request: Request, call_next):
 
 
 app.include_router(pilot_yummy.router)
+app.include_router(public_web.router)
 app.include_router(webhook.router)
 app.include_router(panel.router)
 app.include_router(store.router)

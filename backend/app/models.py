@@ -210,3 +210,21 @@ class RidesQuoteJob(Base):
               postgresql_where=text("status IN ('pending','claimed','sending','needs_review')"),
               sqlite_where=text("status IN ('pending','claimed','sending','needs_review')")),
     )
+
+
+class PublicWebJob(Base):
+    """Separate anonymous public-read queue. No Rides jobs or merchant accounts."""
+    __tablename__ = 'public_web_jobs'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phone: Mapped[str] = mapped_column(String(30))
+    site: Mapped[str] = mapped_column(String(30))
+    query: Mapped[str] = mapped_column(String(100))
+    external_id: Mapped[str] = mapped_column(String(160),unique=True)
+    status: Mapped[str] = mapped_column(String(24),default='pending',index=True)
+    claim_hash: Mapped[str] = mapped_column(String(64),default='')
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    summary: Mapped[str] = mapped_column(Text,default='')
+    created_at: Mapped[datetime] = mapped_column(DateTime,default=utcnow)
+    __table_args__ = (Index('uq_public_web_active_phone','phone',unique=True,
+        postgresql_where=text("status IN ('pending','claimed','needs_review')"),
+        sqlite_where=text("status IN ('pending','claimed','needs_review')")),)

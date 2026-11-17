@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     zernio_account_id: str = ""
     zernio_webhook_secret: str = ""
 
+    # Anonymous public reads: all switches default OFF, independent of Rides.
+    public_web_pilot_enabled: bool = False
+    public_web_allowed_phones: str = ""
+    public_web_worker_token: str = ""
+    public_web_delivery_enabled: bool = False
+    public_web_daily_max: int = 5
+
     # --- Yummy Rides quote pilot (pull model, GitHub Actions runner) ---
     rides_pilot_allowed_phones: str = ""   # comma-separated; empty = pilot off
     rides_pilot_runner_token: str = ""     # shared bearer for claim/capture
