@@ -216,7 +216,9 @@ async def handle_cinema_whatsapp(db, phone: str, body: str, external_id=None) ->
     from . import memory
     await memory.set_topic(db,phone,'cine')
     from . import conversation_focus as focus
-    active_focus=await focus.save(db,phone,domain='cinema')
+    previous_focus=await focus.get(db,phone)
+    task_city=previous_focus.city if previous_focus and previous_focus.domain=='cinema' else ''
+    active_focus=await focus.save(db,phone,domain='cinema',city=task_city)
     focus_version=active_focus.updated_at
     session = await get_or_create_session(db, session_id_for(phone), channel='cinema', trusted_id=True)
     if await recent_user_messages(db, session.id) >= settings.events_chat_limit_hour or await recent_user_messages(db) >= settings.events_global_limit_hour:
@@ -227,11 +229,14 @@ async def handle_cinema_whatsapp(db, phone: str, body: str, external_id=None) ->
         history = [(m.role, m.body) for m in reversed(rows)]
         db.add(EventMessage(session_id=session.id, role='user', body=body[:settings.cinema_max_message_chars], external_id=external_id))
         await db.commit()
-        text = await run_cinema_agent(body, history=history)
+        query=body+(f'\nCiudad explícita para esta consulta: {task_city}.' if task_city else '')
+        text = await run_cinema_agent(query, history=history)
         current=await focus.get(db,phone)
         if not current or current.domain!='cinema' or current.updated_at!=focus_version:
             logging.getLogger('sabi.cinema').info('cinema_reply_superseded')
             return ''
+        if not task_city and re.search(r'(?:en que ciudad|en cual ciudad|que ciudad)',concierge._plain(text)):
+            await focus.save(db,phone,domain='cinema',entity='awaiting_city')
         db.add(EventMessage(session_id=session.id, role='assistant', body=text))
         session.updated_at = utcnow()
         await db.commit()
