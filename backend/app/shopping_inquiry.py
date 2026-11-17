@@ -8,6 +8,7 @@ PLATFORMS={'yummy':'Yummy Marketplace','mercado libre':'Mercado Libre','mercadol
 async def reply(db,phone,body):
     text=concierge._plain(body)
     explicit_platform=next((label for key,label in PLATFORMS.items() if key in text),'')
+    if 'marketplace' not in text and not explicit_platform and not PRODUCT.search(text):return None
     contact=await memory.get(db,phone)
     previous=(contact.last_topic or '') if contact else ''
     platform=explicit_platform
@@ -17,7 +18,6 @@ async def reply(db,phone,body):
         platform=platform or bits[0]
         product=bits[1] if len(bits)>1 else ''
     if PRODUCT.search(text):product=body.strip()[:45]
-    if 'marketplace' not in text and not explicit_platform and not PRODUCT.search(text):return None
     await memory.set_topic(db,phone,'compras:'+platform+'|'+product)
     if explicit_platform:
         return (f'Entendido: {explicit_platform}.'+(f' Mantengo tu consulta de {product}.' if product else '')+
