@@ -1,0 +1,23 @@
+{
+  "candidate": false,
+  "outbound": "fake transport only",
+  "model": "blocked before invocation",
+  "turns": [
+    {
+      "input": "De bizza cuál es el horario",
+      "route": "restaurant:Bizza"
+    },
+    {
+      "input": "Sabes que es abruzzos",
+      "reply": "ROUTE_CINEMA_MODEL_BLOCKED"
+    },
+    {
+      "input": "Es una pizzería famosa en lechería en la avenida principal",
+      "reply": "ROUTE_CINEMA_MODEL_BLOCKED"
+    },
+    {
+      "input": "Búscala",
+      "reply": "ROUTE_CINEMA_MODEL_BLOCKED"
+    }
+  ]
+}

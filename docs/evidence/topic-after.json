@@ -1,0 +1,23 @@
+{
+  "candidate": true,
+  "outbound": "fake transport only",
+  "model": "blocked before invocation",
+  "turns": [
+    {
+      "input": "De bizza cuál es el horario",
+      "route": "restaurant:Bizza"
+    },
+    {
+      "input": "Sabes que es abruzzos",
+      "reply": "¿En qué ciudad queda abruzzos?"
+    },
+    {
+      "input": "Es una pizzería famosa en lechería en la avenida principal",
+      "reply": "Entendido: buscas información de abruzzos en Lechería."
+    },
+    {
+      "input": "Búscala",
+      "reply": "La ficha revisada corresponde a Abruzzo's Pizzería, en Av. Principal de Lechería, referencia KIA Motors. Su perfil publica esa sede en Lechería.\nFuente revisada el 17/11/2026: https://www.threads.com/@abruzzospizzeria\nNo tengo menú ni disponibilidad de pedidos verificados para esa sede. No es un comercio incorporado a Sabi."
+    }
+  ]
+}
