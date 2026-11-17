@@ -37,3 +37,10 @@ Corrección PlazaMayor:9tests nuevos, suite total164pasan/3fallos preexistentes.
 
 ## Presupuesto pendiente
 Ninguna llamada de modelo nueva autorizada o ejecutada. El código configura `claude-sonnet-5-5`, que puede ser reemplazado por configuración de producción. Antes de pedir aprobación: verificar modelo efectivo, tarifa de entrada/salida/caché y límite duro disponible en cuenta. Propuesta acotada:12casos x3turnos, máximo4consultas por turno y700tokens de salida por llamada; una conversación puede necesitar varias llamadas, así que36turnos NO equivalen a36llamadas. Medir tokens de entrada de prompts/herramientas/historial y cotizar techo con el número máximo de llamadas. No hay estimación monetaria verificada todavía. Sin aprobación, seguir sólo en capas determinista y lectura pública.
+
+## Primera iteración ejecutada (sólo motor determinista)
+`tests/test_conversation_replay.py` recorre6turnos por la API local, DBSQLite sintética, sin clavesAnthropic y WhatsAppmock. Captura cada llamada aEventTools y su resultado, respuesta y UI. Para repetir:
+```sh
+SABI_EVAL_CAPTURE=/tmp/candidate.json python -m pytest tests/test_conversation_replay.py -q
+```
+Antes/después reales de este motor local están en`evidence/`. Hallazgo: con un único resultado decía «Encontré1opción(es)» y pedía elegir entre opciones inexistentes. Cambio candidato enestaPR: «Encontré este evento… ¿Te gustaría ver sus zonas y precios?». Una mejora pequeña y verificable, NO prueba de personalización del modelo. Los otros5turnos permanecen iguales en la ronda. Revisión: veracidad2/2ambas; utilidad antes1/2después2/2paraese turno; naturalidad antes1/2después2/2; contexto2/2ambas. Criterio no cumplido aún: recomendar según género/gustos no está probado coneste caso de ciudad sola. No lo completamos por inferencia. Suite tras ajuste:166pasan, mismos3fallos previos. Cambio candidato NO publicado.

@@ -1,0 +1,554 @@
+{
+  "case_id": "eventos-seleccion-6turnos",
+  "evidence_mode": "deterministic_fixture",
+  "synthetic_data": true,
+  "model_calls": 0,
+  "external_reads": 0,
+  "whatsapp_sends": 0,
+  "turns": [
+    {
+      "user": "hola",
+      "assistant": "¿Qué te gustaría hacer? Así te recomiendo un evento que vaya contigo.",
+      "calls": [],
+      "ui": []
+    },
+    {
+      "user": "¿Te pago a ti las entradas?",
+      "assistant": "Yo te ayudo a escoger las entradas; el pago lo haces en la página oficial. ¿Qué evento te gustaría ver?",
+      "calls": [],
+      "ui": []
+    },
+    {
+      "user": "Busco un concierto en Caracas",
+      "assistant": "Encontré este evento en Caracas:\n1. Festival acústico de prueba — Artista 1 · Recinto Prueba, Caracas · lun 7 dic 2026 · 8:00 a. m.\n\n¿Te gustaría ver sus zonas y precios?\n\nTambién puedes abrir la cartelera oficial de TuEntradaWeb con el botón de abajo para ver y comprar eventos reales.",
+      "calls": [
+        {
+          "tool": "buscar_eventos",
+          "arguments": {
+            "ciudad": "Caracas"
+          },
+          "result": {
+            "ok": true,
+            "total": 1,
+            "eventos": [
+              {
+                "id": 1,
+                "slug": "evento-prueba-1",
+                "nombre": "Festival acústico de prueba",
+                "artista": "Artista 1",
+                "ciudad": "Caracas",
+                "recinto": "Recinto Prueba",
+                "fecha": "lun 7 dic 2026 · 8:00 a. m.",
+                "fecha_iso": "2026-12-07T12:00:00+00:00",
+                "zona_horaria": "America/Caracas",
+                "descripcion": "Evento de prueba",
+                "imagen": "",
+                "estado": "publicado",
+                "demo": true,
+                "compra_habilitada": false,
+                "actualizado": "2026-11-17T07:26:43.481226",
+                "zonas": [
+                  {
+                    "id": 1,
+                    "nombre": "General",
+                    "precio_referencia": "$25,00",
+                    "precio_minor": 2500,
+                    "moneda": "USD",
+                    "estado_informado": "disponible",
+                    "estado": "Disponible según la última verificación",
+                    "requiere_verificacion": false,
+                    "recomendable": true,
+                    "verificado_el": "2026-11-17T07:26:43.451378"
+                  },
+                  {
+                    "id": 2,
+                    "nombre": "VIP",
+                    "precio_referencia": "$60,00",
+                    "precio_minor": 6000,
+                    "moneda": "USD",
+                    "estado_informado": "disponible",
+                    "estado": "Disponible según la última verificación",
+                    "requiere_verificacion": false,
+                    "recomendable": true,
+                    "verificado_el": "2026-11-17T07:26:43.451378"
+                  },
+                  {
+                    "id": 3,
+                    "nombre": "Palco",
+                    "precio_referencia": "$90,00",
+                    "precio_minor": 9000,
+                    "moneda": "USD",
+                    "estado_informado": "agotado",
+                    "estado": "Agotada según la última verificación",
+                    "requiere_verificacion": false,
+                    "recomendable": false,
+                    "verificado_el": "2026-11-17T07:26:43.451378"
+                  }
+                ]
+              }
+            ],
+            "aviso": "Precios y disponibilidad se verifican en la plataforma de venta (TuEntradaWeb) antes de pagar.",
+            "cartelera": {
+              "habilitado": true,
+              "ruta": "/api/events/go/cartelera?c=1518656f-6d02-4bab-a8cd-047235a6d902",
+              "texto_boton": "Ver la cartelera y comprar en TuEntradaWeb",
+              "aviso": "Es la cartelera oficial de TuEntradaWeb: allí ves los eventos reales, la disponibilidad y el pago. Abrirla no reserva nada.",
+              "cartelera": true
+            }
+          }
+        }
+      ],
+      "ui": [
+        {
+          "type": "events",
+          "events": [
+            {
+              "id": 1,
+              "slug": "evento-prueba-1",
+              "nombre": "Festival acústico de prueba",
+              "artista": "Artista 1",
+              "ciudad": "Caracas",
+              "recinto": "Recinto Prueba",
+              "fecha": "lun 7 dic 2026 · 8:00 a. m.",
+              "fecha_iso": "2026-12-07T12:00:00+00:00",
+              "zona_horaria": "America/Caracas",
+              "descripcion": "Evento de prueba",
+              "imagen": "",
+              "estado": "publicado",
+              "demo": true,
+              "compra_habilitada": false,
+              "actualizado": "2026-11-17T07:26:43.481226",
+              "zonas": [
+                {
+                  "id": 1,
+                  "nombre": "General",
+                  "precio_referencia": "$25,00",
+                  "precio_minor": 2500,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 2,
+                  "nombre": "VIP",
+                  "precio_referencia": "$60,00",
+                  "precio_minor": 6000,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 3,
+                  "nombre": "Palco",
+                  "precio_referencia": "$90,00",
+                  "precio_minor": 9000,
+                  "moneda": "USD",
+                  "estado_informado": "agotado",
+                  "estado": "Agotada según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": false,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "link",
+          "habilitado": true,
+          "ruta": "/api/events/go/cartelera?c=1518656f-6d02-4bab-a8cd-047235a6d902",
+          "texto_boton": "Ver la cartelera y comprar en TuEntradaWeb",
+          "aviso": "Es la cartelera oficial de TuEntradaWeb: allí ves los eventos reales, la disponibilidad y el pago. Abrirla no reserva nada.",
+          "cartelera": true
+        }
+      ]
+    },
+    {
+      "user": "el primero",
+      "assistant": "Estas son las zonas de Festival acústico de prueba:\n• General: $25,00 (disponible)\n• VIP: $60,00 (disponible)\n• Palco: $90,00 (agotada según la última verificación)\n\n¿Qué zona te gustaría? Los precios son de referencia; se confirman en TuEntradaWeb.",
+      "calls": [
+        {
+          "tool": "obtener_evento",
+          "arguments": {
+            "evento_id": 1
+          },
+          "result": {
+            "ok": true,
+            "evento": {
+              "id": 1,
+              "slug": "evento-prueba-1",
+              "nombre": "Festival acústico de prueba",
+              "artista": "Artista 1",
+              "ciudad": "Caracas",
+              "recinto": "Recinto Prueba",
+              "fecha": "lun 7 dic 2026 · 8:00 a. m.",
+              "fecha_iso": "2026-12-07T12:00:00+00:00",
+              "zona_horaria": "America/Caracas",
+              "descripcion": "Evento de prueba",
+              "imagen": "",
+              "estado": "publicado",
+              "demo": true,
+              "compra_habilitada": false,
+              "actualizado": "2026-11-17T07:26:43.481226",
+              "zonas": [
+                {
+                  "id": 1,
+                  "nombre": "General",
+                  "precio_referencia": "$25,00",
+                  "precio_minor": 2500,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 2,
+                  "nombre": "VIP",
+                  "precio_referencia": "$60,00",
+                  "precio_minor": 6000,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 3,
+                  "nombre": "Palco",
+                  "precio_referencia": "$90,00",
+                  "precio_minor": 9000,
+                  "moneda": "USD",
+                  "estado_informado": "agotado",
+                  "estado": "Agotada según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": false,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                }
+              ],
+              "a_la_venta": true
+            },
+            "aviso": "Precios y disponibilidad se verifican en la plataforma de venta (TuEntradaWeb) antes de pagar."
+          }
+        },
+        {
+          "tool": "registrar_interes",
+          "arguments": {
+            "evento_id": 1
+          },
+          "result": {
+            "ok": true,
+            "mensaje": "Interés registrado. No es una reserva."
+          }
+        }
+      ],
+      "ui": [
+        {
+          "type": "event",
+          "event": {
+            "id": 1,
+            "slug": "evento-prueba-1",
+            "nombre": "Festival acústico de prueba",
+            "artista": "Artista 1",
+            "ciudad": "Caracas",
+            "recinto": "Recinto Prueba",
+            "fecha": "lun 7 dic 2026 · 8:00 a. m.",
+            "fecha_iso": "2026-12-07T12:00:00+00:00",
+            "zona_horaria": "America/Caracas",
+            "descripcion": "Evento de prueba",
+            "imagen": "",
+            "estado": "publicado",
+            "demo": true,
+            "compra_habilitada": false,
+            "actualizado": "2026-11-17T07:26:43.481226",
+            "zonas": [
+              {
+                "id": 1,
+                "nombre": "General",
+                "precio_referencia": "$25,00",
+                "precio_minor": 2500,
+                "moneda": "USD",
+                "estado_informado": "disponible",
+                "estado": "Disponible según la última verificación",
+                "requiere_verificacion": false,
+                "recomendable": true,
+                "verificado_el": "2026-11-17T07:26:43.451378"
+              },
+              {
+                "id": 2,
+                "nombre": "VIP",
+                "precio_referencia": "$60,00",
+                "precio_minor": 6000,
+                "moneda": "USD",
+                "estado_informado": "disponible",
+                "estado": "Disponible según la última verificación",
+                "requiere_verificacion": false,
+                "recomendable": true,
+                "verificado_el": "2026-11-17T07:26:43.451378"
+              },
+              {
+                "id": 3,
+                "nombre": "Palco",
+                "precio_referencia": "$90,00",
+                "precio_minor": 9000,
+                "moneda": "USD",
+                "estado_informado": "agotado",
+                "estado": "Agotada según la última verificación",
+                "requiere_verificacion": false,
+                "recomendable": false,
+                "verificado_el": "2026-11-17T07:26:43.451378"
+              }
+            ],
+            "a_la_venta": true
+          }
+        }
+      ]
+    },
+    {
+      "user": "VIP",
+      "assistant": "Buena elección: VIP ($60,00). ¿Cuántas entradas necesitas? (entre 1 y 10)",
+      "calls": [
+        {
+          "tool": "obtener_evento",
+          "arguments": {
+            "evento_id": 1
+          },
+          "result": {
+            "ok": true,
+            "evento": {
+              "id": 1,
+              "slug": "evento-prueba-1",
+              "nombre": "Festival acústico de prueba",
+              "artista": "Artista 1",
+              "ciudad": "Caracas",
+              "recinto": "Recinto Prueba",
+              "fecha": "lun 7 dic 2026 · 8:00 a. m.",
+              "fecha_iso": "2026-12-07T12:00:00+00:00",
+              "zona_horaria": "America/Caracas",
+              "descripcion": "Evento de prueba",
+              "imagen": "",
+              "estado": "publicado",
+              "demo": true,
+              "compra_habilitada": false,
+              "actualizado": "2026-11-17T07:26:43.481226",
+              "zonas": [
+                {
+                  "id": 1,
+                  "nombre": "General",
+                  "precio_referencia": "$25,00",
+                  "precio_minor": 2500,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 2,
+                  "nombre": "VIP",
+                  "precio_referencia": "$60,00",
+                  "precio_minor": 6000,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 3,
+                  "nombre": "Palco",
+                  "precio_referencia": "$90,00",
+                  "precio_minor": 9000,
+                  "moneda": "USD",
+                  "estado_informado": "agotado",
+                  "estado": "Agotada según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": false,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                }
+              ],
+              "a_la_venta": true
+            },
+            "aviso": "Precios y disponibilidad se verifican en la plataforma de venta (TuEntradaWeb) antes de pagar."
+          }
+        },
+        {
+          "tool": "registrar_interes",
+          "arguments": {
+            "evento_id": 1,
+            "zona_id": 2
+          },
+          "result": {
+            "ok": true,
+            "mensaje": "Interés registrado. No es una reserva."
+          }
+        }
+      ],
+      "ui": []
+    },
+    {
+      "user": "dos entradas",
+      "assistant": "Listo, armé tu selección: 2 × VIP en Festival acústico de prueba.\nSubtotal: $120,00 (subtotal orientativo; cargos adicionales por verificar).\nEsto no es una reserva: la disponibilidad y el pago se confirman en TuEntradaWeb.\nEste evento es de demostración. Con el botón de abajo abres la cartelera oficial de TuEntradaWeb para ver los eventos reales y comprar allá.",
+      "calls": [
+        {
+          "tool": "obtener_evento",
+          "arguments": {
+            "evento_id": 1
+          },
+          "result": {
+            "ok": true,
+            "evento": {
+              "id": 1,
+              "slug": "evento-prueba-1",
+              "nombre": "Festival acústico de prueba",
+              "artista": "Artista 1",
+              "ciudad": "Caracas",
+              "recinto": "Recinto Prueba",
+              "fecha": "lun 7 dic 2026 · 8:00 a. m.",
+              "fecha_iso": "2026-12-07T12:00:00+00:00",
+              "zona_horaria": "America/Caracas",
+              "descripcion": "Evento de prueba",
+              "imagen": "",
+              "estado": "publicado",
+              "demo": true,
+              "compra_habilitada": false,
+              "actualizado": "2026-11-17T07:26:43.481226",
+              "zonas": [
+                {
+                  "id": 1,
+                  "nombre": "General",
+                  "precio_referencia": "$25,00",
+                  "precio_minor": 2500,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 2,
+                  "nombre": "VIP",
+                  "precio_referencia": "$60,00",
+                  "precio_minor": 6000,
+                  "moneda": "USD",
+                  "estado_informado": "disponible",
+                  "estado": "Disponible según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": true,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                },
+                {
+                  "id": 3,
+                  "nombre": "Palco",
+                  "precio_referencia": "$90,00",
+                  "precio_minor": 9000,
+                  "moneda": "USD",
+                  "estado_informado": "agotado",
+                  "estado": "Agotada según la última verificación",
+                  "requiere_verificacion": false,
+                  "recomendable": false,
+                  "verificado_el": "2026-11-17T07:26:43.451378"
+                }
+              ],
+              "a_la_venta": true
+            },
+            "aviso": "Precios y disponibilidad se verifican en la plataforma de venta (TuEntradaWeb) antes de pagar."
+          }
+        },
+        {
+          "tool": "registrar_interes",
+          "arguments": {
+            "evento_id": 1,
+            "zona_id": 2,
+            "cantidad": 2
+          },
+          "result": {
+            "ok": true,
+            "mensaje": "Interés registrado. No es una reserva."
+          }
+        },
+        {
+          "tool": "calcular_seleccion",
+          "arguments": {
+            "evento_id": 1,
+            "zona_id": 2,
+            "cantidad": 2
+          },
+          "result": {
+            "ok": true,
+            "selection_id": "840defe6-9a17-4c5a-aa83-70a7e099781a",
+            "evento": "Festival acústico de prueba",
+            "evento_id": 1,
+            "zona": "VIP",
+            "zona_id": 2,
+            "cantidad": 2,
+            "precio_unitario": "$60,00",
+            "subtotal": "$120,00",
+            "subtotal_minor": 12000,
+            "moneda": "USD",
+            "nota": "subtotal orientativo; cargos adicionales por verificar",
+            "advertencias": [],
+            "aviso": "Esto no es una reserva. Precios y disponibilidad se verifican en la plataforma de venta (TuEntradaWeb) antes de pagar."
+          }
+        },
+        {
+          "tool": "obtener_enlace_compra",
+          "arguments": {
+            "evento_id": 1,
+            "selection_id": "840defe6-9a17-4c5a-aa83-70a7e099781a"
+          },
+          "result": {
+            "ok": true,
+            "habilitado": false,
+            "mensaje": "Configura un enlace oficial para habilitar la compra",
+            "es_demo": true,
+            "cartelera": {
+              "habilitado": true,
+              "ruta": "/api/events/go/cartelera?c=1518656f-6d02-4bab-a8cd-047235a6d902",
+              "texto_boton": "Ver la cartelera y comprar en TuEntradaWeb",
+              "aviso": "Es la cartelera oficial de TuEntradaWeb: allí ves los eventos reales, la disponibilidad y el pago. Abrirla no reserva nada.",
+              "cartelera": true
+            }
+          }
+        }
+      ],
+      "ui": [
+        {
+          "type": "selection",
+          "selection_id": "840defe6-9a17-4c5a-aa83-70a7e099781a",
+          "evento": "Festival acústico de prueba",
+          "evento_id": 1,
+          "zona": "VIP",
+          "zona_id": 2,
+          "cantidad": 2,
+          "precio_unitario": "$60,00",
+          "subtotal": "$120,00",
+          "subtotal_minor": 12000,
+          "moneda": "USD",
+          "nota": "subtotal orientativo; cargos adicionales por verificar",
+          "advertencias": [],
+          "aviso": "Esto no es una reserva. Precios y disponibilidad se verifican en la plataforma de venta (TuEntradaWeb) antes de pagar."
+        },
+        {
+          "type": "link",
+          "habilitado": true,
+          "ruta": "/api/events/go/cartelera?c=1518656f-6d02-4bab-a8cd-047235a6d902",
+          "texto_boton": "Ver la cartelera y comprar en TuEntradaWeb",
+          "aviso": "Es la cartelera oficial de TuEntradaWeb: allí ves los eventos reales, la disponibilidad y el pago. Abrirla no reserva nada.",
+          "cartelera": true
+        }
+      ]
+    }
+  ]
+}
