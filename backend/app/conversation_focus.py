@@ -46,8 +46,10 @@ async def place_reply(db,phone,body):
     text=concierge._plain(body).strip(' ¿?!.')
     match=ENTITY.match(body.strip())
     if match:
-        await save(db,phone,domain='place',entity=match[1])
-        return f'¿En qué ciudad queda {match[1]}?'
+        previous=await get(db,phone)
+        city=previous.city if previous and previous.domain in ('place','restaurant') and (not previous.entity or concierge._plain(previous.entity)==concierge._plain(match[1])) else ''
+        await save(db,phone,domain='place',entity=match[1],city=city)
+        return f'Mantengo la consulta de {match[1]} en {city}.' if city else f'¿En qué ciudad queda {match[1]}?'
     if not (re.search(r'\b(pizzeria|restaurante|local)\b',text) or text in ('buscala','buscalo','busca')):return None
     focus=await get(db,phone)
     if not focus or focus.domain not in ('place','restaurant'):return None
@@ -61,3 +63,35 @@ async def place_reply(db,phone,body):
         if not focus.city:return f'¿En qué ciudad queda {focus.entity}?'
         return f'Mantengo la consulta de {focus.entity} en {focus.city}. La búsqueda web de locales aún no está conectada; no tengo una fuente nueva para darte datos verificados.'
     return None
+
+
+def declared_city(body):
+    """An explicit task-location statement, never a GPS or residence inference."""
+    from .auth import response_format_request
+    if response_format_request(body):return ''
+    text=body.strip().strip(' ¿?!.')
+    match=re.fullmatch(r'(?:estoy en|busca en|buscame en|mejor en|ahora en|cambia (?:a|para)|en)\s+([A-Za-zÁÉÍÓÚÑÜáéíóúñü ]{2,80})',text,re.I)
+    if not match:return ''
+    value=match[1].strip()
+    from .concierge import _plain
+    if len(value.split())>4 or re.search(r'\b(mensajes?|partes?|lineas?|palabras?|tabla|lista|resumen|detalle|ingles|espanol|pizzas?|restaurante|local|delivery|pedido|mi|la|el|casa|trabajo|oficina|tres|dos|mejor)\b',_plain(value)):return ''
+    return value
+
+async def city_reply(db,phone,body):
+    city=declared_city(body)
+    if not city:return None
+    active=await get(db,phone)
+    if active and active.domain in ('shopping','cinema','gym','events'):
+        # Remember the new task city, but do not falsely claim geographic filtering.
+        await save(db,phone,domain=active.domain,entity=active.entity,platform=active.platform,city=city)
+        return 'Entendí la ciudad que indicas: '+city+'. Este tipo de búsqueda todavía no tiene un filtro geográfico verificado; no voy a presentar resultados de otra ciudad como si fueran locales.'
+    if active and active.domain in ('place','restaurant'):
+        from .concierge import _plain
+        same=_plain(active.city)==_plain(city)
+        # A new city invalidates old local catalog scope; it never selects a tenant.
+        domain=active.domain if same else 'place'
+        await save(db,phone,domain=domain,entity=active.entity,city=city)
+        if same:return f'Mantengo la consulta de {active.entity or "locales"} en {city}. No hace falta que repitas la ciudad para esta consulta.'
+        return f'La consulta ahora es de {active.entity or "locales"} en {city}. No tengo opciones ni una sede verificadas allí. Si tienes un enlace de esa sede, pásamelo; no usaré el menú ni el delivery de otra ciudad.'
+    await save(db,phone,domain='place',city=city)
+    return f'Para esta consulta usaré {city}. ¿Qué local o tipo de comida quieres buscar? Aún necesito una fuente verificada de esa ciudad.'
