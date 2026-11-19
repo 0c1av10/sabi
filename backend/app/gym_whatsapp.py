@@ -112,7 +112,7 @@ async def reply_for(db: AsyncSession, phone: str, body: str) -> str:
     if not step:
         info = _info(p)
         contact = await memory.get(db, phone)
-        known = memory.first_name(contact.name if contact else None)
+        known = memory.display_name(contact.name if contact else None)
         hello = f"¡Hola, {known}! 💪" if known else "¡Hola! 💪"
         msg = (f"{hello} Soy Sabi. Te ayudo a pedir tu clase en *{p.name}*."
                + (f"\n\n{info}" if info else "\n\nEl gimnasio te confirma horarios y cupos cuando reciba tu solicitud."))

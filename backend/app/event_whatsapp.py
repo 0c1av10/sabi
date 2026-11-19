@@ -82,7 +82,7 @@ async def handle_event_whatsapp(db: AsyncSession, phone: str, body: str,
 
     contact = await memory.get(db, phone)
     result = await run_event_agent(db, session, message,
-                                   memory.first_name(contact.name if contact else None))
+                                   memory.display_name(contact.name if contact else None))
     text = render_text(result.reply, result.ui)
     session.state_json = json.dumps(result.state, ensure_ascii=False)
     db.add(EventMessage(session_id=session.id, role="assistant", body=text))

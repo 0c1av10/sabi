@@ -140,6 +140,30 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         reply='Seguimos con cine'+(f' en {active.city}.' if active.city else '. ¿En qué ciudad te gustaría ver la cartelera?')
         await send_whatsapp_message(phone,reply)
         return reply
+    recommendation_city=concierge.recommendation_city(body)
+    domain=concierge.explicit_recommendation_domain(body)
+    negated=bool(re.search(r'\b(?:no|ni)\b',text))
+    if negated and re.search(r'\b(cine|cines|comida|comer|peliculas?)\b',text):
+        reply='¿Quieres seguir con cine, buscar comida o hacer otra consulta?'
+        await send_whatsapp_message(phone,reply)
+        return reply
+    recommendation=concierge.ambiguous_recommendation(body)
+    pending=active and active.domain=='general' and active.entity=='pending_recommendation_domain'
+    target_city=recommendation_city or (active.city if pending else '')
+    if target_city and (recommendation or domain) and not named_business_query(body):
+        if domain=='cinema' or (not domain and active and active.domain=='cinema'):
+            await focus.save(db,phone,domain='cinema',city=target_city)
+            if await wants_cinema(db,phone,'cine'):
+                return await handle_cinema_whatsapp(db,phone,body,external_id)
+            reply=f'Seguimos con cine en {target_city}. No tengo una cartelera verificada disponible ahora.'
+        elif domain=='food':
+            await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
+            reply=f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
+        else:
+            await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
+            reply=f'¿Buscas comida o un plan de cine en {target_city}?'
+        await send_whatsapp_message(phone,reply)
+        return reply
     if plc_question:
         await focus.save(db,phone,domain='cinema')
         reply='¿Con PLC te refieres a Puerto La Cruz para ver cine?'

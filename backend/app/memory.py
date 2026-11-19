@@ -81,6 +81,12 @@ def first_name(name: str | None) -> str:
     return (name or "").split()[0] if name else ""
 
 
+def display_name(name: str | None) -> str:
+    """Conservative presentation only, without changing or hiding stored records."""
+    first=(name or "").split()[0] if name else ""
+    return extract_name("Me llamo "+first) if first else ""
+
+
 async def get(db: AsyncSession, phone: str) -> Contact | None:
     return await db.get(Contact, digits(phone)) if digits(phone) else None
 

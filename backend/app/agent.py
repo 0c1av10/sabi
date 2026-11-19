@@ -194,7 +194,7 @@ async def run_agent(db: AsyncSession, restaurant: Restaurant, conversation: Conv
     customer = await db.get(Customer, conversation.customer_id)
     from . import memory
     contact = await memory.get(db, customer.phone) if customer else None
-    known = memory.first_name((contact.name if contact else None) or (customer.name if customer else ""))
+    known = memory.display_name((contact.name if contact else None) or (customer.name if customer else ""))
     return guard_representation(await run_llm_agent(restaurant, items, conversation, history, incoming, known),restaurant)
 
 

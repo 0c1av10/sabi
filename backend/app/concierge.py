@@ -23,7 +23,7 @@ WELCOME = (
 FOOD_INTENT = re.compile(
     r"\b(comer|comida|comidita|cenar|cena|almorzar|almuerzo|desayun\w*|hambre|hambriento|antoj\w*|"
     r"restaurante\w*|restaurant|delivery|domicilio|pedir|pedido|pizza|hamburguesa\w*|parrilla|"
-    r"sitio\w* para|lugar\w* para|donde (?:comer|cenar|almorzar)|recomiend\w*|provoca)\b")
+    r"sitio\w* para|lugar\w* para|donde (?:comer|cenar|almorzar)|provoca)\b")
 
 
 def _plain(text: str) -> str:
@@ -54,9 +54,40 @@ def cuisine_request(body):
     return '',True
 
 
+def recommendation_city(body):
+    original=body.strip(' ¿?!.')
+    text=_plain(original)
+    # Location is a query qualifier, never verified coverage. Preserve spelling.
+    patterns=[r'^en\s+([a-z ]{2,60}?)[, ]+(?:que|cual|donde|recomiend\w*|busco|quiero|hay)\b',
+              r'\ben\s+([a-z ]{2,60}?)(?:[,.!?]|$)']
+    for pattern in patterns:
+        match=re.search(pattern,text)
+        if match:
+            value=original[match.start(1):match.end(1)].strip().strip(',').title()
+            if not re.search(r'\b(casa|mi|el|la|mensajes|partes|lista|tabla|ingles|espanol)\b',_plain(value)):
+                return value
+    return ''
+
+
+def explicit_recommendation_domain(body):
+    text=_plain(body)
+    if re.search(r'\b(?:no|ni)\b',text):return ''
+    cinema=bool(re.search(r'\b(cine|cines|peliculas?|cartelera)\b',text))
+    food=wants_food(body)
+    if cinema==food:return ''
+    return 'cinema' if cinema else 'food'
+
+
+def ambiguous_recommendation(body):
+    requested,unknown=cuisine_request(body)
+    return bool(re.search(r'\brecomiend\w*\b',_plain(body))) and not wants_food(body) and not (requested or unknown)
+
+
 async def recommendations(db: AsyncSession, pick: int = 2, body: str = "") -> str:
     """One or two suggestions, not the whole list; varied between asks. Internal test
     businesses ("Prueba ...") are never recommended."""
+    city=recommendation_city(body)
+    if city:return f'Buscas comida en {city}. No tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
     rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
                              .order_by(Restaurant.id))).scalars().all()
     if not rows:
@@ -79,9 +110,9 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "") -> st
     chosen = random.sample(rows, min(pick, len(rows)))
     lines = []
     for r in chosen:
-        tag = (r.tagline or "").strip()
+        tag = ""  # A catalog tagline is not verified geographic or service coverage.
         lines.append(f"• *{r.name}*" + (f" — {tag}" if tag else ""))
-    return ("¡Uy, qué rico! 😋 Te sugiero:\n" + "\n".join(lines) +
+    return ("Estas son opciones del catálogo actual, sin confirmar su ubicación ni disponibilidad para tu zona:\n" + "\n".join(lines) +
             "\n\n¿Qué local te gustaría consultar?")
 
 
@@ -110,11 +141,17 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
     """(text, is_plain_welcome). The welcome is rate-limited by the caller; recommendations are not."""
     if _plain(body).strip(' ¡!¿?.,')=='sabi':return 'Aquí estoy. ¿En qué te ayudo?',False
     contact = await memory.get(db, phone) if phone else None
-    name = memory.first_name(contact.name if contact else None)
+    candidate=memory.display_name(contact.name if contact else None)
+    name=memory.extract_name("Me llamo "+candidate) if candidate else ""
     said = memory.extract_name(body)
     if said and len(body.split()) <= 6:
-        return (f"¡Mucho gusto, {memory.first_name(said)}! 😊 Ya me quedo con tu nombre. "
+        return (f"¡Mucho gusto, {memory.display_name(said)}! 😊 Ya me quedo con tu nombre. "
                 "¿Qué se te antoja hoy: comida, entradas o una clase de boxeo?"), False
+    if re.search(r'\b(?:no|ni)\b',_plain(body)) and re.search(r'\b(cine|cines|comida|comer|peliculas?)\b',_plain(body)):
+        return '¿Quieres seguir con cine, buscar comida o hacer otra consulta?',False
+    if ambiguous_recommendation(body):
+        city=recommendation_city(body)
+        return '¿Buscas comida o un plan de cine'+(f' en {city}' if city else '')+'?',False
     requested,unknown=cuisine_request(body)
     if requested or unknown or re.search(r'\bitalian[ao]s?\b',_plain(body)):
         return await recommendations(db,body=body), False
@@ -125,5 +162,5 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
                 f"\n\nDime dónde y te lo armo, por ejemplo «quiero pedir en {sellers[0].name}».", False)
     if wants_food(body):
         text = await recommendations(db,body=body)
-        return (text.replace("¡Uy, qué rico!", f"¡Uy, qué rico, {name}!", 1) if name else text), False
+        return text, False
     return await _hello(db, name, bool(contact and contact.last_topic)), True
