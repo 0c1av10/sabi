@@ -117,6 +117,30 @@ async def send_whatsapp_reaction(to_phone: str, message_id: str, emoji: str) -> 
         return await _post(client, url, payload, headers, to_phone)
 
 
+
+async def remove_whatsapp_reaction(to_phone: str, message_id: str) -> dict:
+    """Remove only our own reaction. Provider acceptance is not visible confirmation.
+
+    Prepared for durable processing-status cleanup, not enabled automatically.
+    """
+    if not message_id:return {'skipped':'empty_message_id'}
+    provider=whatsapp_provider()
+    if settings.whatsapp_mock_mode or not provider:
+        sent_log.append({'to':to_phone,'reaction_removed':True,'message_id':message_id})
+        return {'mock':True}
+    if provider!='zernio':return {'skipped':'removal_not_verified_for_provider'}
+    if not settings.zernio_native_reactions:return {'skipped':'feature_disabled'}
+    conv_id=zernio_conversations.get(digits(to_phone))
+    if not conv_id:return {'skipped':'no_inbound_conversation'}
+    url=f"{ZERNIO_API}/inbox/conversations/{quote(conv_id,safe='')}/messages/{quote(message_id,safe='')}/reactions"
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp=await client.delete(url,params={'accountId':settings.zernio_account_id},headers={'Authorization':f'Bearer {settings.zernio_api_key}'})
+            if resp.status_code>=400:return {'error':resp.status_code}
+            return resp.json()
+    except (httpx.HTTPError,ValueError):return {'error':'reaction_removal_outcome_unknown'}
+
+
 def whatsapp_provider() -> str:
     if settings.whatsapp_provider:
         return settings.whatsapp_provider

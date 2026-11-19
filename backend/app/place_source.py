@@ -158,7 +158,7 @@ async def reply(db,phone,body):
     if not match:return None
     from . import conversation_focus as focus
     active=await focus.get(db,phone)
-    if not active or active.domain not in ('place','restaurant'):return '¿De qué local y ciudad es el enlace que quieres revisar?'
+    if not active or not active.entity or active.domain not in ('place','restaurant'):return '¿De qué local y ciudad es el enlace que quieres revisar?'
     if not active.city:return f'¿En qué ciudad queda {safe_text(active.entity)}? Así evito mezclar datos de otra sede.'
     version=active.updated_at;entity=active.entity;city=active.city
     result=await read(match[0].rstrip('.,)'),entity,city)

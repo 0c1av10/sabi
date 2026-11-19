@@ -60,8 +60,14 @@ async def _close_open_conversations(db: AsyncSession, phone: str) -> None:
 
 async def _unresolved_place_reply(db,phone,body):
     named=named_business_query(body)
-    if not named or await restaurant_by_mention(db,named[0]):return None
+    if not named:return None
     entity,city=named
+    previous=await focus.get(db,phone)
+    if not city and previous and previous.domain=='place' and (not previous.entity or concierge._plain(previous.entity)==concierge._plain(entity)):
+        city=previous.city
+    known=await restaurant_by_mention(db,entity)
+    if known and not city:
+        return None
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
@@ -77,6 +83,11 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         return None, body, text
     unresolved=await _unresolved_place_reply(db,phone,body)
     if unresolved:return None,body,unresolved
+    active=await focus.get(db,phone)
+    if active and active.domain=='place' and active.city:
+        mentioned=await restaurant_by_mention(db,body)
+        if not mentioned or concierge._plain(mentioned.name)==concierge._plain(active.entity):
+            return None,body,f'Mantengo tu consulta de {active.entity or "locales"} en {active.city}. No tengo opciones ni una sede verificadas allí; no usaré resultados de otra ciudad. ¿Tienes un enlace oficial de esa sede?'
     requested,unknown=concierge.cuisine_request(body)
     if (requested or unknown) and not await restaurant_by_mention(db,body):
         await memory.set_topic(db,phone,'comida')
@@ -85,7 +96,9 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
         await memory.set_topic(db, phone, f"tu pedido en {restaurant.name}")
-        await focus.save(db,phone,domain='restaurant',entity=restaurant.name)
+        previous=await focus.get(db,phone)
+        city=previous.city if previous and previous.domain=='restaurant' and previous.entity==restaurant.name else ''
+        await focus.save(db,phone,domain='restaurant',entity=restaurant.name,city=city)
         return restaurant, routed_body, None
     active=await focus.get(db,phone)
     if active and active.domain=='place':
@@ -140,6 +153,30 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         reply='Seguimos con cine'+(f' en {active.city}.' if active.city else '. ¿En qué ciudad te gustaría ver la cartelera?')
         await send_whatsapp_message(phone,reply)
         return reply
+    recommendation_city=concierge.recommendation_city(body)
+    domain=concierge.explicit_recommendation_domain(body)
+    negated=bool(re.search(r'\b(?:no|ni)\b',text))
+    if negated and re.search(r'\b(cine|cines|comida|comer|peliculas?)\b',text):
+        reply='¿Quieres seguir con cine, buscar comida o hacer otra consulta?'
+        await send_whatsapp_message(phone,reply)
+        return reply
+    recommendation=concierge.ambiguous_recommendation(body)
+    pending=active and active.domain=='general' and active.entity=='pending_recommendation_domain'
+    target_city=recommendation_city or (active.city if pending else '')
+    if target_city and (recommendation or domain) and not named_business_query(body):
+        if domain=='cinema' or (not domain and active and active.domain=='cinema'):
+            await focus.save(db,phone,domain='cinema',city=target_city)
+            if await wants_cinema(db,phone,'cine'):
+                return await handle_cinema_whatsapp(db,phone,body,external_id)
+            reply=f'Seguimos con cine en {target_city}. No tengo una cartelera verificada disponible ahora.'
+        elif domain=='food':
+            await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
+            reply=f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
+        else:
+            await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
+            reply=f'¿Buscas comida o un plan de cine en {target_city}?'
+        await send_whatsapp_message(phone,reply)
+        return reply
     if plc_question:
         await focus.save(db,phone,domain='cinema')
         reply='¿Con PLC te refieres a Puerto La Cruz para ver cine?'
@@ -154,6 +191,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         reply='La consulta ahora es de cine. No tengo una cartelera verificada disponible en este momento.'
         await send_whatsapp_message(phone,reply)
         return reply
+    city_reply=await focus.city_reply(db,phone,body)
+    if city_reply is not None:
+        if city_reply:await send_whatsapp_message(phone,city_reply)
+        return city_reply
     source_reply=await place_source.reply(db,phone,body)
     if source_reply is not None:
         if source_reply:await send_whatsapp_message(phone,source_reply)
