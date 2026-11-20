@@ -132,6 +132,8 @@ Reglas:
 - Antes de enviarlo al restaurante, pregunta cómo va a pagar: pago móvil, Zelle, transferencia o efectivo al retirar.
 - Si el cliente ya indicó un método de pago, inclúyelo en order.payment_method. El comercio verifica el pago antes de aprobar.
 - En "order" manda siempre el pedido completo acumulado hasta ahora (no solo lo nuevo), con el nombre exacto del menú.
+- Si el cliente dice «ese», «esa» o similar refiriéndose a varias opciones que acabas de ofrecer, pregunta cuál de ellas quiere; nunca elijas una por tu cuenta. Conserva lo demás del pedido (tipo, dirección, notas).
+- Si pide una fecha u hora de entrega («pídelo mañana a las 9 am»), guárdala textual en order.notes y confírmala en tu resumen.
 - Responde siempre usando la herramienta "responder".
 """
 
@@ -171,6 +173,13 @@ RESPONDER_TOOL = {
 }
 
 
+def grounded_retry(restaurant: Restaurant) -> str:
+    """Fallback when the model returns nothing usable: stay helpful and specific instead
+    of a bare "¿Me repites?" that reads as amnesia and makes the client repeat themselves."""
+    return (f"No te entendí bien. ¿Qué se te antoja de {restaurant.name}? "
+            "Puedo mostrarte el menú o recomendarte algo.")
+
+
 def guard_representation(result: AgentResult,restaurant: Restaurant) -> AgentResult:
     """No verified human escalation destination exists in this chat path."""
     result.reply=re.sub(r'(?i)soy Sabi de\s+'+re.escape(restaurant.name), 'Soy Sabi',result.reply)
@@ -190,12 +199,14 @@ async def run_agent(db: AsyncSession, restaurant: Restaurant, conversation: Conv
         hours=(restaurant.opening_hours or '').strip()
         return AgentResult(reply=(f'El horario registrado de {restaurant.name} es: {hours}. Confírmalo con el local antes de ir.' if hours else f'No tengo un horario verificado de {restaurant.name}. No tengo un contacto humano confirmado para consultarlo por ti.'),state=json.loads(conversation.state_json or '{}'))
     if settings.agent_mock_mode or not settings.anthropic_api_key:
-        return guard_representation(run_mock_agent(restaurant, items, conversation, incoming),restaurant)
+        return guard_representation(run_mock_agent(restaurant, items, conversation, incoming, history),restaurant)
     customer = await db.get(Customer, conversation.customer_id)
     from . import memory
     contact = await memory.get(db, customer.phone) if customer else None
     known = memory.display_name((contact.name if contact else None) or (customer.name if customer else ""))
-    return guard_representation(await run_llm_agent(restaurant, items, conversation, history, incoming, known),restaurant)
+    general_topic = (contact.last_topic if contact else '') or ''
+    return guard_representation(await run_llm_agent(restaurant, items, conversation, history, incoming, known,
+                                                    general_topic),restaurant)
 
 
 def _llm_messages(history: list[tuple[str, str]], incoming: str) -> list[dict]:
@@ -217,7 +228,7 @@ def _llm_messages(history: list[tuple[str, str]], incoming: str) -> list[dict]:
 async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
                         conversation: Conversation,
                         history: list[tuple[str, str]], incoming: str,
-                        customer_name: str = "") -> AgentResult:
+                        customer_name: str = "", general_topic: str = "") -> AgentResult:
     import anthropic
 
     state = json.loads(conversation.state_json or "{}")
@@ -235,6 +246,16 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     if customer_name:
         context += (f"\nEl cliente se llama {customer_name}: dirígete a él por su nombre con naturalidad, "
                     "sin repetirlo en cada mensaje.")
+    inbound_count = sum(1 for direction, _ in history if direction == "inbound")
+    if inbound_count <= 1:
+        context += ("\nEste es el primer mensaje del cliente con este local: puede venir de una "
+                    "conversación general con Sabi (recomendaciones de locales u otro tema). "
+                    "Interpreta mensajes cortos o ambiguos («ese», «y nacional?») a la luz del menú "
+                    "y pregunta con naturalidad qué se le antoja; nunca contestes pidiendo que repita "
+                    "sin ofrecer nada.")
+    if general_topic:
+        context += (f"\nÚltimo tema de la conversación general con Sabi: {general_topic}. "
+                    "Úsalo para entender referencias cortas; no lo repitas literalmente al cliente.")
 
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     try:
@@ -300,7 +321,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
                if i.category in _UPSELL_CATEGORIES and i.name.lower() in reply.lower()]
     if order and order["items"] and offered:
         new_state["upsell_offered"] = True
-    return AgentResult(reply=reply or "¿Me repites, por favor?", action=action,
+    return AgentResult(reply=reply or grounded_retry(restaurant), action=action,
                        order=order, state=new_state)
 
 
@@ -335,7 +356,8 @@ _NUM = {"un": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis":
 
 
 def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
-                   conversation: Conversation, incoming: str) -> AgentResult:
+                   conversation: Conversation, incoming: str,
+                   history: list[tuple[str, str]] | None = None) -> AgentResult:
     state = json.loads(conversation.state_json or "{}")
     draft = state.get("draft") or {
         "items": [], "order_type": None, "address": "", "delivery_zone": "", "notes": "",
@@ -405,7 +427,27 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         return AgentResult(reply=f"Nuestro horario es: {restaurant.opening_hours}",
                            state={**state, "draft": draft})
 
+    # A requested date/time is preserved verbatim in the notes; there is no scheduling
+    # field yet, so it must never be dropped from the accumulated draft.
+    sched = re.search(r"((?:pasado\s+)?ma[ñn]ana|hoy)\s+a\s+las\s+\d+(?::\d+)?\s*(?:a\.?\s?m\.?|p\.?\s?m\.?|am|pm)?", text)
+    if sched and sched.group(0) not in (draft.get("notes") or ""):
+        draft["notes"] = ((draft.get("notes") or "") + " " + sched.group(0)).strip()
+
     requested = matched_items()
+
+    # "Ese" / "esa" referring to several options Sabi just offered: ask which one, never
+    # pick for the client, and keep the rest of the draft untouched. A single offered
+    # option is what the client means.
+    if not requested and re.search(r"\b(es[ae]s?|est[ae]s?)\b", text) and history:
+        last_out = next((b for d, b in reversed(history) if d == "outbound"), "")
+        candidates = [mi for mi in available if mi.name.lower() in last_out.lower()]
+        if len(candidates) >= 2:
+            options = " o ".join(f"{i.name} ({fmt_money(i.price, *rates)})" for i in candidates[:4])
+            return AgentResult(
+                reply=f"¿Cuál de estos: {options}? Lo demás de tu pedido queda igual.",
+                state={**state, "draft": draft})
+        if len(candidates) == 1:
+            requested.append({"name": candidates[0].name, "quantity": 1, "extras": "", "notes": ""})
 
     if not requested and re.search(
             r"recomi[eé]nd|suger|qu[eé] me (das|ofreces)|no s[eé] qu[eé]|compartir|barat|econ[oó]mic", text):
