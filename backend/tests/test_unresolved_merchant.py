@@ -52,10 +52,12 @@ async def test_full_greeting_then_unknown_entity_resolves_without_model(Session,
         text=await webhook._events_route(db,'111','De Beijing en lechería')
         assert text and (await webhook._resolve(db,'111','¿Tienes el menú?'))[0] is None
 
-async def test_previous_tenant_requires_current_matching_focus(Session):
+async def test_previous_tenant_survives_focus_expiry_but_not_other_domains(Session):
     async with Session() as db:
         n,_=await catalog(db,True)
-        assert (await restaurant_for_message(db,'111','¿Tienen delivery?'))[0] is None
+        # An open conversation keeps its restaurant even with no active focus (2026-11-20
+        # continuity fix: an order follow-up must not fall back to the welcome after 30 min).
+        assert (await restaurant_for_message(db,'111','¿Tienen delivery?'))[0].id==n.id
         await focus.save(db,'111',domain='restaurant',entity=n.name)
         assert (await restaurant_for_message(db,'111','¿Tienen delivery?'))[0].id==n.id
         await focus.save(db,'111',domain='cinema')
