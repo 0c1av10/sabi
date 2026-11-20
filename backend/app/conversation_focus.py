@@ -77,8 +77,30 @@ def declared_city(body):
     if len(value.split())>4 or re.search(r'\b(mensajes?|partes?|lineas?|palabras?|tabla|lista|resumen|detalle|ingles|espanol|pizzas?|restaurante|local|delivery|pedido|mi|la|el|casa|trabajo|oficina|tres|dos|mejor)\b',_plain(value)):return ''
     return value
 
+_BARE_ANSWER=re.compile(r"^[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,30}(?:\s+[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,30}){0,2}$")
+_BARE_NOT_CITY={'nada','no se','nose','buscala','buscalo','busca','ninguna','ninguno','da igual',
+                'menu','el menu','carta','la carta','precio','precios','horario','horarios',
+                'delivery','retiro','pedido','gracias','ok','vale','dale'}
+
+
+async def pending_city_answer(db,phone,body):
+    """After Sabi asked "¿En qué ciudad queda X?" for an unresolved place, a bare short
+    reply ("Lecheria") is the answer to that question, never a new query. A restaurant
+    mention, a food word or a greeting is left for the normal routes."""
+    active=await get(db,phone)
+    if not(active and active.domain=='place' and active.entity and not active.city):return ''
+    candidate=body.strip().strip(' ¿?!.,')
+    from . import concierge
+    from .auth import restaurant_by_mention
+    text=concierge._plain(candidate)
+    if not _BARE_ANSWER.fullmatch(candidate) or text in _BARE_NOT_CITY:return ''
+    if concierge.is_greeting(candidate) or concierge.wants_food(candidate):return ''
+    if await restaurant_by_mention(db,candidate):return ''
+    return candidate.title()
+
+
 async def city_reply(db,phone,body):
-    city=declared_city(body)
+    city=declared_city(body) or await pending_city_answer(db,phone,body)
     if not city:return None
     active=await get(db,phone)
     if active and active.domain in ('shopping','cinema','gym','events'):

@@ -189,9 +189,14 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
         .where(Customer.phone == phone, Conversation.status == "open")
         .order_by(Conversation.updated_at.desc())
     )).scalars().first()
-    if restaurant and active and active.domain=='restaurant' and active.entity==restaurant.name:
-        return restaurant, body
-    if active and active.domain=='place':return None,body
+    # An open conversation keeps its restaurant even after the 30-minute focus window
+    # closes: follow-ups like "Si dame ese pero pídelo mañana" or "Sera delivery" must
+    # never fall back to the welcome while an order is still open. Only an active
+    # unresolved-place task or another live domain (cinema, shopping, events) outranks it.
+    if restaurant:
+        if active and active.domain=='place':return None,body
+        if not active or active.domain in ('restaurant','general'):
+            return restaurant, body
     # No business named and no open conversation: a product only one business sells decides it.
     by_product = await restaurants_by_product(db, body)
     if len(by_product) == 1:

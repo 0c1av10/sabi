@@ -93,9 +93,21 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         await memory.set_topic(db,phone,'comida')
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
+    # A full-catalog ask ("dame todos los restaurantes que tengas") is a concierge question,
+    # never a message for the business of the open conversation.
+    if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
+        text,_=await concierge.reply(db,body,phone)
+        return None,body,text
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
-        await memory.set_topic(db, phone, f"tu pedido en {restaurant.name}")
+        # Keep what Sabi had just offered in the general chat: the business agent reads
+        # the topic as context, so "Y nacional?" after a recommendation is not read in a void.
+        contact=await memory.get(db,phone)
+        previous=(contact.last_topic if contact else '') or ''
+        topic=f"tu pedido en {restaurant.name}"
+        if previous.startswith('recomendación de locales:'):
+            topic=f"{topic} ({previous})"
+        await memory.set_topic(db, phone, topic)
         previous=await focus.get(db,phone)
         city=previous.city if previous and previous.domain=='restaurant' and previous.entity==restaurant.name else ''
         await focus.save(db,phone,domain='restaurant',entity=restaurant.name,city=city)

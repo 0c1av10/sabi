@@ -13,7 +13,7 @@ A task city is an explicit city used for the current query. It is not a home add
 
 ## Limits
 
-The parser accepts a small set of explicit city phrases. It does not validate place names against a geographic database. A bare city answer, an address, or a sentence mixing several requests may need clarification.
+The parser accepts a small set of explicit city phrases. It does not validate place names against a geographic database. An address or a sentence mixing several requests may need clarification. While a city question is pending for an unresolved place, a bare short answer ("Lecheria") is taken as that city; see docs/CONVERSATION_CONTINUITY.md.
 
 Saving a city does not add geographic search, city coverage, local availability, or verified branch-specific prices. Yummy, shopping, cinema, gym and events do not gain geographic filtering from this change. A city statement in those tasks records the city and warns that filtering is not verified; their later domain-specific search still requires separate geographic validation.
 

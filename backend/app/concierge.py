@@ -83,9 +83,22 @@ def ambiguous_recommendation(body):
     return bool(re.search(r'\brecomiend\w*\b',_plain(body))) and not wants_food(body) and not (requested or unknown)
 
 
-async def recommendations(db: AsyncSession, pick: int = 2, body: str = "") -> str:
+LIST_ALL = re.compile(r"\b(todos|todas|complet[ao]s?|cu[aá]les|lista)\b")
+CATALOG_WORD = re.compile(r"\b(restaurantes?|locales|sitios|lugares|opciones|cat[aá]logo)\b")
+
+
+def wants_full_catalog(body: str) -> bool:
+    """"Dame todos los restaurantes que tengas": the person asked for the whole catalog,
+    not a suggestion. The full list is always answered in stable order, never sampled."""
+    text = _plain(body)
+    return bool(LIST_ALL.search(text) and CATALOG_WORD.search(text))
+
+
+async def recommendations(db: AsyncSession, pick: int = 2, body: str = "", phone: str = "") -> str:
     """One or two suggestions, not the whole list; varied between asks. Internal test
-    businesses ("Prueba ...") are never recommended."""
+    businesses ("Prueba ...") are never recommended. A full-catalog request returns
+    every business, in stable order. When a phone is given, the offered names are
+    remembered as the current topic so a later handoff to a business can see them."""
     city=recommendation_city(body)
     if city:return f'Buscas comida en {city}. No tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
     rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
@@ -107,7 +120,9 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "") -> st
         exact=re.compile(r'\b(?:'+ '|'.join(CUISINES[requested])+r')\b')
         rows=[r for r in rows if exact.search(_plain(r.tagline or ''))]
         if not rows:return f'No tengo un local de comida {requested} verificado en el catálogo actual. No te voy a recomendar otro tipo de comida como si coincidiera. La búsqueda web automática aún no está conectada.'
-    chosen = random.sample(rows, min(pick, len(rows)))
+    chosen = list(rows) if wants_full_catalog(body) else random.sample(rows, min(pick, len(rows)))
+    if phone and chosen:
+        await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r in chosen))
     lines = []
     for r in chosen:
         tag = ""  # A catalog tagline is not verified geographic or service coverage.
@@ -154,13 +169,13 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
         return '¿Buscas comida o un plan de cine'+(f' en {city}' if city else '')+'?',False
     requested,unknown=cuisine_request(body)
     if requested or unknown or re.search(r'\bitalian[ao]s?\b',_plain(body)):
-        return await recommendations(db,body=body), False
+        return await recommendations(db,body=body,phone=phone), False
     sellers = await restaurants_by_product(db, body)
     if len(sellers) >= 2:
         names = "\n".join(f"• *{r.name}*" for r in sellers[:4])
         return ("¡Claro! 😋 Eso lo consigues en:\n" + names +
                 f"\n\nDime dónde y te lo armo, por ejemplo «quiero pedir en {sellers[0].name}».", False)
     if wants_food(body):
-        text = await recommendations(db,body=body)
+        text = await recommendations(db,body=body,phone=phone)
         return text, False
     return await _hello(db, name, bool(contact and contact.last_topic)), True
