@@ -120,7 +120,9 @@ def bare_name(body: str) -> str:
     # The whole reply is a city ("Juan Griego"); a surname that is also a city ("Ana Valencia") is fine.
     if find_city(body):
         return ""
-    return extract_name("Me llamo " + body.strip(" .!¡"))
+    name = extract_name("Me llamo " + body.strip(" .!¡"))
+    # The whole reply must be the name: "Margarita, hay cine" is a request, not a name.
+    return name if len(name.split()) == len(body.strip(" .!¡").split()) else ""
 
 
 def name_pending(contact: "Contact | None") -> bool:

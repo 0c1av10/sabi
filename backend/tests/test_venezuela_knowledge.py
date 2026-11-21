@@ -303,3 +303,9 @@ async def test_introduction_with_a_question_still_gets_its_answer(Session, sent)
 def test_name_containing_a_city_word_is_still_a_name(reply):
     from app import memory
     assert memory.bare_name(reply) == reply
+
+
+@pytest.mark.parametrize("reply", ["Margarita, hay cine", "Ana y quiero pizza", "Carlos: boxeo"])
+def test_bare_name_must_be_the_whole_reply(reply):
+    from app import memory
+    assert memory.bare_name(reply) == ""
