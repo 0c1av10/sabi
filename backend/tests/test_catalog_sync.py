@@ -97,3 +97,12 @@ def test_importer_fills_descriptions_when_the_catalog_is_full():
         importer._add(items, f"Plato {n:02d}", 5, "Platos", "")
     importer._add(items, "Plato 00", 5, "Platos", "Con arroz")
     assert items["plato 00"]["description"] == "Con arroz"
+
+
+def test_importer_tolerates_a_null_description():
+    from app import importer
+    items = {}
+    importer._add(items, "Pollo Solo", 14, "Promociones", "")
+    importer._add(items, "Pollo Solo", 14, "Promociones", None)
+    importer._add(items, "Pollo Nuevo", 9, "Promociones", None)
+    assert items["pollo solo"]["description"] == "" and items["pollo nuevo"]["description"] == ""

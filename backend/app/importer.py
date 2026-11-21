@@ -90,7 +90,7 @@ def _clean(name: str) -> str:
 
 
 def _add(items: dict, name: str, price, category: str = "", desc: str = "", image: str = "") -> None:
-    name = _clean(name)
+    name, desc = _clean(name or ""), desc or ""  # JSON-LD may carry "description": null
     try:
         price = float(str(price).replace(",", "."))
     except ValueError:
