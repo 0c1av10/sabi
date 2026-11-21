@@ -66,6 +66,7 @@ def test_delivery_zone_written_another_way():
     assert delivery.find_zone(zones, "Av. Principal de lecheria, edificio Mar Azul")["name"] == "Lechería"
     assert delivery.find_zone(zones, "Delivery a pto la cruz")["fee"] == 4.0
     assert delivery.find_zone(zones, "Caracas") is None
+    assert delivery.find_zone(zones, "Delivery a PLC, no a BNA")["name"] == "Puerto La Cruz"
 
 
 def test_partial_and_neighboring_zones_stay_their_own_area():
