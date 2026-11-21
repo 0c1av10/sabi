@@ -3,11 +3,12 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
-from app import delivery
+from app import delivery, whatsapp
 from app.agent import delivery_context, fmt_money, menu_text, rates_of, run_llm_agent, run_mock_agent, summarize_order
 from app.main import apply_business_pins, seed_known_businesses
-from app.models import Conversation, MenuItem, Restaurant
+from app.models import Conversation, MenuItem, Message, Restaurant
 from app.oura_menu import OURA_MENU
+from app.service import handle_inbound_message
 
 
 ZONES = [
@@ -38,6 +39,30 @@ async def get_catalog(session, slug):
     restaurant = (await session.scalars(select(Restaurant).where(Restaurant.slug == slug))).one()
     items = (await session.scalars(select(MenuItem).where(MenuItem.restaurant_id == restaurant.id))).all()
     return restaurant, {item.name: item for item in items}
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_sends_complete_oura_menu_in_bounded_messages(Session, monkeypatch):
+    sent = []
+
+    async def post(client, url, payload, headers, phone):
+        sent.append(payload["text"]["body"])
+        return {"messages": [{"id": "wamid.test"}]}
+
+    monkeypatch.setattr(whatsapp, "whatsapp_provider", lambda: "kapso")
+    monkeypatch.setattr(whatsapp.settings, "whatsapp_mock_mode", False)
+    monkeypatch.setattr(whatsapp, "_post", post)
+    monkeypatch.setattr(whatsapp, "sent_log", [])
+    await seed_known_businesses()
+    async with Session() as session:
+        restaurant, _ = await get_catalog(session, "oura")
+        restaurant.bcv_auto = False
+        reply = await handle_inbound_message(session, restaurant, "584120000000", "menú")
+        history = (await session.scalars(select(Message.body).where(Message.direction == "outbound"))).all()
+
+    assert len(reply) > 4096 and len(sent) > 1
+    assert all(0 < len(part) <= 4096 for part in sent)
+    assert "\n".join(sent) == reply and history == [reply]
 
 
 @pytest.mark.asyncio
