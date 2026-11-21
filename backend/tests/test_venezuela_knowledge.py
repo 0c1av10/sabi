@@ -551,3 +551,19 @@ def test_agent_context_names_each_zone_state():
     text = delivery.describe(r, lambda v: f"${v:.0f}")
     assert "Lechería (Anzoátegui): $2; Barcelona (Anzoátegui): $3; Puerto La Cruz (Anzoátegui): $4" in text
     assert "nunca cobres una por otra" in text
+
+
+def test_street_named_after_a_city_does_not_change_the_zone():
+    zones = delivery.load_zones(NACIONAL_ZONES)
+    assert delivery.zone_for_order(zones, "Lechería", "Av. Barcelona, Lechería, casa 3")["name"] == "Lechería"
+
+
+def test_neighborhood_zone_kept_for_an_address_in_its_city():
+    zones = delivery.load_zones(json.dumps([{"name": "Centro de Lechería", "fee": 2}, {"name": "Barcelona", "fee": 3}]))
+    assert delivery.zone_for_order(zones, "Centro de Lechería", "Calle 5, Lechería")["name"] == "Centro de Lechería"
+    assert delivery.zone_for_order(zones, "Centro de Lechería", "Calle 5, Barcelona")["name"] == "Barcelona"
+
+
+def test_the_two_santa_barbaras_are_different_cities():
+    assert venezuela.find_city("Santa Bárbara del Zulia").state == "Zulia"
+    assert venezuela.find_city("Santa Bárbara de Barinas").state == "Barinas"

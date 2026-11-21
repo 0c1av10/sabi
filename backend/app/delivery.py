@@ -74,13 +74,18 @@ def find_zone(zones: list[dict], text: str) -> Optional[dict]:
 
 
 def zone_for_order(zones: list[dict], zone_name: str, address: str) -> Optional[dict]:
-    """The zone an order goes to. A city written in the address decides it, so a Puerto La Cruz
-    address is never billed as Barcelona and a Cumaná address is outside Anzoátegui zones (None)."""
+    """The zone an order goes to. The chosen zone stays while the address agrees with its city (or
+    names none), so "Av. Barcelona, Lechería" keeps Lechería and "Calle 5, Lechería" keeps "Centro de
+    Lechería". When the address is in another city it decides: a Puerto La Cruz address is never
+    billed as Barcelona, and a Cumaná address matches no Anzoátegui zone (None)."""
     from .venezuela import cities_in
-    z = find_zone(zones, address or "")
-    if z or cities_in(address or ""):
-        return z
-    return find_zone(zones, zone_name or "")
+    chosen = find_zone(zones, zone_name or "")
+    in_address = {c.name for c in cities_in(address or "")}
+    if chosen:
+        chosen_cities = {c.name for c in cities_in(chosen["name"])}
+        if not in_address or not chosen_cities or chosen_cities & in_address:
+            return chosen
+    return find_zone(zones, address or "")
 
 
 def fee_for(restaurant, order_type: Optional[str], zone_name: str = "") -> float:
