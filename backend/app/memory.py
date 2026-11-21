@@ -111,7 +111,8 @@ wilson ximena yamilet yaneth yanira yelitza yenny yesenia yolanda yorman yosmar 
 
 def bare_name(body: str) -> str:
     """The name in a bare reply to "¿Cómo te llamas?" ("Octavio", "ana maría"), or ''."""
-    if "?" in (body or "") or len((body or "").split()) > 3:
+    # Only letters, spaces, hyphens and apostrophes: "Margarita, 2" or "Ana: boxeo" is not a bare name.
+    if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñü' -]+", (body or "").strip(" .!¡")) or len(body.split()) > 3:
         return ""
     words = re.findall(r"[a-z]+", _plain(body))
     if not words or words[0] not in FIRST_NAMES:

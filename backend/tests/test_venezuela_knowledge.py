@@ -305,7 +305,8 @@ def test_name_containing_a_city_word_is_still_a_name(reply):
     assert memory.bare_name(reply).replace(" ", "") == reply.replace(" ", "").replace("-", "")
 
 
-@pytest.mark.parametrize("reply", ["Margarita, hay cine", "Ana y quiero pizza", "Carlos: boxeo"])
+@pytest.mark.parametrize("reply", ["Margarita, hay cine", "Ana y quiero pizza", "Carlos: boxeo", "Margarita, 2",
+                                   "Ana 2", "Octavio?"])
 def test_bare_name_must_be_the_whole_reply(reply):
     from app import memory
     assert memory.bare_name(reply) == ""
