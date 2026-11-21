@@ -182,5 +182,28 @@ async def test_where_is_question_without_registered_zones(Session, sent):
         await _catalog(db)
         reply = await webhook._events_route(db, "111", "¿Dónde queda MC Racuchos?")
         assert reply == "No tengo registrada la ciudad de MC Racuchos y no voy a adivinarla."
-        assert await webhook._events_route(db, "222", "¿En qué ciudad queda?") == \
-            "¿De qué local quieres saber dónde queda?"
+
+
+@pytest.mark.parametrize("question", ["¿Dónde queda Pizzería Roma?", "¿Dónde queda el gym?",
+                                      "¿En qué ciudad queda? https://nacional.example/sedes"])
+async def test_where_is_question_about_something_else_is_left_to_other_routes(Session, question):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante", city="Lechería")
+        assert await focus.location_reply(db, "111", question) is None
+        assert await focus.location_reply(db, "222", "¿En qué ciudad queda?") is None
+
+
+def test_where_is_question_keeps_the_named_place():
+    from app.auth import named_business_query
+    assert named_business_query("¿Dónde queda Pizzería Roma?") == ("Roma", "")
+    assert named_business_query("Pizzería Roma en qué ciudad queda?") == ("Roma", "")
+
+
+async def test_question_saved_as_city_is_dropped(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="place", entity="NACIONAL Restaurante", city="qué ciudad queda")
+        assert await focus.get(db, "111") is None
+        _, _, text = await webhook._resolve(db, "111", "Como me llamo")
+        assert "qué ciudad queda" not in (text or "")

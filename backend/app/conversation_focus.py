@@ -21,6 +21,9 @@ async def get(db,phone,now=None):
     row=(await db.execute(select(ConversationFocus).where(ConversationFocus.phone==digits(phone),ConversationFocus.expires_at>now).execution_options(populate_existing=True))).scalar_one_or_none()
     from .auth import response_format_request
     if row and row.domain in ('place','restaurant') and response_format_request(row.entity+' en '+row.city):return None
+    from .venezuela import asks_location
+    # A question saved as a city ("qué ciudad queda") is not a task city.
+    if row and asks_location(row.city):return None
     return row
 
 async def save(db,phone,*,domain,entity='',city='',platform='',now=None):
@@ -108,16 +111,20 @@ async def pending_city_answer(db,phone,body):
 
 
 async def location_reply(db,phone,body):
-    """Answers "¿En qué ciudad queda NACIONAL?" from the business's registered delivery zones."""
-    from .venezuela import asks_location, where_reply
-    if not asks_location(body):return None
+    """Answers "¿En qué ciudad queda NACIONAL?" from the business's registered delivery zones.
+    Anything it cannot answer (another place, a gym, a link to read) is left for the other routes."""
+    from .venezuela import asks_location, location_subject, where_reply
+    if not asks_location(body) or re.search(r'https?://',body):return None
     from .auth import restaurant_by_mention
+    restaurant=await restaurant_by_mention(db,body)
+    if restaurant:return where_reply(restaurant)
+    if location_subject(body):return None
     active=await get(db,phone)
     entity=active.entity if active and active.domain in ('place','restaurant') else ''
-    restaurant=await restaurant_by_mention(db,body) or (entity and await restaurant_by_mention(db,entity))
+    if not entity:return None
+    restaurant=await restaurant_by_mention(db,entity)
     if restaurant:return where_reply(restaurant)
-    if entity:return f'No tengo verificada la ubicación de {entity}. Si tienes su enlace oficial, pásamelo para revisarla.'
-    return '¿De qué local quieres saber dónde queda?'
+    return f'No tengo verificada la ubicación de {entity}. Si tienes su enlace oficial, pásamelo para revisarla.'
 
 
 async def city_reply(db,phone,body):

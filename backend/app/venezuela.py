@@ -127,12 +127,19 @@ def canonical(value: str) -> str:
     return city.name if city else value
 
 
-_WHERE = re.compile(r"\b(?:(?:en )?(?:que|cual) ciudad (?:queda|esta|estan|quedan)|donde (?:queda|esta|estan|quedan|se ubica)n?)\b")
+_WHERE = re.compile(r"\b(?:en\s+)?(?:qu[eé]|cu[aá]l)\s+ciudad\s+(?:queda|est[aá])n?\b|\bd[oó]nde\s+(?:queda|est[aá]|se\s+ubica)n?\b", re.I)
+_SUBJECT_FILLER = {"el", "la", "los", "las", "de", "del", "y", "ese", "esa", "este", "esta", "local", "restaurante", "sede"}
 
 
 def asks_location(text: str) -> bool:
     """"¿En qué ciudad queda?" asks where a business is; it never names a city."""
-    return bool(_WHERE.search(plain(text)))
+    return bool(_WHERE.search(text or ""))
+
+
+def location_subject(text: str) -> str:
+    """What a location question asks about, "" when it refers back ("¿En qué ciudad queda?")."""
+    rest = plain(_WHERE.sub(" ", text or ""))
+    return " ".join(w for w in rest.split() if w not in _SUBJECT_FILLER)
 
 
 def where_reply(restaurant) -> str:
