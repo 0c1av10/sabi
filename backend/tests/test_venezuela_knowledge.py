@@ -515,3 +515,39 @@ async def test_fee_question_origin_city_is_not_destination_or_business(Session, 
         assert await focus.fee_reply(db, "111", "¿Cuánto cuesta el delivery en Lechería?") == (
             "El delivery de NACIONAL Restaurante a Lechería cuesta $2,00."
         )
+
+
+@pytest.mark.parametrize("written,name,state", [
+    ("Cantaura", "Cantaura", "Anzoátegui"), ("tucupido", "Tucupido", "Guárico"),
+    ("Santa Elena", "Santa Elena de Uairén", "Bolívar"), ("Petare", "Petare", "Miranda"),
+    ("El Tocuyo", "El Tocuyo", "Lara"), ("Ureña", "Ureña", "Táchira"), ("quibor", "Quíbor", "Lara"),
+    ("Cumaná", "Cumaná", "Sucre"), ("Caracas", "Caracas", "Distrito Capital"),
+])
+def test_every_municipality_seat_is_a_city(written, name, state):
+    city = venezuela.find_city(written)
+    assert city and (city.name, city.state) == (name, state)
+
+
+@pytest.mark.parametrize("word", ["Cordero", "Delicias", "Libertad", "Soledad", "Colón", "Miranda"])
+def test_seats_that_are_everyday_words_are_not_cities(word):
+    assert venezuela.find_city(word) is None
+
+
+def test_neighboring_cities_stay_distinct():
+    zones = delivery.load_zones(NACIONAL_ZONES)
+    pick = lambda zone, address: (delivery.zone_for_order(zones, zone, address) or {}).get("name")  # noqa: E731
+    # The address decides, even when the model filled the neighboring city as the zone.
+    assert pick("Barcelona", "Calle Bolívar, Puerto La Cruz") == "Puerto La Cruz"
+    assert pick("Barcelona", "Av. Principal de Lechería") == "Lechería"
+    # A city outside the zones is not billed as a registered one.
+    assert pick("Barcelona", "Calle Sucre, Cumaná") is None
+    assert pick("Lechería", "Av. Urdaneta, Caracas") is None
+    # No city in the address: the zone the customer gave is kept.
+    assert pick("Barcelona", "Calle 5, casa 3") == "Barcelona"
+
+
+def test_agent_context_names_each_zone_state():
+    r = Restaurant(name="NACIONAL Restaurante", slug="nacional", pin="0", delivery_zones=NACIONAL_ZONES)
+    text = delivery.describe(r, lambda v: f"${v:.0f}")
+    assert "Lechería (Anzoátegui): $2; Barcelona (Anzoátegui): $3; Puerto La Cruz (Anzoátegui): $4" in text
+    assert "nunca cobres una por otra" in text

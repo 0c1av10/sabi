@@ -295,8 +295,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
         order = state.get("draft")
     zones = delivery.zones_of(restaurant)
     if order is not None and zones:
-        chosen = delivery.find_zone(zones, order.get("delivery_zone") or "") \
-            or delivery.find_zone(zones, order.get("address") or "")
+        chosen = delivery.zone_for_order(zones, order.get("delivery_zone") or "", order.get("address") or "")
         order["delivery_zone"] = chosen["name"] if chosen else ""
 
     if action in ("ask_confirm", "submit_order"):
