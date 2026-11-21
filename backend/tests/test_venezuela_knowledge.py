@@ -298,3 +298,14 @@ async def test_name_prompt_leaves_boxing_requests_and_signup_to_the_gym(Session,
         await memory.ask_name(db, "222")
         await webhook._events_route(db, "222", "Ana")
         assert (await gym_whatsapp._state(db, "222"))[1].get("step") != "name"
+
+
+async def test_cupo_surname_is_still_a_name(Session, sent):
+    from app import memory
+    async with Session() as db:
+        await webhook._events_route(db, "111", "Como me llamo")
+        await webhook._events_route(db, "111", "Ana Cupo")
+        assert (await memory.get(db, "111")).name == "Ana Cupo"
+        await memory.ask_name(db, "222")
+        await webhook._events_route(db, "222", "Un cupo")
+        assert not (await memory.get(db, "222")).name
