@@ -145,8 +145,11 @@ async def _listed_businesses(db,phone):
     return out
 
 
-# Only filler between the price word and the city, so "¿cuánto cuesta una pizza en Barcelona?" is a product question.
-_FEE_ASK=re.compile(r'\b(?:cuanto|precio|costo|tarifa)\b(?:\s+(?:me|te|le|nos|sale|saldria|cuesta|costaria|cobran|es|seria|esta|el|la|del|de|delivery|envio|domicilio|despacho))*\s+(?:a|para|hasta|hacia|en)\s+(.+)$')
+# Only filler (or "delivery de <local>") between the price word and the city, so "¿cuánto cuesta una pizza en Barcelona?" is a product question.
+_FEE_FILLER=r'(?:\s+(?:me|te|le|nos|sale|saldria|cuesta|costaria|cobran|es|seria|esta|el|la|del|de))*'
+_FEE_ASK=re.compile(r'\b(?:cuanto|precio|costo|tarifa)\b'+_FEE_FILLER+
+                    r'(?:\s+(?:delivery|envio|domicilio|despacho)(?:\s+(?:de|del)\s+.+?)?)?'
+                    r'\s+(?:a|para|hasta|hacia|en)\s+(.+)$')
 
 
 async def fee_reply(db,phone,body):

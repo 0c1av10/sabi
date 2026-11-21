@@ -475,3 +475,13 @@ async def test_unresolved_place_fee_question_ignores_older_list(Session, sent):
         await venezuela.local_options(db, "Lechería", "111")
         await focus.save(db, "111", domain="place", entity="Pizzería Roma", city="")
         assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery a Barcelona?") is None
+
+
+@pytest.mark.asyncio
+async def test_fee_question_naming_the_business(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery de NACIONAL a Barcelona?") == (
+            "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        )
+        assert await focus.fee_reply(db, "111", "¿Cuánto cuesta una pizza de NACIONAL en Barcelona?") is None
