@@ -80,3 +80,11 @@ async def test_description_sync_skips_dishes_sharing_a_name(Session):
         await db.commit()
         dry = await store.reimport(restaurant=r, db=db, mode="descriptions", dry_run=True)
         assert dry["changes"] == []
+
+
+def test_importer_takes_the_description_from_a_later_source():
+    from app import importer
+    items = {}
+    importer._add(items, "Combo Resuelve", 18, "Promociones", "")
+    importer._add(items, "Combo Resuelve", 18, "Promociones", "1 pollo + 1 refresco de 1 litro")
+    assert items["combo resuelve"]["description"] == "1 pollo + 1 refresco de 1 litro"

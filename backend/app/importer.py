@@ -99,6 +99,11 @@ def _add(items: dict, name: str, price, category: str = "", desc: str = "", imag
         return
     if re.search(r"https?:|[{}<>=;]|\\u", name):
         return
+    known = items.get(name.lower())
+    if known:
+        # JSON-LD may list the dish without the description a menu object on the page has.
+        known["description"] = known["description"] or _clean(desc)[:200]
+        return
     items.setdefault(name.lower(), {"name": name, "price": round(price, 2),
                                     "category": _clean(category)[:60] or "Menú",
                                     "description": _clean(desc)[:200],
