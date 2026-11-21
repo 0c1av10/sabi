@@ -40,11 +40,13 @@ def fmt_money(usd: float, rate: float, _eur_rate: float) -> str:
     return f"${_num(usd)} · Bs {_num(bs)}"
 
 
-def menu_text(items: list[MenuItem], rates: tuple[float, float]) -> str:
+def menu_text(items: list[MenuItem], rates: tuple[float, float], details: bool = False) -> str:
     lines = []
     for it in items:
         if it.available:
-            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}")
+            # The model needs what a combo includes ("+ 1 refresco de 1 litro"), not only its price.
+            desc = f" — {it.description}" if details and it.description else ""
+            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}{desc}")
     return "\n".join(lines)
 
 
@@ -122,6 +124,7 @@ Reglas:
 - Si algo no está disponible, ofrece la alternativa más parecida del menú.
 - Nunca presiones, ni inventes promociones o descuentos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
+- Lo que trae cada ítem está en su descripción del menú: si preguntan por algo (un refresco, un acompañante) que no se vende solo pero viene en un combo, di qué combo lo incluye. No afirmes que un ítem trae algo que su descripción no dice.
 - Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
 - Mantén los precios compactos en una sola línea: "$X · Bs Y".
 - Si no sabes algo, di qué dato falta. Nunca ofrezcas ni afirmes pasar la conversación al dueño: no hay un canal humano verificado. No uses action=handoff.
@@ -238,7 +241,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     context = (
         f"\nRestaurante: {restaurant.name}\nHorarios: {restaurant.opening_hours}\n"
         f"{delivery_context(restaurant, rates)}\n"
-        f"Menú disponible hoy:\n{menu_text(items, rates)}\n"
+        f"Menú disponible hoy:\n{menu_text(items, rates, details=True)}\n"
         f"Agotado hoy: {', '.join(sold_out) or 'nada'}\n"
         f"Pedido en curso: {json.dumps(state.get('draft'), ensure_ascii=False)}\n"
         f"Ya ofreciste complemento: {'sí' if state.get('upsell_offered') else 'no'}"
