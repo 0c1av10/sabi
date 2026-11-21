@@ -43,7 +43,8 @@ async def test_seed_is_idempotent_and_keeps_edits(Session, monkeypatch):
     await _seed(Session, monkeypatch)
     async with Session() as s:
         assert (await s.execute(select(func.count()).select_from(Restaurant).where(Restaurant.slug == "bizza"))).scalar_one() == 1
-        assert (await s.execute(select(func.count()).select_from(MenuItem))).scalar_one() == 74 + 12  # + MC Racuchos
+        assert (await s.execute(select(func.count()).select_from(MenuItem).join(Restaurant)
+                                .where(Restaurant.slug == "bizza"))).scalar_one() == 74
         r = (await s.execute(select(Restaurant).where(Restaurant.slug == "bizza"))).scalar_one()
         assert r.owner_phone == "+0000"
         assert 99.0 in [i.price for i in (await s.execute(select(MenuItem).where(MenuItem.restaurant_id == r.id))).scalars()]
@@ -109,12 +110,12 @@ async def test_hola_is_short_and_food_intent_lists_businesses(Session, client, m
 
 
 @pytest.mark.asyncio
-async def test_product_routing_pizza_goes_to_bizza_pastelitos_to_mc(Session, monkeypatch):
+async def test_product_routing_pizza_needs_choice_pastelitos_to_mc(Session, monkeypatch):
     from app.auth import restaurant_for_message
     await _seed(Session, monkeypatch)
     async with Session() as s:
         r, _ = await restaurant_for_message(s, "584140000002", "quiero pizza")
-        assert r and r.slug == "bizza"
+        assert r is None  # Both Bizza and Abruzzo's sell pizza.
         r, _ = await restaurant_for_message(s, "584140000002", "quiero unos pastelitos")
         assert r and r.slug == "mc-racuchos"
         r, _ = await restaurant_for_message(s, "584140000002", "quiero pedir en mcracuchos")

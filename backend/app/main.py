@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_db
-from .known_menus import BIZZA_MENU
+from .known_menus import ABRUZZOS_INFO, ABRUZZOS_MENU, BIZZA_MENU
 from .routers import events, events_admin, panel, pilot_yummy, store, webhook
 
 
@@ -49,6 +49,13 @@ KNOWN_BUSINESSES = [{
     "opening_hours": "",
     "delivery_info": "",
     "menu": BIZZA_MENU,
+}, {
+    "name": "Pizzería Abruzzo's", "slug": "abruzzos",
+    "tagline": "Pizzería italiana contemporánea",
+    "website": "https://www.pizzeriaabruzzos.com/",
+    "opening_hours": "Los horarios dependen de la sucursal; consulta la información de sucursales.",
+    "delivery_info": ABRUZZOS_INFO,
+    "menu": ABRUZZOS_MENU,
 }]
 
 
