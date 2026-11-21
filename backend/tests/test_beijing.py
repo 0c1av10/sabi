@@ -195,3 +195,20 @@ def test_mock_menu_reply_fits_whatsapp(beijing):
     result = run_mock_agent(r, items, Conversation(state_json="{}"), "menu")
     assert len(result.reply) <= 4096
     assert "Combos chinos" in result.reply
+
+
+def test_mock_order_keeps_shorter_dish_ordered_separately():
+    r = Restaurant(name="R", slug="r", pin="x", exchange_rate=100, eur_rate=110)
+    items = [MenuItem(id=1, name="DINAMITA", price=5, category="Maki", available=True),
+             MenuItem(id=2, name="DINAMITA ESPECIAL", price=7, category="Maki", available=True)]
+    result = run_mock_agent(r, items, Conversation(state_json=json.dumps({"upsold": True})),
+                            "quiero 2 dinamita y una dinamita especial")
+    got = {i["name"]: i["quantity"] for i in result.state["draft"]["items"]}
+    assert got == {"DINAMITA": 2, "DINAMITA ESPECIAL": 1}
+
+
+def test_mock_category_request_lists_its_dishes(beijing):
+    r, items = beijing
+    result = run_mock_agent(r, items, Conversation(state_json="{}"), "precios de combos chinos")
+    assert result.reply.startswith("Combos chinos:")
+    assert "ARROZ ESPECIAL Y CHOP SUEY" in result.reply and len(result.reply) <= 4096

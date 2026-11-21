@@ -381,20 +381,22 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
 
     def matched_items() -> list[dict]:
         found = []
-        for name, mi in items_by_name.items():
-            if name in text:
+        remaining = text
+        for name, mi in sorted(items_by_name.items(), key=lambda kv: -len(kv[0])):
+            if name in remaining:
+                scope, remaining = remaining, remaining.replace(name, " ")
                 qty = 1
-                m = re.search(r"(\d+)\s*(?:x|de)?\s*" + re.escape(name), text)
+                m = re.search(r"(\d+)\s*(?:x|de)?\s*" + re.escape(name), scope)
                 if m:
                     qty = int(m.group(1))
                 else:
                     for w, n in _NUM.items():
-                        if re.search(rf"\b{w}\b\s+(?:de\s+)?{re.escape(name)}", text):
+                        if re.search(rf"\b{w}\b\s+(?:de\s+)?{re.escape(name)}", scope):
                             qty = n
                             break
                 found.append({"name": mi.name, "quantity": qty, "extras": "", "notes": ""})
-        names = [f["name"].lower() for f in found]
-        return [f for f in found if not any(f["name"].lower() != n and f["name"].lower() in n for n in names)]
+        order = list(items_by_name)
+        return sorted(found, key=lambda f: order.index(f["name"].lower()))
 
     # stage: awaiting confirmation of the draft
     if state.get("stage") == "confirming":
@@ -430,6 +432,12 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
 
     if re.search(r"\b(hola|buenas|buenos d[ií]as|buenas tardes|buenas noches)\b", text) and not draft["items"]:
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})
+
+    asked_category = next((c for c in sorted({i.category for i in available if i.category}, key=len, reverse=True)
+                           if c.lower() in text), None)
+    if asked_category and not draft["items"] and not any(n in text for n in items_by_name):
+        listing = menu_text([i for i in available if i.category == asked_category], rates)
+        return AgentResult(reply=f"{asked_category}:\n{listing[:MAX_MENU_REPLY]}", state={**state, "draft": draft})
 
     if re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
         menu = menu_text(available, rates_of(restaurant))
