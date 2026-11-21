@@ -8,17 +8,18 @@ from app import concierge, service
 from app.models import Conversation, Customer, MenuItem, Message, Restaurant
 
 
-@pytest.mark.parametrize("followup,expected", [
-    ("combos chinos", "ARROZ ESPECIAL Y CHOP SUEY"),
-    ("¿COMBOS CHINOS?", "ARROZ ESPECIAL Y CHOP SUEY"),
-    ("entradas japonesas", "EBY FUJI"),
-    ("cotidiano deluxe chino", "COTIDIANO DELUXE CHINO"),
+@pytest.mark.parametrize("merchant,followup,expected", [
+    ("beijing", "combos chinos", "ARROZ ESPECIAL Y CHOP SUEY"),
+    ("beijing", "¿COMBOS CHINOS?", "ARROZ ESPECIAL Y CHOP SUEY"),
+    ("beijing", "entradas japonesas", "EBY FUJI"),
+    ("beijing", "cotidiano deluxe chino", "COTIDIANO DELUXE CHINO"),
+    ("bizza", "pizzas", "MARGARITA"),
 ])
-async def test_beijing_menu_followup_stays_with_merchant(Session, client, monkeypatch, followup, expected):
+async def test_menu_followup_stays_with_merchant(Session, client, monkeypatch, merchant, followup, expected):
     from app.main import seed_known_businesses
     await seed_known_businesses()
     monkeypatch.setattr(service, "refresh_rates", AsyncMock())
-    first = await client.post("/webhook/simulate", json={"phone": "111", "text": "menu [sabi:beijing]"})
+    first = await client.post("/webhook/simulate", json={"phone": "111", "text": f"menu [sabi:{merchant}]"})
     assert "categorías" in first.json()["reply"]
     reply = AsyncMock(wraps=concierge.reply)
     monkeypatch.setattr(concierge, "reply", reply)
@@ -29,16 +30,23 @@ async def test_beijing_menu_followup_stays_with_merchant(Session, client, monkey
     async with Session() as db:
         messages = (await db.execute(select(Message.body).join(Conversation).join(
             Restaurant, Conversation.restaurant_id == Restaurant.id).where(
-                Restaurant.slug == "beijing", Message.direction == "inbound"))).scalars().all()
+                Restaurant.slug == merchant, Message.direction == "inbound"))).scalars().all()
         assert followup in messages
 
 
-@pytest.mark.parametrize("followup", ["quiero comida china", "recomiéndame algo chino"])
-async def test_new_cuisine_request_still_reaches_concierge(Session, client, monkeypatch, followup):
+@pytest.mark.parametrize("merchant,followup", [
+    ("beijing", "quiero comida china"),
+    ("beijing", "recomiéndame algo chino"),
+    ("bizza", "recomiéndame comida china con bebidas"),
+    ("bizza", "quiero comida china con bebidas"),
+    ("bizza", "recomiéndame comida china con pizzas"),
+    ("beijing", "recomiéndame comida italiana con bebidas"),
+])
+async def test_new_cuisine_request_still_reaches_concierge(Session, client, monkeypatch, merchant, followup):
     from app.main import seed_known_businesses
     await seed_known_businesses()
     monkeypatch.setattr(service, "refresh_rates", AsyncMock())
-    await client.post("/webhook/simulate", json={"phone": "111", "text": "menu [sabi:beijing]"})
+    await client.post("/webhook/simulate", json={"phone": "111", "text": f"menu [sabi:{merchant}]"})
     reply = AsyncMock(wraps=concierge.reply)
     monkeypatch.setattr(concierge, "reply", reply)
     response = await client.post("/webhook/simulate", json={"phone": "111", "text": followup})
