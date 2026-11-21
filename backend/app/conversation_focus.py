@@ -103,7 +103,8 @@ async def pending_city_answer(db,phone,body):
     from . import concierge
     from .auth import restaurant_by_mention
     text=concierge._plain(candidate)
-    if not _BARE_ANSWER.fullmatch(candidate) or text in _BARE_NOT_CITY:return ''
+    from .venezuela import asks_location
+    if not _BARE_ANSWER.fullmatch(candidate) or text in _BARE_NOT_CITY or asks_location(candidate):return ''
     if concierge.is_greeting(candidate) or concierge.wants_food(candidate):return ''
     if await restaurant_by_mention(db,candidate):return ''
     from .venezuela import canonical

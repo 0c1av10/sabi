@@ -128,7 +128,8 @@ def canonical(value: str) -> str:
 
 
 _WHERE = re.compile(r"\b(?:en\s+)?(?:qu[eé]|cu[aá]l)\s+ciudad\s+(?:queda|est[aá])n?\b|\bd[oó]nde\s+(?:queda|est[aá]|se\s+ubica)n?\b", re.I)
-_SUBJECT_FILLER = {"el", "la", "los", "las", "de", "del", "y", "ese", "esa", "este", "esta", "local", "restaurante", "sede"}
+_SUBJECT_FILLER = {"el", "la", "los", "las", "de", "del", "y", "ese", "esa", "este", "esta", "local", "restaurante", "sede",
+                   "exactamente", "ahora", "entonces", "eso", "me", "sabes", "oye", "por", "favor", "mismo", "dime"}
 
 
 def asks_location(text: str) -> bool:

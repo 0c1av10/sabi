@@ -227,3 +227,12 @@ async def test_greeting_asks_for_unknown_name_then_uses_it(Session, sent):
             "¡Mucho gusto, Ana! Ya me quedo con tu nombre. ¿En qué te ayudo?"
         text, _ = await concierge.reply(db, "Hola", "333")
         assert text.startswith("Hola de nuevo, Ana.")
+
+
+async def test_location_follow_up_keeps_unresolved_place(Session, sent):
+    async with Session() as db:
+        await focus.save(db, "111", domain="place", entity="Pizzería Roma")
+        assert await focus.pending_city_answer(db, "111", "¿Dónde queda exactamente?") == ""
+        assert venezuela.location_subject("¿Dónde queda exactamente?") == ""
+        await webhook._events_route(db, "111", "¿Dónde queda exactamente?")
+        assert (await focus.get(db, "111")).entity == "Pizzería Roma"
