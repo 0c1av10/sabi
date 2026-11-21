@@ -384,7 +384,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         remaining = text
         for name, mi in sorted(items_by_name.items(), key=lambda kv: -len(kv[0])):
             if name in remaining:
-                scope, remaining = remaining, remaining.replace(name, " ")
+                scope, remaining = remaining, remaining.replace(name, " | ")
                 qty = 1
                 m = re.search(r"(\d+)\s*(?:x|de)?\s*" + re.escape(name), scope)
                 if m:

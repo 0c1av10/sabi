@@ -238,3 +238,13 @@ async def test_approval_message_keeps_unknown_delivery_pending(Session, monkeypa
     assert expected in body and absent not in body
     if order_type == "delivery":
         assert "costo por confirmar con el restaurante" in body
+
+
+def test_mock_quantity_does_not_carry_to_next_dish():
+    r = Restaurant(name="R", slug="r", pin="x", exchange_rate=100, eur_rate=110)
+    items = [MenuItem(id=1, name="CALIFORNIA ROLL", price=8, category="Maki", available=True),
+             MenuItem(id=2, name="TUNA ROLL", price=9, category="Maki", available=True)]
+    result = run_mock_agent(r, items, Conversation(state_json=json.dumps({"upsold": True})),
+                            "2 california roll\ntuna roll")
+    got = {i["name"]: i["quantity"] for i in result.state["draft"]["items"]}
+    assert got == {"CALIFORNIA ROLL": 2, "TUNA ROLL": 1}
