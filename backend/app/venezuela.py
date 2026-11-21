@@ -127,8 +127,8 @@ def canonical(value: str) -> str:
     return city.name if city else value
 
 
-_WHERE = re.compile(r"\b(?:en\s+)?(?:qu[eé]|cu[aá]l)\s+ciudad\s+(?:queda|est[aá])n?\b|\bd[oó]nde\s+(?:queda|est[aá]|se\s+ubica)n?\b", re.I)
-_SUBJECT_FILLER = {"el", "la", "los", "las", "de", "del", "y", "ese", "esa", "este", "esta", "local", "restaurante", "sede",
+_WHERE = re.compile(r"\b(?:en\s+)?(?:qu[eé]|cu[aá]l)\s+ciudad\s+(?:queda|est[aá]|es|son|se\s+encuentra)n?\b|\bd[oó]nde\s+(?:queda|est[aá]|se\s+ubica|se\s+encuentra)n?\b", re.I)
+_SUBJECT_FILLER = {"el", "la", "los", "las", "de", "del", "y", "ese", "esa", "eso", "esos", "esas", "este", "esta", "esto", "estos", "estas", "local", "restaurante", "sede",
                    "exactamente", "ahora", "entonces", "eso", "me", "sabes", "oye", "por", "favor", "mismo", "dime"}
 
 

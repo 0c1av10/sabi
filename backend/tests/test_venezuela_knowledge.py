@@ -420,3 +420,95 @@ async def test_reply_naming_a_business_overrides_the_switch_offer(Session, sent)
             assert restaurant is None and text.startswith("¿Lo pedimos en *Bizza*"), reply
             restaurant, _, _ = await webhook._resolve(db, phone, "Bizza")
             assert restaurant and restaurant.slug == "bizza", reply
+
+
+async def test_owner_chat_city_question_and_fee_after_city_list(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="general", entity="pending_recommendation_domain", city="Lechería")
+        assert "NACIONAL Restaurante" in await venezuela.local_options(db, "Lechería", "111")
+        assert focus.declared_city("En qué ciudad es esto") == ""
+        reply = await webhook._events_route(db, "111", "En qué ciudad es esto")
+        assert reply.startswith("NACIONAL Restaurante hace delivery") and "Barcelona" in reply
+        reply = await webhook._events_route(db, "111", "Y cuánto sale a Barcelona ?")
+        assert reply == "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        reply = await webhook._events_route(db, "111", "¿Cuánto cuesta el delivery a Caracas?")
+        assert reply == "NACIONAL Restaurante no hace delivery a Caracas."
+
+
+async def test_question_saved_as_city_is_ignored(Session, sent):
+    async with Session() as db:
+        await focus.save(db, "111", domain="place", entity="", city="qué ciudad es esto")
+        assert await focus.get(db, "111") is None
+
+
+@pytest.mark.asyncio
+async def test_product_price_question_is_not_a_delivery_fee(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante")
+        assert await focus.fee_reply(db, "111", "¿Cuánto cuesta una pizza en Barcelona?") is None
+        assert await focus.fee_reply(db, "111", "¿Cuánto cuesta el delivery a Barcelona?") == (
+            "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        )
+
+
+@pytest.mark.asyncio
+async def test_fee_without_zones_uses_flat_fee_not_a_refusal(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        db.add(Restaurant(name="Arepera Plana", slug="plana", pin="0000", delivery_fee=1.5))
+        await db.commit()
+        await focus.save(db, "111", domain="restaurant", entity="Arepera Plana")
+        reply = await focus.fee_reply(db, "111", "¿Cuánto cuesta el delivery a Barcelona?")
+        assert reply == "El delivery de Arepera Plana cuesta $1,50; el local confirma si llega a Barcelona."
+        await focus.save(db, "111", domain="restaurant", entity="MC Racuchos")
+        reply = await focus.fee_reply(db, "111", "¿Cuánto cuesta el delivery a Barcelona?")
+        assert "no hace delivery" not in reply and "lo confirma el local" in reply
+
+
+@pytest.mark.asyncio
+async def test_unresolved_place_fee_question_ignores_older_list(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="general", entity="pending_recommendation_domain", city="Lechería")
+        await venezuela.local_options(db, "Lechería", "111")
+        await focus.save(db, "111", domain="place", entity="Pizzería Roma", city="")
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery a Barcelona?") is None
+
+
+@pytest.mark.asyncio
+async def test_fee_question_naming_the_business(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery de NACIONAL a Barcelona?") == (
+            "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        )
+        assert await focus.fee_reply(db, "111", "¿Cuánto cuesta una pizza de NACIONAL en Barcelona?") is None
+
+
+@pytest.mark.asyncio
+async def test_fee_question_unknown_business_and_origin_city(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante")
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery de Pizzería Roma a Barcelona?") is None
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery de NACIONAL en Lechería a Barcelona?") == (
+            "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        )
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery a Barcelona en la noche?") == (
+            "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        )
+
+
+@pytest.mark.asyncio
+async def test_fee_question_origin_city_is_not_destination_or_business(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante")
+        expected = "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale a Barcelona si el local está en Lechería?") == expected
+        assert await focus.fee_reply(db, "111", "¿Cuánto sale el delivery de Lechería a Barcelona?") == expected
+        assert await focus.fee_reply(db, "111", "¿Cuánto cuesta el delivery en Lechería?") == (
+            "El delivery de NACIONAL Restaurante a Lechería cuesta $2,00."
+        )

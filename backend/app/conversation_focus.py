@@ -84,6 +84,7 @@ def declared_city(body):
     from .venezuela import canonical, find_city
     # A known city ("Puerto La Cruz") is a city even when it contains a stop word.
     if find_city(value):return canonical(value)
+    if re.match(r'(?:que|cual|donde|como|cuanto)\b',_plain(value)):return ''
     if len(value.split())>4 or re.search(r'\b(mensajes?|partes?|lineas?|palabras?|tabla|lista|resumen|detalle|ingles|espanol|pizzas?|restaurante|local|delivery|pedido|mi|la|el|casa|trabajo|oficina|tres|dos|mejor)\b',_plain(value)):return ''
     return value
 
@@ -122,10 +123,81 @@ async def location_reply(db,phone,body):
     if location_subject(body):return None
     active=await get(db,phone)
     entity=active.entity if active and active.domain in ('place','restaurant') else ''
-    if not entity:return None
+    if not entity:
+        # "¿En qué ciudad es esto?" right after Sabi listed businesses asks about that list.
+        listed=await _listed_businesses(db,phone)
+        return '\n'.join(where_reply(r) for r in listed) if listed else None
     restaurant=await restaurant_by_mention(db,entity)
     if restaurant:return where_reply(restaurant)
     return f'No tengo verificada la ubicación de {entity}. Si tienes su enlace oficial, pásamelo para revisarla.'
+
+
+async def _listed_businesses(db,phone):
+    """The businesses Sabi just offered ("recomendación de locales: A, B"), in that order."""
+    from . import memory
+    from .auth import restaurant_by_mention
+    contact=await memory.get(db,phone)
+    m=re.search(r'recomendación de locales: ([^)]*)',(contact.last_topic if contact else '') or '')
+    out=[]
+    for name in (m[1].split(',') if m else []):
+        r=await restaurant_by_mention(db,name.strip())
+        if r and r not in out:out.append(r)
+    return out
+
+
+# Only filler (or "delivery de <local>") between the price word and the city, so "¿cuánto cuesta una pizza en Barcelona?" is a product question.
+_FEE_FILLER=r'(?:\s+(?:me|te|le|nos|sale|saldria|cuesta|costaria|cobran|es|seria|esta|el|la|del|de))*'
+_FEE_ASK=re.compile(r'\b(?:cuanto|precio|costo|tarifa)\b'+_FEE_FILLER+
+                    r'(?:\s+(?:delivery|envio|domicilio|despacho)(?:\s+(?:de|del)\s+(?P<biz>.+?))?)?'
+                    r'\s+(?=(?:a|para|hasta|hacia|en)\s)')
+_FEE_PREP=re.compile(r'(?:^|\s)(?:a|para|hasta|hacia|en)\s+')
+
+
+async def fee_reply(db,phone,body):
+    """"¿Y cuánto sale a Barcelona?" gets the delivery fee of the business in the conversation (or of
+    the ones Sabi just listed) to that city, only from each business's own delivery zones."""
+    from .auth import restaurant_by_mention
+    from .delivery import zones_of
+    from .venezuela import _fee, find_city, local_options, plain
+    text=plain(body)
+    m=_FEE_ASK.search(text)
+    if not m or re.search(r'\b(?:viaje|carrera|taxi|ride|yummy|entradas?|boletos?|pasaje)\b',text):return None
+    rest=text[m.end():]
+    city=biz=None
+    # The destination is the first city after "a/para/hasta/hacia"; "en <city>" only when none
+    # ("de NACIONAL en Lechería a Barcelona" and "a Barcelona si está en Lechería" are to Barcelona).
+    for p in sorted(_FEE_PREP.finditer(rest),key=lambda p:p[0].split()[0]=='en'):
+        words=rest[p.end():].split()
+        c=next((c for n in range(len(words),0,-1) if (c:=find_city(' '.join(words[:n])))),None)
+        if c:
+            city,biz=c,(f"{m['biz']} {rest[:p.start()]}".strip() if m['biz'] else None)
+            break
+    if not city:return None
+    # "delivery de Lechería a Barcelona" names an origin city, not a business.
+    if biz and find_city(biz):biz=None
+    active=await get(db,phone)
+    if active and active.domain in ('shopping','cinema','gym','events'):return None
+    named=await restaurant_by_mention(db,biz or body)
+    # A business we don't know must not get the fee of the one in focus.
+    if biz and not named:return None
+    if not named and active and active.domain in ('restaurant','place') and active.entity:
+        named=await restaurant_by_mention(db,active.entity)
+        # An unresolved place is the subject now; an older business list must not answer for it.
+        if not named:return None
+    businesses=[named] if named else await _listed_businesses(db,phone)
+    if not businesses:return await local_options(db,city.name,phone) or None
+    lines=[]
+    for r in businesses:
+        zones=zones_of(r)
+        zone=next((z for z in zones if find_city(z['name'])==city),None)
+        if not zones:
+            if r.delivery_fee is None:lines.append(f'El costo de delivery de {r.name} a {city.name} lo confirma el local al aprobar el pedido.')
+            elif r.delivery_fee:lines.append(f'El delivery de {r.name} cuesta {_fee(r.delivery_fee)}; el local confirma si llega a {city.name}.')
+            else:lines.append(f'El delivery de {r.name} es sin costo; el local confirma si llega a {city.name}.')
+        elif not zone:lines.append(f'{r.name} no hace delivery a {city.name}.')
+        elif zone['fee']:lines.append(f'El delivery de {r.name} a {city.name} cuesta {_fee(zone["fee"])}.')
+        else:lines.append(f'El delivery de {r.name} a {city.name} es sin costo.')
+    return '\n'.join(lines)
 
 
 async def city_reply(db,phone,body):
