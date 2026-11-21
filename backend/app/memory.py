@@ -116,8 +116,9 @@ def bare_name(body: str) -> str:
     words = re.findall(r"[a-z]+", _plain(body))
     if not words or words[0] not in FIRST_NAMES:
         return ""
-    from .venezuela import cities_in
-    if cities_in(body):  # "Juan Griego", "San Juan de los Morros"
+    from .venezuela import find_city
+    # The whole reply is a city ("Juan Griego"); a surname that is also a city ("Ana Valencia") is fine.
+    if find_city(body):
         return ""
     return extract_name("Me llamo " + body.strip(" .!¡"))
 

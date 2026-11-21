@@ -297,3 +297,9 @@ async def test_introduction_with_a_question_still_gets_its_answer(Session, sent)
         assert not (reply or "").startswith("¡Mucho gusto")
         contact = await memory.get(db, "111")
         assert contact.name == "Ana" and not memory.name_pending(contact)
+
+
+@pytest.mark.parametrize("reply", ["Margarita Pérez", "Ana Valencia", "Carlos Maturín"])
+def test_name_containing_a_city_word_is_still_a_name(reply):
+    from app import memory
+    assert memory.bare_name(reply) == reply
