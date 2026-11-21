@@ -262,3 +262,9 @@ async def test_name_prompt_keeps_the_interrupted_topic(Session, sent, answer, na
         assert contact.name == name and not memory.name_pending(contact)
         if name:
             assert contact.last_topic == "cine"
+
+
+def test_name_request_with_an_order_is_left_to_the_order():
+    from app import memory
+    assert memory.name_reply(None, "Llámame por mi nombre y quiero pedir en NACIONAL Restaurante") == ""
+    assert memory.name_reply(None, "Hola Sabi, ¿cómo me llamo?") == "Aún no sé tu nombre. ¿Cómo te llamas?"

@@ -81,6 +81,7 @@ _ASKS_NAME = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes (?:como me 
                         r"(?:llamame|tratame|adresame|dirigete a mi|hablame) (?:por|con) mi nombre)\b")
 _ASKS_WHICH = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes)\b")
 NAME_PENDING = "nombre pendiente"
+_NAME_FILLER = {"por", "favor", "porfa", "sabi", "hola", "oye", "y", "ok", "dale", "ahora", "desde", "siempre", "tu"}
 
 
 def name_pending(contact: "Contact | None") -> bool:
@@ -102,6 +103,9 @@ def name_reply(contact: "Contact | None", body: str) -> str:
     """Answers "¿Cómo me llamo?" / "Llámame por mi nombre" from memory; '' for anything else."""
     text = _plain(body)
     if not _ASKS_NAME.search(text):
+        return ""
+    # "Llámame por mi nombre y quiero pedir en NACIONAL" is an order too: leave it to the order routes.
+    if any(w not in _NAME_FILLER for w in re.findall(r"[a-z]+", _ASKS_NAME.sub(" ", text))):
         return ""
     name = display_name(contact.name if contact else None)
     if not name:
