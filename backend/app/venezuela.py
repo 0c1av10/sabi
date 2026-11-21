@@ -54,7 +54,10 @@ CITIES = (
     City("Anaco", "Anzoátegui"),
     City("Puerto Píritu", "Anzoátegui", ("pto piritu",)),
     # Other frequently named cities.
-    City("Ciudad Guayana", "Bolívar", ("puerto ordaz", "pto ordaz", "san felix", "san félix", "guayana")),
+    # Puerto Ordaz and San Félix are separate delivery areas; "Ciudad Guayana" names neither.
+    City("Ciudad Guayana", "Bolívar", ("guayana",)),
+    City("Puerto Ordaz", "Bolívar", ("pto ordaz",)),
+    City("San Félix", "Bolívar"),
     City("Upata", "Bolívar"),
     City("Puerto Cabello", "Carabobo", ("pto cabello",)),
     City("Naguanagua", "Carabobo"),
@@ -100,7 +103,8 @@ _INDEX: dict[str, City] = {}
 for _city in CITIES:
     for _key in (_city.name, *_city.aliases):
         _INDEX.setdefault(plain(_key), _city)
-_PREFIX = re.compile(r"^(?:la ciudad de|ciudad de|el centro de|centro de)\s+")
+# "Centro de X" is a downtown zone, not all of X, so it is never read as the whole city.
+_PREFIX = re.compile(r"^(?:la ciudad de|ciudad de)\s+")
 _SCAN = re.compile(r"(?<![a-z0-9])(" + "|".join(sorted(map(re.escape, _INDEX), key=len, reverse=True)) + r")(?![a-z0-9])")
 
 

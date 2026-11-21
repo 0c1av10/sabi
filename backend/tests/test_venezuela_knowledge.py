@@ -36,7 +36,7 @@ def sent(monkeypatch):
     ("lecheria", "Lechería", "Anzoátegui"), ("Lechería", "Lechería", "Anzoátegui"),
     ("PLC", "Puerto La Cruz", "Anzoátegui"), ("pto la cruz", "Puerto La Cruz", "Anzoátegui"),
     ("ccs", "Caracas", "Distrito Capital"), ("Caracas, Venezuela", "Caracas", "Distrito Capital"),
-    ("bqto", "Barquisimeto", "Lara"), ("Puerto Ordaz", "Ciudad Guayana", "Bolívar"),
+    ("bqto", "Barquisimeto", "Lara"), ("Pto Ordaz", "Puerto Ordaz", "Bolívar"),
     ("maturin", "Maturín", "Monagas"), ("la ciudad de Mérida", "Mérida", "Mérida"),
     ("margarita", "Isla de Margarita", "Nueva Esparta"), ("MCBO", "Maracaibo", "Zulia"),
 ])
@@ -53,7 +53,8 @@ def test_every_state_has_its_capital():
         assert venezuela.find_city(capital)
 
 
-@pytest.mark.parametrize("text", ["pizza", "mi casa", "tres mensajes", "Acme", "Lechería del Este"])
+@pytest.mark.parametrize("text", ["pizza", "mi casa", "tres mensajes", "Acme", "Lechería del Este",
+                                  "Centro de Lechería"])
 def test_unknown_text_is_not_a_city(text):
     assert venezuela.find_city(text) is None
     assert venezuela.canonical(text) == text
@@ -65,6 +66,14 @@ def test_delivery_zone_written_another_way():
     assert delivery.find_zone(zones, "Av. Principal de lecheria, edificio Mar Azul")["name"] == "Lechería"
     assert delivery.find_zone(zones, "Delivery a pto la cruz")["fee"] == 4.0
     assert delivery.find_zone(zones, "Caracas") is None
+
+
+def test_partial_and_neighboring_zones_stay_their_own_area():
+    zones = delivery.load_zones(json.dumps([{"name": "Centro de Lechería", "fee": 1.0},
+                                            {"name": "Puerto Ordaz", "fee": 2.0}]))
+    assert delivery.find_zone(zones, "Lechería, Av. Principal") is None
+    assert delivery.find_zone(zones, "San Félix") is None
+    assert delivery.find_zone(zones, "pto ordaz")["name"] == "Puerto Ordaz"
 
 
 # Real conversation (2026-11-20): "En lechería que me recomiendas" → "comida".
