@@ -185,6 +185,5 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
     if phone and not (contact and contact.name):
         # Without a name Sabi asks for it, so every later greeting can use it.
         await memory.ask_name(db, phone)
-        return ("Hola de nuevo." if returning else "¡Hola! 👋 Soy Sabi.") + \
-            " ¿Cómo te llamas? Así te hablo por tu nombre.", True
+        return ("Hola de nuevo." if returning else "¡Hola! 👋 Soy Sabi.") + " " + memory.ASK_NAME, True
     return await _hello(db, name, returning), True

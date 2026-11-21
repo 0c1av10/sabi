@@ -209,26 +209,6 @@ async def test_question_saved_as_city_is_dropped(Session, sent):
         assert "qué ciudad queda" not in (text or "")
 
 
-async def test_name_questions_use_memory(Session, sent):
-    async with Session() as db:
-        await focus.save(db, "111", domain="place", entity="NACIONAL Restaurante", city="Lechería")
-        assert await webhook._events_route(db, "111", "Como me llamo") == "Aún no sé tu nombre. ¿Cómo te llamas?"
-        assert await webhook._events_route(db, "111", "Octavio") == \
-            "¡Mucho gusto, Octavio! Ya me quedo con tu nombre. ¿En qué te ayudo?"
-        assert await webhook._events_route(db, "111", "¿Cómo me llamo?") == "Te llamas Octavio. ¿En qué te ayudo?"
-        assert await webhook._events_route(db, "111", "Adresame con mi nombre") == "Claro, Octavio. ¿En qué te ayudo?"
-
-
-async def test_greeting_asks_for_unknown_name_then_uses_it(Session, sent):
-    async with Session() as db:
-        text, _ = await concierge.reply(db, "Hola", "333")
-        assert text == "¡Hola! 👋 Soy Sabi. ¿Cómo te llamas? Así te hablo por tu nombre."
-        assert await webhook._events_route(db, "333", "Ana María") == \
-            "¡Mucho gusto, Ana! Ya me quedo con tu nombre. ¿En qué te ayudo?"
-        text, _ = await concierge.reply(db, "Hola", "333")
-        assert text.startswith("Hola de nuevo, Ana.")
-
-
 async def test_location_follow_up_keeps_unresolved_place(Session, sent):
     async with Session() as db:
         await focus.save(db, "111", domain="place", entity="Pizzería Roma")
@@ -238,36 +218,10 @@ async def test_location_follow_up_keeps_unresolved_place(Session, sent):
         assert (await focus.get(db, "111")).entity == "Pizzería Roma"
 
 
-@pytest.mark.parametrize("answer", ["Boxeo", "cine"])
-async def test_service_request_after_name_prompt_is_not_a_name(Session, sent, answer):
-    from app import memory
-    async with Session() as db:
-        await webhook._events_route(db, "111", "Como me llamo")
-        await webhook._events_route(db, "111", answer)
-        assert not (await memory.get(db, "111")).name
-
-
-@pytest.mark.parametrize("answer,name", [("Octavio", "Octavio"), ("Mañana", None)])
-async def test_name_prompt_keeps_the_interrupted_topic(Session, sent, answer, name):
-    from app import memory
-    async with Session() as db:
-        await memory.note(db, "111", topic="cine")
-        await webhook._events_route(db, "111", "Como me llamo")
-        assert memory.name_pending(await memory.get(db, "111"))
-        await memory.end_name_prompt(db, "111", await memory.get(db, "111"))
-        assert (await memory.get(db, "111")).last_topic == "cine"
-        await memory.ask_name(db, "111")
-        await webhook._events_route(db, "111", answer)
-        contact = await memory.get(db, "111")
-        assert contact.name == name and not memory.name_pending(contact)
-        if name:
-            assert contact.last_topic == "cine"
-
-
 def test_name_request_with_an_order_is_left_to_the_order():
     from app import memory
     assert memory.name_reply(None, "Llámame por mi nombre y quiero pedir en NACIONAL Restaurante") == ""
-    assert memory.name_reply(None, "Hola Sabi, ¿cómo me llamo?") == "Aún no sé tu nombre. ¿Cómo te llamas?"
+    assert memory.name_reply(None, "Hola Sabi, ¿cómo me llamo?") == "Aún no sé tu nombre. ¿Cómo te llamas? Así te hablo por tu nombre."
 
 
 def test_name_question_variants_are_answered():
@@ -277,44 +231,52 @@ def test_name_question_variants_are_answered():
     assert memory.name_reply(contact, "¿Recuerdas cómo me llamo?") == "Te llamas Octavio. ¿En qué te ayudo?"
 
 
-async def test_surname_matching_a_gym_keyword_is_still_a_name(Session, sent):
+
+
+ASK = "¿Cómo te llamas? Así te hablo por tu nombre."
+
+
+@pytest.mark.parametrize("reply", ["Boxeo", "Reservar cupo", "¿Quedan cupos?", "Quedan cupos", "Cupo", "cine",
+                                   "Lechería", "comida", "Mañana", "NACIONAL Restaurante", "Hola", "Ok"])
+async def test_reply_to_name_prompt_that_is_not_a_name(Session, sent, reply):
     from app import memory
     async with Session() as db:
-        await webhook._events_route(db, "111", "Como me llamo")
-        assert await webhook._events_route(db, "111", "Ana Rondón") == \
-            "¡Mucho gusto, Ana! Ya me quedo con tu nombre. ¿En qué te ayudo?"
-        assert (await memory.get(db, "111")).name == "Ana Rondón"
+        await memory.note(db, "111", topic="cine")
+        assert await webhook._events_route(db, "111", "Como me llamo") == "Aún no sé tu nombre. " + ASK
+        await webhook._events_route(db, "111", reply)
+        contact = await memory.get(db, "111")
+        assert not contact.name and not memory.name_pending(contact)
 
 
-async def test_name_prompt_leaves_boxing_requests_and_signup_to_the_gym(Session, sent):
-    from app import gym_whatsapp, memory
+@pytest.mark.parametrize("reply,name", [("Octavio", "Octavio"), ("ana maría", "Ana María"),
+                                        ("Ana Cupo", "Ana Cupo"), ("Ana Rondón", "Ana Rondón"),
+                                        ("Me llamo Yulimar", "Yulimar"), ("Soy Deivis", "Deivis")])
+async def test_reply_to_name_prompt_that_is_a_name(Session, sent, reply, name):
+    from app import memory
     async with Session() as db:
+        await memory.note(db, "111", topic="cine")
         await webhook._events_route(db, "111", "Como me llamo")
-        await webhook._events_route(db, "111", "Reservar cupo")
-        assert not (await memory.get(db, "111")).name
-        session, _ = await gym_whatsapp._state(db, "222")
+        first = name.split()[0]
+        assert await webhook._events_route(db, "111", reply) == \
+            f"¡Mucho gusto, {first}! Ya me quedo con tu nombre. ¿En qué te ayudo?"
+        contact = await memory.get(db, "111")
+        assert contact.name == name and contact.last_topic == "cine"
+        assert await webhook._events_route(db, "111", "¿Cómo me llamo?") == f"Te llamas {first}. ¿En qué te ayudo?"
+        assert await webhook._events_route(db, "111", "Adresame con mi nombre") == f"Claro, {first}. ¿En qué te ayudo?"
+
+
+async def test_greeting_asks_for_unknown_name_then_uses_it(Session, sent):
+    async with Session() as db:
+        text, _ = await concierge.reply(db, "Hola", "333")
+        assert text == "¡Hola! 👋 Soy Sabi. " + ASK
+        await webhook._events_route(db, "333", "Ana María")
+        text, _ = await concierge.reply(db, "Hola", "333")
+        assert text.startswith("Hola de nuevo, Ana.")
+
+
+async def test_gym_signup_keeps_its_own_name_step(Session, sent):
+    from app import gym_whatsapp
+    async with Session() as db:
         await gym_whatsapp.reply_for(db, "222", "Quiero una clase de boxeo")
-        assert (await gym_whatsapp._state(db, "222"))[1].get("step") == "name"
-        await memory.ask_name(db, "222")
         await webhook._events_route(db, "222", "Ana")
         assert (await gym_whatsapp._state(db, "222"))[1].get("step") != "name"
-
-
-async def test_cupo_surname_is_still_a_name(Session, sent):
-    from app import memory
-    async with Session() as db:
-        await webhook._events_route(db, "111", "Como me llamo")
-        await webhook._events_route(db, "111", "Ana Cupo")
-        assert (await memory.get(db, "111")).name == "Ana Cupo"
-        await memory.ask_name(db, "222")
-        await webhook._events_route(db, "222", "Un cupo")
-        assert not (await memory.get(db, "222")).name
-
-
-@pytest.mark.parametrize("answer", ["Quedan cupos?", "¿Hay mesas?", "Quedan cupos"])
-async def test_question_after_name_prompt_is_not_a_name(Session, sent, answer):
-    from app import memory
-    async with Session() as db:
-        await memory.ask_name(db, "111")
-        await webhook._events_route(db, "111", answer)
-        assert not (await memory.get(db, "111")).name

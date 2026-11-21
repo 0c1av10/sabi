@@ -161,24 +161,19 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     # During a gym signup the booking flow owns the name question and its answer.
     _,gym_state=await gym_whatsapp._state(db,phone)
     gym_step=bool(gym_state.get('step'))
-    if memory.name_pending(contact) and contact.name_source!='user' and not gym_step:
-        # Sabi just asked "¿Cómo te llamas?": a bare short reply is the name.
-        # A question ("¿Quedan cupos?") is never a name.
-        said=memory.extract_name('Me llamo '+body) if len(body.split())<=3 and '?' not in body else ''
-        if said and (concierge.is_greeting(body) or concierge.wants_food(body) or any(concierge.cuisine_request(body))
-                     or venezuela.find_city(body) or await restaurant_by_mention(db,body)
-                     or explicit_cinema(body)
-                     or re.search(r'\b(?:boxeo|boxear|gimnasio|gym|clases?|entrenar|entrenamiento|reservar|(?:un|hay|el|mi|quedan|tienen|tienes) cupos?)\b',concierge._plain(body))):said=''
-        # Only the reply right after the question can be a bare name.
+    said=''
+    if memory.name_pending(contact) and not gym_step:
+        # Only the reply right after "¿Cómo te llamas?" can be a bare name, and only a known first name.
         await memory.end_name_prompt(db,phone,contact)
-        if said:
-            await memory.set_name(db,phone,said)
-            reply=f'¡Mucho gusto, {memory.display_name(said)}! Ya me quedo con tu nombre. ¿En qué te ayudo?'
-            await send_whatsapp_message(phone,reply)
-            return reply
+        said=memory.bare_name(body) or (memory.extract_name(body) if len(body.split())<=4 else '')
+        if said:await memory.set_name(db,phone,said)
+    if said:
+        reply=f'¡Mucho gusto, {memory.display_name(said)}! Ya me quedo con tu nombre. ¿En qué te ayudo?'
+        await send_whatsapp_message(phone,reply)
+        return reply
     name_reply='' if gym_step else memory.name_reply(contact,body)
     if name_reply:
-        if 'Cómo te llamas' in name_reply:await memory.ask_name(db,phone)
+        if name_reply.endswith(memory.ASK_NAME):await memory.ask_name(db,phone)
         await send_whatsapp_message(phone,name_reply)
         return name_reply
     # A new explicit domain outranks both unresolved-place and sticky sessions.
