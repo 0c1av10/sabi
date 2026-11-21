@@ -361,3 +361,19 @@ async def test_greeting_asks_when_the_saved_name_is_not_usable(Session, sent):
         await db.commit()
         text, _ = await concierge.reply(db, "Hola", "111")
         assert text == "Hola de nuevo. " + memory.ASK_NAME
+
+
+async def test_long_request_is_never_forwarded_cut(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        await _catalog(db)
+        db.add(Restaurant(name="Bizza", slug="bizza", pin="0000"))
+        await db.flush()
+        bizza = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "bizza"))).first()
+        db.add(MenuItem(restaurant_id=bizza.id, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        await memory.set_topic(db, "222", "tu pedido en NACIONAL Restaurante")
+        long = "Tiene refresco de 1 litro bien frío para retirar mañana a las 7 de la noche en la sede de Lechería"
+        await webhook._resolve(db, "222", long)
+        restaurant, routed, _ = await webhook._resolve(db, "222", "Sí")
+        assert restaurant.slug == "bizza" and routed == "Sí"

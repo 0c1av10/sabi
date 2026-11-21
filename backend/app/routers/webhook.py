@@ -92,8 +92,10 @@ async def _silent_business_switch(db,phone,body,restaurant):
                  key=lambda r:len(r.name),default=None)
     if not previous:return ''
     if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
-    # Both businesses and the request are kept so the answer can pick one without repeating it.
-    await memory.set_topic(db,phone,f'{_SWITCH}{restaurant.id}>{previous.id}|{body}'[:80])
+    # Both businesses are kept so the answer can pick one, and the request too when it fits whole:
+    # a cut request (missing a time or an instruction) is never forwarded, the customer says it again.
+    pending=f'{_SWITCH}{restaurant.id}>{previous.id}|'
+    await memory.set_topic(db,phone,pending+(body if len(pending+body)<=80 else ''))
     return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous.name}?'
 
 
@@ -105,7 +107,7 @@ async def _switch_answer(db,phone,body):
     offered,previous,asked=await db.get(Restaurant,int(m[1])),await db.get(Restaurant,int(m[2])),m[3]
     if offered and _YES.match(body):
         # A bare "Sí" carries the original request ("Tiene refresco") to the business offered.
-        return offered,(body if re.search(r'\w{3,}',_YES.sub('',body,count=1)) else asked)
+        return offered,(body if not asked or re.search(r'\w{3,}',_YES.sub('',body,count=1)) else asked)
     if previous:
         await memory.set_topic(db,phone,f'tu pedido en {previous.name}')
         if _NO.match(body):return previous,body
