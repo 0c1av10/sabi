@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .db import init_db
 from .known_menus import BIZZA_MENU
+from .oura_menu import OURA_MENU
 from .routers import events, events_admin, panel, pilot_yummy, store, webhook
 
 
@@ -49,12 +50,31 @@ KNOWN_BUSINESSES = [{
     "opening_hours": "",
     "delivery_info": "",
     "menu": BIZZA_MENU,
+}, {
+    "name": "OURA", "slug": "oura", "currency": "EUR",
+    "tagline": "Para ser y estar · Av. Diego Bautista Urbaneja, frente a Playa Lido · Lechería, Anzoátegui"
+               " · WhatsApp del local: +58 424-833-2553 · Precios incluyen IVA · No incluyen el 10% de servicio.",
+    "website": "https://ourarest.netlify.app/",
+    "email": "hola@ourarest.com",
+    "logo_url": "https://ourarest.netlify.app/logos/oura-v-clay.png",
+    "brand_color": "#1B2625",
+    "opening_hours": "Lunes — Jueves 12:00 — 23:00; Viernes — Sábado 12:00 — 01:00; Domingo 12:00 — 22:00",
+    "delivery_info": "Lechería · Zona 1: Casco central, calle Arismendi, hasta Plaza Mayor, hasta R16\n"
+                     "Lechería · Zona 2: Casa Bote, Las Villas, Las Garzas, Colinas del Neverí, Cerro El Morro",
+    "delivery_zones": [
+        {"name": "Lechería · Zona 1", "fee": 2.50},
+        {"name": "Lechería · Zona 2", "fee": 3.50},
+        {"name": "Barcelona", "fee": 4.00},
+        {"name": "Puerto La Cruz", "fee": 4.00},
+    ],
+    "menu": OURA_MENU,
 }]
 
 
 async def seed_known_businesses() -> None:
     import secrets
     from sqlalchemy import select
+    from . import delivery
     from .db import SessionLocal
     from .models import MenuItem, Restaurant
     async with SessionLocal() as session:
@@ -64,7 +84,9 @@ async def seed_known_businesses() -> None:
             r = Restaurant(
                 name=b["name"], slug=b["slug"], pin=f"{secrets.randbelow(10000):04d}", owner_phone="",
                 tagline=b["tagline"], website=b["website"], opening_hours=b["opening_hours"],
-                delivery_info=b["delivery_info"],
+                email=b.get("email", ""), logo_url=b.get("logo_url", ""), brand_color=b.get("brand_color", ""),
+                currency=b.get("currency", "USD"), delivery_info=b["delivery_info"],
+                delivery_zones=delivery.dump_zones(b["delivery_zones"]) if b.get("delivery_zones") else "",
                 welcome_message=f"¡Hola! 👋 Soy Sabi, te ayudo con tu pedido en *{b['name']}*. ¿Qué te provoca hoy?")
             session.add(r)
             await session.flush()

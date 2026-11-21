@@ -31,24 +31,30 @@ def _num(value: float) -> str:
     return f"{value:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
 
 
-def rates_of(restaurant: Restaurant) -> tuple[float, float]:
-    return restaurant.exchange_rate, restaurant.eur_rate
+def rates_of(restaurant: Restaurant) -> tuple[float, float, str]:
+    return restaurant.exchange_rate, restaurant.eur_rate, restaurant.currency
 
 
-def fmt_money(usd: float, rate: float, _eur_rate: float) -> str:
-    bs = usd * rate
-    return f"${_num(usd)} · Bs {_num(bs)}"
+def fmt_money(amount: float, rate: float, _eur_rate: float, currency: str = "USD") -> str:
+    if currency == "EUR":
+        return f"€{_num(amount)}"
+    return f"${_num(amount)} · Bs {_num(amount * rate)}"
 
 
-def menu_text(items: list[MenuItem], rates: tuple[float, float]) -> str:
+def menu_text(items: list[MenuItem], rates: tuple[float, float, str], *, descriptions: bool = True) -> str:
     lines = []
     for it in items:
         if it.available:
-            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}")
+            line = f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}"
+            if descriptions and it.description:
+                desc = " ".join(it.description.split())
+                if desc:
+                    line += f" — {desc[:240]}" + ("…" if len(desc) > 240 else "")
+            lines.append(line)
     return "\n".join(lines)
 
 
-def delivery_context(restaurant: Restaurant, rates: tuple[float, float]) -> str:
+def delivery_context(restaurant: Restaurant, rates: tuple[float, float, str]) -> str:
     return delivery.describe(restaurant, lambda v: fmt_money(v, *rates))
 
 
@@ -56,7 +62,7 @@ def delivery_fee_for(restaurant: Restaurant, order: dict) -> float:
     return delivery.fee_for(restaurant, order.get("order_type"), order.get("delivery_zone") or "")
 
 
-def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float],
+def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float, str],
                     delivery_fee: float = 0.0) -> tuple[str, float]:
     total = 0.0
     lines = []
@@ -122,8 +128,7 @@ Reglas:
 - Si algo no está disponible, ofrece la alternativa más parecida del menú.
 - Nunca presiones, ni inventes promociones o descuentos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
-- Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
-- Mantén los precios compactos en una sola línea: "$X · Bs Y".
+{price_rules}
 - Si no sabes algo, di qué dato falta. Nunca ofrezcas ni afirmes pasar la conversación al dueño: no hay un canal humano verificado. No uses action=handoff.
 - Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba. No afirmes que se envió o recibió ni prometas una aprobación o un plazo. Elegir método de pago no prueba pago. Una referencia es una declaración no verificada.
@@ -136,6 +141,10 @@ Reglas:
 - Si pide una fecha u hora de entrega («pídelo mañana a las 9 am»), guárdala textual en order.notes y confírmala en tu resumen.
 - Responde siempre usando la herramienta "responder".
 """
+
+USD_PRICE_RULES = """- Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
+- Mantén los precios compactos en una sola línea: "$X · Bs Y"."""
+EUR_PRICE_RULES = "- Expresa los precios en euros tal como aparecen en el contexto: €X. No los conviertas a dólares ni bolívares."
 
 RESPONDER_TOOL = {
     "name": "responder",
@@ -262,7 +271,8 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
         resp = await client.messages.create(
             model=settings.anthropic_model,
             max_tokens=1000,
-            system=SYSTEM_PROMPT + context,
+            system=SYSTEM_PROMPT.format(price_rules=EUR_PRICE_RULES if restaurant.currency == "EUR" else USD_PRICE_RULES)
+            + context,
             messages=_llm_messages(history, incoming),
             tools=[RESPONDER_TOOL],
             tool_choice={"type": "auto"},
@@ -368,6 +378,18 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     available = [i for i in items if i.available]
     rates = rates_of(restaurant)
 
+    if re.search(r"\bqu[eé]\s+(?:(?:es\s+lo\s+que)\s+)?(?:incluye|trae|lleva|contiene)\b", text):
+        question = delivery.plain(text)
+        match = max(
+            (i for i in available if re.search(rf"(?<!\w){re.escape(delivery.plain(i.name))}(?!\w)", question)),
+            key=lambda i: len(i.name),
+            default=None,
+        )
+        if match:
+            return AgentResult(reply=(f"*{match.name}* — {fmt_money(match.price, *rates)}. {match.description}"
+                                      if match.description else f"No tengo los ingredientes de {match.name} registrados."),
+                               state=state)
+
     def matched_items() -> list[dict]:
         found = []
         for name, mi in items_by_name.items():
@@ -420,7 +442,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})
 
     if re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
-        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, rates_of(restaurant)),
+        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, rates, descriptions=False),
                            state={**state, "draft": draft})
 
     if re.search(r"\b(horarios?|abierto|atienden|abren|cierran)\b", text):

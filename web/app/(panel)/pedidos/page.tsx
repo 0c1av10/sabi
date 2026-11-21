@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Mascot from "../../../components/Mascot";
 import { api } from "../../../lib/api";
-import { bs, eur, usd, type Rates } from "../../../lib/money";
+import { bs, eur, nativeMoney, type Rates } from "../../../lib/money";
 
 type OrderItem = { id: number; name: string; quantity: number; unit_price: number; extras: string; notes: string };
 type Order = {
@@ -16,7 +16,7 @@ type Today = {
   sales_today?: number; avg_ticket?: number; unpaid_approved?: number;
   top_items?: { name: string; quantity: number }[]; day?: string;
 };
-type Me = { name: string; slug: string; exchange_rate: number; eur_rate: number; rates_date?: string | null };
+type Me = { name: string; slug: string; currency: string; exchange_rate: number; eur_rate: number; rates_date?: string | null };
 
 const paymentLabel: Record<string, string> = {
   pago_movil: "Pago móvil", zelle: "Zelle", transferencia: "Transferencia", efectivo: "Efectivo",
@@ -99,8 +99,10 @@ export default function Pedidos() {
   const todayKey = caracasDay(new Date());
   const decidedToday = all.filter((o) => o.status !== "pending" && caracasDay(asUtc(o.created_at)) === todayKey);
   const link = me ? `${typeof window !== "undefined" ? window.location.origin : "https://www.holasabi.com"}/tienda/${me.slug}` : "";
+  const isEuro = me?.currency === "EUR";
+  const price = (v: number) => nativeMoney(v, me?.currency);
   const money = (v: number) => (
-    <>{usd(v)}<span className="ml-2 text-xs font-normal text-stone-500">{eur(v, rate)} · {bs(v, rate)}</span></>
+    <>{price(v)}{!isEuro && <span className="ml-2 text-xs font-normal text-stone-500">{eur(v, rate)} · {bs(v, rate)}</span>}</>
   );
 
   return (
@@ -110,7 +112,7 @@ export default function Pedidos() {
           <h1 className="text-xl font-semibold">{me ? `Hola, ${me.name}` : "Pedidos"}</h1>
           <p className="text-sm text-stone-500">
             {new Date().toLocaleDateString("es-VE", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Caracas" })}
-            {me?.rates_date && <span> · tasa BCV {me.rates_date.split("-").reverse().join("/")}: $1 = {bs(1, rate)}</span>}
+            {!isEuro && me?.rates_date && <span> · tasa BCV {me.rates_date.split("-").reverse().join("/")}: $1 = {bs(1, rate)}</span>}
           </p>
         </div>
         {link && (
@@ -124,8 +126,8 @@ export default function Pedidos() {
       {today && (
         <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           <Stat label="Pedidos hoy" value={String(today.orders_total)} sub={`${today.approved} aprobados · ${today.rejected} rechazados`} />
-          <Stat label="Ventas de hoy" value={usd(today.sales_today ?? 0)} sub={`${eur(today.sales_today ?? 0, rate)} · ${bs(today.sales_today ?? 0, rate)}`} />
-          <Stat label="Ticket promedio" value={usd(today.avg_ticket ?? 0)} sub={today.approved ? `en ${today.approved} pedidos aprobados` : "aún sin pedidos aprobados"} />
+          <Stat label="Ventas de hoy" value={price(today.sales_today ?? 0)} sub={isEuro ? undefined : `${eur(today.sales_today ?? 0, rate)} · ${bs(today.sales_today ?? 0, rate)}`} />
+          <Stat label="Ticket promedio" value={price(today.avg_ticket ?? 0)} sub={today.approved ? `en ${today.approved} pedidos aprobados` : "aún sin pedidos aprobados"} />
           <Stat label="Por aprobar" value={String(pending.length)}
             sub={today.unpaid_approved ? `${today.unpaid_approved} aprobados con pago por verificar` : "todo al día"}
             tone={pending.length ? "border-amber-300 bg-amber-50" : ""} />
@@ -158,7 +160,7 @@ export default function Pedidos() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold">Pedido #{o.id} — {money(o.total)}
-                          {!!o.delivery_fee && <span className="ml-2 text-xs font-normal text-stone-500">incluye delivery{o.delivery_zone ? ` ${o.delivery_zone}` : ""} {usd(o.delivery_fee)}</span>}</p>
+                          {!!o.delivery_fee && <span className="ml-2 text-xs font-normal text-stone-500">incluye delivery{o.delivery_zone ? ` ${o.delivery_zone}` : ""} {price(o.delivery_fee)}</span>}</p>
                         <p className="text-sm text-stone-500">
                           {o.source === "tienda" ? "Tienda web · " : "WhatsApp · "}{o.customer_name || o.customer_phone} · {o.order_type}
                           {o.address ? ` · ${o.address}` : ""} · {hhmm(o.created_at)} ({ago(o.created_at)})
@@ -177,8 +179,8 @@ export default function Pedidos() {
                     <ul className="mt-2 text-sm">
                       {o.items.map((i) => (
                         <li key={i.id}>
-                          {i.quantity} × {i.name} — {usd(i.unit_price * i.quantity)}
-                          <span className="text-stone-400"> · {eur(i.unit_price * i.quantity, rate)} · {bs(i.unit_price * i.quantity, rate)}</span>
+                          {i.quantity} × {i.name} — {price(i.unit_price * i.quantity)}
+                          {!isEuro && <span className="text-stone-400"> · {eur(i.unit_price * i.quantity, rate)} · {bs(i.unit_price * i.quantity, rate)}</span>}
                           {i.extras && <span className="text-stone-500"> ({i.extras})</span>}
                         </li>
                       ))}

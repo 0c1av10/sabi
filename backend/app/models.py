@@ -29,9 +29,9 @@ class Restaurant(Base):
     )
     opening_hours: Mapped[str] = mapped_column(Text, default="Lun-Dom 12:00-23:00")
     currency: Mapped[str] = mapped_column(String(10), default="USD")
-    # Bs per USD (BCV); menu prices are stored in USD
+    # Bs per USD (BCV); menu prices are stored in the restaurant's currency
     exchange_rate: Mapped[float] = mapped_column(Float, default=875.65)
-    # Bs per EUR (BCV publishes both); EUR amounts derive from USD via Bs
+    # Bs per EUR (BCV publishes both)
     eur_rate: Mapped[float] = mapped_column(Float, default=980.61)
     # When true, rates follow the official BCV rate; otherwise the owner sets them
     bcv_auto: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -42,7 +42,7 @@ class Restaurant(Base):
     tagline: Mapped[str] = mapped_column(Text, default="")
     logo_url: Mapped[str] = mapped_column(String(500), default="")
     brand_color: Mapped[str] = mapped_column(String(20), default="")
-    # Delivery cost in USD (like menu prices). None = unknown: the agent says the local confirms it.
+    # Delivery cost in the restaurant's currency. None = unknown: the local confirms it.
     delivery_fee: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Conditions as written on the restaurant's site or edited by the owner (zones, free-above...).
     delivery_info: Mapped[str] = mapped_column(Text, default="")

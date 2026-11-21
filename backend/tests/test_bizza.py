@@ -43,7 +43,8 @@ async def test_seed_is_idempotent_and_keeps_edits(Session, monkeypatch):
     await _seed(Session, monkeypatch)
     async with Session() as s:
         assert (await s.execute(select(func.count()).select_from(Restaurant).where(Restaurant.slug == "bizza"))).scalar_one() == 1
-        assert (await s.execute(select(func.count()).select_from(MenuItem))).scalar_one() == 74 + 12  # + MC Racuchos
+        assert (await s.execute(select(func.count()).select_from(MenuItem).join(Restaurant).where(
+            Restaurant.slug.in_(("bizza", "mc-racuchos"))))).scalar_one() == 74 + 12  # + MC Racuchos
         r = (await s.execute(select(Restaurant).where(Restaurant.slug == "bizza"))).scalar_one()
         assert r.owner_phone == "+0000"
         assert 99.0 in [i.price for i in (await s.execute(select(MenuItem).where(MenuItem.restaurant_id == r.id))).scalars()]
@@ -109,11 +110,14 @@ async def test_hola_is_short_and_food_intent_lists_businesses(Session, client, m
 
 
 @pytest.mark.asyncio
-async def test_product_routing_pizza_goes_to_bizza_pastelitos_to_mc(Session, monkeypatch):
-    from app.auth import restaurant_for_message
+async def test_product_routing_shared_pizza_stays_ambiguous_and_pastelitos_go_to_mc(Session, monkeypatch):
+    from app.auth import restaurant_for_message, restaurants_by_product
     await _seed(Session, monkeypatch)
     async with Session() as s:
+        assert {r.slug for r in await restaurants_by_product(s, "quiero pizza")} == {"bizza", "oura"}
         r, _ = await restaurant_for_message(s, "584140000002", "quiero pizza")
+        assert r is None
+        r, _ = await restaurant_for_message(s, "584140000002", "quiero pizza en Bizza")
         assert r and r.slug == "bizza"
         r, _ = await restaurant_for_message(s, "584140000002", "quiero unos pastelitos")
         assert r and r.slug == "mc-racuchos"
