@@ -66,7 +66,8 @@ async def _unresolved_place_reply(db,phone,body):
     if not city and previous and previous.domain=='place' and (not previous.entity or concierge._plain(previous.entity)==concierge._plain(entity)):
         city=previous.city
     known=await restaurant_by_mention(db,entity)
-    if known and not city:
+    # A catalog business that registered delivery to the city is not an unresolved place.
+    if known and (not city or await venezuela.covers(db,known,city)):
         return None
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
