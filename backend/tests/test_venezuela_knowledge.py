@@ -310,3 +310,30 @@ def test_name_containing_a_city_word_is_still_a_name(reply):
 def test_bare_name_must_be_the_whole_reply(reply):
     from app import memory
     assert memory.bare_name(reply) == ""
+
+
+async def test_product_from_another_business_is_not_a_silent_switch(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        await _catalog(db)
+        db.add(Restaurant(name="Bizza", slug="bizza", pin="0000"))
+        await db.flush()
+        bizza = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "bizza"))).first()
+        db.add(MenuItem(restaurant_id=bizza.id, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        restaurant, _, text = await webhook._resolve(db, "111", "Tiene refresco")
+        assert restaurant and restaurant.slug == "bizza"
+        await memory.set_topic(db, "222", "tu pedido en NACIONAL Restaurante")
+        restaurant, _, text = await webhook._resolve(db, "222", "Tiene refresco")
+        assert restaurant is None and text == ("En el menú de *NACIONAL Restaurante* no lo encuentro. Lo tiene *Bizza*. "
+                                               "¿Quieres pedirlo en Bizza o seguimos con NACIONAL Restaurante?")
+        restaurant, _, _ = await webhook._resolve(db, "222", "Quiero un refresco de Bizza")
+        assert restaurant and restaurant.slug == "bizza"
+
+
+async def test_greeting_asks_when_the_saved_name_is_not_usable(Session, sent):
+    async with Session() as db:
+        db.add(memory.Contact(phone="111", name="Entonces", name_source="profile", last_topic="tu pedido en NACIONAL Restaurante"))
+        await db.commit()
+        text, _ = await concierge.reply(db, "Hola", "111")
+        assert text == "Hola de nuevo. " + memory.ASK_NAME

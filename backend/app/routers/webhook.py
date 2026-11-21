@@ -74,6 +74,17 @@ async def _unresolved_place_reply(db,phone,body):
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
 
 
+async def _silent_business_switch(db,phone,body,restaurant):
+    """A product match ("Tiene refresco") must not silently move someone who was ordering from one
+    business to another: Sabi says which business has it and asks."""
+    contact=await memory.get(db,phone)
+    last=re.match(r'^tu pedido en (.+?)(?: \(|$)',(contact.last_topic if contact else '') or '')
+    if not last or concierge._plain(last[1])==concierge._plain(restaurant.name):return ''
+    if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
+    return (f'En el menú de *{last[1]}* no lo encuentro. Lo tiene *{restaurant.name}*. '
+            f'¿Quieres pedirlo en {restaurant.name} o seguimos con {last[1]}?')
+
+
 async def _resolve(db: AsyncSession, phone: str, body: str):
     """(restaurant, body, reply). `reply` is Sabi's concierge text when no business is named
     (None when a plain welcome was already sent recently)."""
@@ -101,6 +112,8 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         return None,body,text
     restaurant, routed_body = await restaurant_for_message(db, phone, body)
     if restaurant:
+        switched=await _silent_business_switch(db,phone,body,restaurant)
+        if switched:return None,body,switched
         # Keep what Sabi had just offered in the general chat: the business agent reads
         # the topic as context, so "Y nacional?" after a recommendation is not read in a void.
         contact=await memory.get(db,phone)
