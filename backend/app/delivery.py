@@ -81,11 +81,15 @@ def zone_for_order(zones: list[dict], zone_name: str, address: str) -> Optional[
     from .venezuela import cities_in
     chosen = find_zone(zones, zone_name or "")
     in_address = {c.name for c in cities_in(address or "")}
+    from_address = find_zone(zones, address or "")
     if chosen:
         chosen_cities = {c.name for c in cities_in(chosen["name"])}
-        if not in_address or not chosen_cities or chosen_cities & in_address:
+        if not in_address or chosen_cities & in_address:
             return chosen
-    return find_zone(zones, address or "")
+        # A zone without a city ("Centro") gives way only to another zone the address names.
+        if not chosen_cities and not from_address:
+            return chosen
+    return from_address
 
 
 def fee_for(restaurant, order_type: Optional[str], zone_name: str = "") -> float:

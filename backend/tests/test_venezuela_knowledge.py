@@ -567,3 +567,9 @@ def test_neighborhood_zone_kept_for_an_address_in_its_city():
 def test_the_two_santa_barbaras_are_different_cities():
     assert venezuela.find_city("Santa Bárbara del Zulia").state == "Zulia"
     assert venezuela.find_city("Santa Bárbara de Barinas").state == "Barinas"
+
+
+def test_cityless_zone_gives_way_to_the_zone_the_address_names():
+    zones = delivery.load_zones(json.dumps([{"name": "Centro", "fee": 2}, {"name": "Barcelona", "fee": 3}]))
+    assert delivery.zone_for_order(zones, "Centro", "Calle 5, Barcelona")["name"] == "Barcelona"
+    assert delivery.zone_for_order(zones, "Centro", "Calle 5, Lechería")["name"] == "Centro"
