@@ -92,12 +92,12 @@ def test_menu_context_empty_unavailable_and_bounded_descriptions():
     assert agent.menu_text([item], (1, 1)) == "- Dish (Menu): $2,00 · Bs 2,00"
     item.description = "Ingredients\nwith   spaces"
     assert "Ingredients" not in agent.menu_text([item], (1, 1))
-    assert "Ingredients with spaces" in agent.menu_text([item], (1, 1), include_descriptions=True)
+    assert "Ingredients with spaces" in agent.menu_text([item], (1, 1), details=True)
     item.description = "x" * 10000
-    assert agent.menu_text([item], (1, 1), include_descriptions=True).endswith("x" * 2000 + "…")
+    assert agent.menu_text([item], (1, 1), details=True).endswith("x" * 2000 + "…")
     item.available = False
     assert agent.menu_text([item], (1, 1)) == ""
-    assert agent.menu_text([item], (1, 1), include_descriptions=True) == ""
+    assert agent.menu_text([item], (1, 1), details=True) == ""
 
 
 def test_bizza_customer_menu_keeps_compact_lines_under_whatsapp_limit():
