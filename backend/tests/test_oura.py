@@ -20,6 +20,7 @@ ZONES = [
 CEVICHES = "Cubos de pescado marinados en leche de tigre de ají, coco y parchita."
 CROQUETAS = "Croquetas fluidas de cordero, morcilla y pescado."
 PARRILLA = "Cecina de res, muslo de pollo, baby back ribs, chorizo de ajo y morcilla."
+ZONE_QUOTES = ("Lechería · Zona 1: €2,50", "Lechería · Zona 2: €3,50", "Barcelona: €4,00", "Puerto La Cruz: €4,00")
 
 
 @pytest.mark.parametrize("coffee", ["Americano", "Espresso", "Café con Leche"])
@@ -168,6 +169,25 @@ async def test_oura_store_and_panel_tenant_isolation(Session, client, monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_oura_mock_quotes_delivery_after_asking_about_trio(Session, monkeypatch):
+    monkeypatch.setattr(whatsapp, "sent_log", [])
+    await seed_known_businesses()
+    async with Session() as session:
+        restaurant, _ = await get_catalog(session, "oura")
+        restaurant.bcv_auto = False
+        phone = "584120000000"
+        contents = await handle_inbound_message(session, restaurant, phone, "¿qué incluye el trío de ceviches?")
+        quote = await handle_inbound_message(session, restaurant, phone, "¿Cuánto cuesta el delivery?")
+        conversation = (await session.scalars(select(Conversation))).one()
+
+    assert CEVICHES in contents
+    assert all(zone in quote for zone in ZONE_QUOTES)
+    assert "Bs" not in quote and "$" not in quote
+    assert conversation.state_json == "{}" and conversation.status == "open"
+    assert whatsapp.sent_log[-1]["body"] == quote
+
+
+@pytest.mark.asyncio
 async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkeypatch):
     import anthropic
 
@@ -198,11 +218,13 @@ async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkey
     async def create(**kwargs):
         prompt = kwargs["system"]
         assert CEVICHES in prompt and PARRILLA in prompt
-        assert "Lechería · Zona 1: €2,50" in prompt
+        assert all(zone in prompt for zone in ZONE_QUOTES)
         assert "Expresa los precios en euros" in prompt and "Nunca muestres euros" not in prompt
-        return SimpleNamespace(content=[SimpleNamespace(type="tool_use", input={"reply": CEVICHES})])
+        return SimpleNamespace(content=[SimpleNamespace(type="tool_use", input={"reply": "\n".join(ZONE_QUOTES)})])
 
     monkeypatch.setattr(anthropic, "AsyncAnthropic", lambda **_: SimpleNamespace(
         messages=SimpleNamespace(create=create),
     ))
-    assert (await run_llm_agent(restaurant, available, conv, [], "¿qué incluye el trío de ceviches?")).reply == CEVICHES
+    history = [("inbound", "¿qué incluye el trío de ceviches?"), ("outbound", result.reply)]
+    quote = await run_llm_agent(restaurant, available, conv, history, "¿Cuánto cuesta el delivery?")
+    assert quote.reply.splitlines() == list(ZONE_QUOTES)

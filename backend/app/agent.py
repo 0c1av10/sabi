@@ -377,6 +377,15 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     items_by_name = {i.name.lower(): i for i in items if i.available}
     available = [i for i in items if i.available]
     rates = rates_of(restaurant)
+    zones = delivery.zones_of(restaurant)
+
+    if (zones and re.search(r"\b(?:delivery|domicilio|env[ií]o)\b", text)
+            and re.search(r"\b(?:cu[aá]nto|cuesta|costo|precio|tarifa)\b", text)):
+        fees = "\n".join(
+            f"• {zone['name']}: " + (fmt_money(zone["fee"], *rates) if zone["fee"] else "gratis")
+            for zone in zones
+        )
+        return AgentResult(reply=f"El costo del delivery depende de la zona:\n{fees}", state=state)
 
     if re.search(r"\bqu[eé]\s+(?:(?:es\s+lo\s+que)\s+)?(?:incluye|trae|lleva|contiene)\b", text):
         question = delivery.plain(text)
@@ -508,7 +517,6 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     m = re.search(r"(?:direcci[oó]n|dir(?:ección)?|calle|av(?:enida)?\.?)\s*[:\-]?\s*(.+)", text)
     if draft["order_type"] == "delivery" and m:
         draft["address"] = m.group(1).strip()
-    zones = delivery.zones_of(restaurant)
     if draft["order_type"] == "delivery" and zones:
         picked = delivery.find_zone(zones, text) or delivery.find_zone(zones, draft.get("address") or "")
         if picked:
