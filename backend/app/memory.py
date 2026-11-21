@@ -122,7 +122,8 @@ def bare_name(body: str) -> str:
         return ""
     name = extract_name("Me llamo " + body.strip(" .!¡"))
     # The whole reply must be the name: "Margarita, hay cine" is a request, not a name.
-    return name if len(name.split()) == len(body.strip(" .!¡").split()) else ""
+    letters = lambda t: re.sub(r"[^a-z]", "", _plain(t))  # noqa: E731
+    return name if name and letters(name) == letters(body) else ""
 
 
 def name_pending(contact: "Contact | None") -> bool:
