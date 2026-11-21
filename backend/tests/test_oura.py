@@ -7,6 +7,7 @@ from app import delivery
 from app.agent import delivery_context, fmt_money, menu_text, rates_of, run_llm_agent, run_mock_agent, summarize_order
 from app.main import apply_business_pins, seed_known_businesses
 from app.models import Conversation, MenuItem, Restaurant
+from app.oura_menu import OURA_MENU
 
 
 ZONES = [
@@ -18,6 +19,19 @@ ZONES = [
 CEVICHES = "Cubos de pescado marinados en leche de tigre de ají, coco y parchita."
 CROQUETAS = "Croquetas fluidas de cordero, morcilla y pescado."
 PARRILLA = "Cecina de res, muslo de pollo, baby back ribs, chorizo de ajo y morcilla."
+
+
+@pytest.mark.parametrize(("message", "expected"), [
+    ("Quiero un Carpaccio de Lomito", [("Carpaccio de Lomito", 1)]),
+    ("Quiero dos Agua Sparkling", [("Agua Sparkling", 2)]),
+    ("Quiero un Don Margarita", [("Don Margarita", 1)]),
+    ("Quiero 2 Carpaccio de Lomito y 3 Lomito", [("Carpaccio de Lomito", 2), ("Lomito", 3)]),
+])
+def test_mock_orders_longest_nonoverlapping_menu_names(message, expected):
+    restaurant = Restaurant(currency="EUR", exchange_rate=1, eur_rate=1)
+    items = [MenuItem(name=n, price=p, category=c, description=d, available=True) for n, p, c, d in OURA_MENU]
+    reply = run_mock_agent(restaurant, items, Conversation(state_json="{}"), message)
+    assert [(item["name"], item["quantity"]) for item in reply.state["draft"]["items"]] == expected
 
 
 async def get_catalog(session, slug):

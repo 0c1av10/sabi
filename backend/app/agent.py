@@ -391,20 +391,21 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                                state=state)
 
     def matched_items() -> list[dict]:
-        found = []
-        for name, mi in items_by_name.items():
-            if name in text:
-                qty = 1
-                m = re.search(r"(\d+)\s*(?:x|de)?\s*" + re.escape(name), text)
-                if m:
-                    qty = int(m.group(1))
-                else:
-                    for w, n in _NUM.items():
-                        if re.search(rf"\b{w}\b\s+(?:de\s+)?{re.escape(name)}", text):
-                            qty = n
-                            break
-                found.append({"name": mi.name, "quantity": qty, "extras": "", "notes": ""})
-        return found
+        matches = [(m.start(), m.end(), mi.name) for name, mi in items_by_name.items()
+                   for m in re.finditer(rf"(?<!\w){re.escape(name)}(?!\w)", text)]
+        selected: list[tuple[int, int, str]] = []
+        for start, end, name in sorted(matches, key=lambda hit: (hit[0] - hit[1], hit[0])):
+            if not any(start < stop and end > begin for begin, stop, _ in selected):
+                selected.append((start, end, name))
+
+        quantities: dict[str, int] = {}
+        for start, _, name in sorted(selected):
+            prefix = text[:start]
+            number = re.search(r"\b(\d+)\s*(?:x|de)?\s*$", prefix)
+            word = re.search(r"\b([a-z]+)\s+(?:de\s+)?$", prefix)
+            qty = int(number[1]) if number else _NUM.get(word[1], 1) if word else 1
+            quantities[name] = quantities.get(name, 0) + qty
+        return [{"name": name, "quantity": qty, "extras": "", "notes": ""} for name, qty in quantities.items()]
 
     # stage: awaiting confirmation of the draft
     if state.get("stage") == "confirming":
