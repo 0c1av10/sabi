@@ -181,4 +181,10 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
     if wants_food(body):
         text = await recommendations(db,body=body,phone=phone)
         return text, False
-    return await _hello(db, name, bool(contact and contact.last_topic)), True
+    returning = bool(contact and contact.last_topic)
+    if phone and not (contact and contact.name):
+        # Without a name Sabi asks for it, so every later greeting can use it.
+        await memory.set_topic(db, phone, memory.NAME_PENDING)
+        return ("Hola de nuevo." if returning else "¡Hola! 👋 Soy Sabi.") + \
+            " ¿Cómo te llamas? Así te hablo por tu nombre.", True
+    return await _hello(db, name, returning), True

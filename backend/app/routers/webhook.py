@@ -157,7 +157,24 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         reply = ('Listo, dejé atrás la tarea anterior. Conservé tu nombre.' if reset_context else 'Listo, borré tu nombre guardado y la tarea activa. El historial de mensajes no se ha eliminado.')
         await send_whatsapp_message(phone, reply)
         return reply
-    await memory.note(db, phone, body, profile_name)
+    contact=await memory.note(db, phone, body, profile_name)
+    if contact and contact.last_topic==memory.NAME_PENDING and contact.name_source!='user':
+        # Sabi just asked "¿Cómo te llamas?": a bare short reply is the name.
+        said=memory.extract_name('Me llamo '+body) if len(body.split())<=3 else ''
+        if said and (concierge.is_greeting(body) or concierge.wants_food(body) or any(concierge.cuisine_request(body))
+                     or venezuela.find_city(body) or await restaurant_by_mention(db,body)):said=''
+        # Only the reply right after the question can be a bare name.
+        await memory.set_topic(db,phone,'general')
+        if said:
+            await memory.set_name(db,phone,said)
+            reply=f'¡Mucho gusto, {memory.display_name(said)}! Ya me quedo con tu nombre. ¿En qué te ayudo?'
+            await send_whatsapp_message(phone,reply)
+            return reply
+    name_reply=memory.name_reply(contact,body)
+    if name_reply:
+        if 'Cómo te llamas' in name_reply:await memory.set_topic(db,phone,memory.NAME_PENDING)
+        await send_whatsapp_message(phone,name_reply)
+        return name_reply
     # A new explicit domain outranks both unresolved-place and sticky sessions.
     text=concierge._plain(body).strip(' ¿?!.')
     active=await focus.get(db,phone)

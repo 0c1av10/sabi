@@ -77,6 +77,25 @@ def extract_name(body: str) -> str:
     return clean_name(candidate)
 
 
+_ASKS_NAME = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes (?:como me llamo|mi nombre)|"
+                        r"(?:llamame|tratame|adresame|dirigete a mi|hablame) (?:por|con) mi nombre)\b")
+_ASKS_WHICH = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes)\b")
+NAME_PENDING = "nombre pendiente"
+
+
+def name_reply(contact: "Contact | None", body: str) -> str:
+    """Answers "¿Cómo me llamo?" / "Llámame por mi nombre" from memory; '' for anything else."""
+    text = _plain(body)
+    if not _ASKS_NAME.search(text):
+        return ""
+    name = display_name(contact.name if contact else None)
+    if not name:
+        return "Aún no sé tu nombre. ¿Cómo te llamas?"
+    if _ASKS_WHICH.search(text):
+        return f"Te llamas {name}. ¿En qué te ayudo?"
+    return f"Claro, {name}. ¿En qué te ayudo?"
+
+
 def first_name(name: str | None) -> str:
     return (name or "").split()[0] if name else ""
 

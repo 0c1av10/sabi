@@ -207,3 +207,23 @@ async def test_question_saved_as_city_is_dropped(Session, sent):
         assert await focus.get(db, "111") is None
         _, _, text = await webhook._resolve(db, "111", "Como me llamo")
         assert "qué ciudad queda" not in (text or "")
+
+
+async def test_name_questions_use_memory(Session, sent):
+    async with Session() as db:
+        await focus.save(db, "111", domain="place", entity="NACIONAL Restaurante", city="Lechería")
+        assert await webhook._events_route(db, "111", "Como me llamo") == "Aún no sé tu nombre. ¿Cómo te llamas?"
+        assert await webhook._events_route(db, "111", "Octavio") == \
+            "¡Mucho gusto, Octavio! Ya me quedo con tu nombre. ¿En qué te ayudo?"
+        assert await webhook._events_route(db, "111", "¿Cómo me llamo?") == "Te llamas Octavio. ¿En qué te ayudo?"
+        assert await webhook._events_route(db, "111", "Adresame con mi nombre") == "Claro, Octavio. ¿En qué te ayudo?"
+
+
+async def test_greeting_asks_for_unknown_name_then_uses_it(Session, sent):
+    async with Session() as db:
+        text, _ = await concierge.reply(db, "Hola", "333")
+        assert text == "¡Hola! 👋 Soy Sabi. ¿Cómo te llamas? Así te hablo por tu nombre."
+        assert await webhook._events_route(db, "333", "Ana María") == \
+            "¡Mucho gusto, Ana! Ya me quedo con tu nombre. ¿En qué te ayudo?"
+        text, _ = await concierge.reply(db, "Hola", "333")
+        assert text.startswith("Hola de nuevo, Ana.")
