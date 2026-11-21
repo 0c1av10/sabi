@@ -163,11 +163,12 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     gym_step=bool(gym_state.get('step'))
     if memory.name_pending(contact) and contact.name_source!='user' and not gym_step:
         # Sabi just asked "¿Cómo te llamas?": a bare short reply is the name.
-        said=memory.extract_name('Me llamo '+body) if len(body.split())<=3 else ''
+        # A question ("¿Quedan cupos?") is never a name.
+        said=memory.extract_name('Me llamo '+body) if len(body.split())<=3 and '?' not in body else ''
         if said and (concierge.is_greeting(body) or concierge.wants_food(body) or any(concierge.cuisine_request(body))
                      or venezuela.find_city(body) or await restaurant_by_mention(db,body)
                      or explicit_cinema(body)
-                     or re.search(r'\b(?:boxeo|boxear|gimnasio|gym|clases?|entrenar|entrenamiento|reservar|(?:un|hay|el|mi) cupos?)\b',concierge._plain(body))):said=''
+                     or re.search(r'\b(?:boxeo|boxear|gimnasio|gym|clases?|entrenar|entrenamiento|reservar|(?:un|hay|el|mi|quedan|tienen|tienes) cupos?)\b',concierge._plain(body))):said=''
         # Only the reply right after the question can be a bare name.
         await memory.end_name_prompt(db,phone,contact)
         if said:

@@ -309,3 +309,12 @@ async def test_cupo_surname_is_still_a_name(Session, sent):
         await memory.ask_name(db, "222")
         await webhook._events_route(db, "222", "Un cupo")
         assert not (await memory.get(db, "222")).name
+
+
+@pytest.mark.parametrize("answer", ["Quedan cupos?", "¿Hay mesas?", "Quedan cupos"])
+async def test_question_after_name_prompt_is_not_a_name(Session, sent, answer):
+    from app import memory
+    async with Session() as db:
+        await memory.ask_name(db, "111")
+        await webhook._events_route(db, "111", answer)
+        assert not (await memory.get(db, "111")).name
