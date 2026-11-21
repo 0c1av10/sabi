@@ -128,3 +128,14 @@ async def test_bare_city_answer_is_canonical(Session, sent):
         assert focus.declared_city("Estoy en plc") == "Puerto La Cruz"
         assert concierge.recommendation_city("En ccs que me recomiendas") == "Caracas"
         assert concierge.recommendation_city("En Valencia que me recomiendas") == "Valencia"
+
+
+# The example order line Sabi suggests after listing local options must reach the business.
+async def test_suggested_order_line_routes_to_business(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        reply = await focus.city_reply(db, "111", "Estoy en Lechería")
+        assert "«quiero pedir en NACIONAL Restaurante»" in reply
+        restaurant, _, text = await webhook._resolve(db, "111", "quiero pedir en NACIONAL Restaurante")
+        assert restaurant and restaurant.slug == "nacional" and text is None
+        assert (await focus.get(db, "111")).city == "Lechería"
