@@ -105,7 +105,9 @@ def response_format_request(body: str) -> bool:
 def named_business_query(body: str) -> tuple[str,str] | None:
     """Conservative explicit place references, not an inferred city or product match."""
     if response_format_request(body):return None
-    text=body.strip().strip('¿?!. ')
+    from .venezuela import _WHERE
+    # "¿Dónde queda Pizzería Roma?" asks about Pizzería Roma; the question is never its city.
+    text=_WHERE.sub(' ',body).strip().strip('¿?!. ')
     # City is a location qualifier, never positive product/tenant evidence.
     explicit_visit=re.search(r'\b(?:pedir|comer|cenar|almorzar|ir)\s+(?:en|a|al)\s+(.+)$',text,re.I)
     if explicit_visit:text=explicit_visit[1]

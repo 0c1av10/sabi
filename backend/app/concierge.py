@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import restaurants_by_product
-from . import memory
+from . import memory, venezuela
 from .models import Restaurant, MenuItem
 
 WELCOME = (
@@ -64,8 +64,8 @@ def recommendation_city(body):
         match=re.search(pattern,text)
         if match:
             value=original[match.start(1):match.end(1)].strip().strip(',').title()
-            if not re.search(r'\b(casa|mi|el|la|mensajes|partes|lista|tabla|ingles|espanol)\b',_plain(value)):
-                return value
+            if venezuela.find_city(value) or not re.search(r'\b(casa|mi|el|la|mensajes|partes|lista|tabla|ingles|espanol)\b',_plain(value)):
+                return venezuela.canonical(value)
     return ''
 
 
@@ -100,7 +100,10 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "", phone
     every business, in stable order. When a phone is given, the offered names are
     remembered as the current topic so a later handoff to a business can see them."""
     city=recommendation_city(body)
-    if city:return f'Buscas comida en {city}. No tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
+    if city:
+        local=await venezuela.local_options(db,city,phone)
+        if local:return local
+        return f'Buscas comida en {city}. No tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
     rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
                              .order_by(Restaurant.id))).scalars().all()
     if not rows:
@@ -178,4 +181,9 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
     if wants_food(body):
         text = await recommendations(db,body=body,phone=phone)
         return text, False
-    return await _hello(db, name, bool(contact and contact.last_topic)), True
+    returning = bool(contact and contact.last_topic)
+    if phone and not (contact and contact.name):
+        # Without a name Sabi asks for it, so every later greeting can use it.
+        await memory.ask_name(db, phone)
+        return ("Hola de nuevo." if returning else "¡Hola! 👋 Soy Sabi.") + " " + memory.ASK_NAME, True
+    return await _hello(db, name, returning), True

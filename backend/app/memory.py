@@ -77,6 +77,87 @@ def extract_name(body: str) -> str:
     return clean_name(candidate)
 
 
+_ASKS_NAME = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes (?:como me llamo|mi nombre)|"
+                        r"(?:llamame|tratame|adresame|dirigete a mi|hablame) (?:por|con) mi nombre)\b")
+_ASKS_WHICH = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes)\b")
+_NAME_FILLER = {"por", "favor", "porfa", "sabi", "hola", "oye", "y", "ok", "dale", "ahora", "desde", "siempre", "tu",
+                "sabes", "recuerdas", "dime", "me"}
+ASK_NAME = "¿Cómo te llamas? Así te hablo por tu nombre."
+NAME_PENDING = "nombre pendiente"
+# A bare reply to "¿Cómo te llamas?" is taken as a name only when it starts with a known first name.
+# An allowlist, so a reply that names a service, a place or a question can never become a name;
+# anyone else can still introduce themselves with "Me llamo …" or "Soy …".
+FIRST_NAMES = frozenset("""
+aaron abel abigail abraham adela adolfo adrian adriana agustin aida alba alberto alejandra alejandro alex alexander
+alexandra alexis alfonso alfredo alicia alina alirio alison alma alonso alvaro amanda amelia ana anabel andrea andres
+angel angela angelica angie anibel antonella antonio ariana ariel armando arturo aura aurora barbara beatriz benjamin
+bernardo betty bianca blanca brenda bruno camila camilo candelaria carla carlos carmen carolina catalina cecilia cesar
+cindy clara claudia cristian cristina cruz daniel daniela dario david debora deivis delia denis diana diego dilia
+domingo dora douglas duglas edgar eduardo edwin elena eliana elias elisa elizabeth eloy elsa emilia emilio emily
+emma enrique ernesto esperanza esteban estefania eva evelyn fabian fabiola federico felipe felix fernanda fernando
+fidel flor francisco franco freddy gabriel gabriela genesis gerardo german gilberto gisela gladys gloria gonzalo
+gregorio guadalupe guillermo gustavo hector helen hilda hugo ignacio ines irene iris isaac isabel isabella ismael
+ivan jacinto jaime javier jean jennifer jesica jessica jesus jhon jhonny joel johan john jonathan jorge jose josefina
+joseph josue juan juana julia julian juliana julio karen karina katherine kelly kevin laura leonardo leticia lilia
+liliana lisbeth lorena lorenzo lucas lucia luis luisa luz manuel marcela marcos margarita maria mariana mariangel
+maribel marina mario marisol marta martha martin mateo matias mauricio maximo mayra melissa mercedes miguel milagros
+miriam moises monica nancy natalia nelson nestor nicolas noemi norma octavio olga omar orlando oscar pablo paola
+patricia paula pedro rafael ramon raquel raul rebeca reinaldo ricardo roberto rocio rodolfo rodrigo rosa rosario
+ruben ruth salvador samuel sandra santiago sara sebastian sergio silvia simon sofia sonia susana teresa tomas
+ulises valentina valeria vanessa veronica vicente victor victoria violeta virginia viviana walter wilmer william
+wilson ximena yamilet yaneth yanira yelitza yenny yesenia yolanda yorman yosmar yuleisy yulimar yusmary zoraida
+""".split())
+
+
+def bare_name(body: str) -> str:
+    """The name in a bare reply to "¿Cómo te llamas?" ("Octavio", "ana maría"), or ''."""
+    # Only letters, spaces, hyphens and apostrophes: "Margarita, 2" or "Ana: boxeo" is not a bare name.
+    if not re.fullmatch(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñü' -]+", (body or "").strip(" .!¡")) or len(body.split()) > 3:
+        return ""
+    words = re.findall(r"[a-z]+", _plain(body))
+    if not words or words[0] not in FIRST_NAMES:
+        return ""
+    from .venezuela import find_city
+    # The whole reply is a city ("Juan Griego"); a surname that is also a city ("Ana Valencia") is fine.
+    if find_city(body):
+        return ""
+    name = extract_name("Me llamo " + body.strip(" .!¡"))
+    # The whole reply must be the name: "Margarita, hay cine" is a request, not a name.
+    letters = lambda t: re.sub(r"[^a-z]", "", _plain(t))  # noqa: E731
+    return name if name and letters(name) == letters(body) else ""
+
+
+def name_pending(contact: "Contact | None") -> bool:
+    return bool(contact and (contact.last_topic or "").startswith(NAME_PENDING))
+
+
+async def ask_name(db: AsyncSession, phone: str) -> None:
+    """Marks that Sabi asked for the name, keeping the topic it interrupted."""
+    c = await get(db, phone)
+    previous = "" if not c or name_pending(c) else (c.last_topic or "")
+    await set_topic(db, phone, f"{NAME_PENDING}:{previous}"[:80])
+
+
+async def end_name_prompt(db: AsyncSession, phone: str, contact: "Contact") -> None:
+    await set_topic(db, phone, (contact.last_topic or "")[len(NAME_PENDING) + 1:] or "general")
+
+
+def name_reply(contact: "Contact | None", body: str) -> str:
+    """Answers "¿Cómo me llamo?" / "Llámame por mi nombre" from memory; '' for anything else."""
+    text = _plain(body)
+    if not _ASKS_NAME.search(text):
+        return ""
+    # "Llámame por mi nombre y quiero pedir en NACIONAL" is an order too: leave it to the order routes.
+    if any(w not in _NAME_FILLER for w in re.findall(r"[a-z]+", _ASKS_NAME.sub(" ", text))):
+        return ""
+    name = display_name(contact.name if contact else None)
+    if not name:
+        return "Aún no sé tu nombre. " + ASK_NAME
+    if _ASKS_WHICH.search(text):
+        return f"Te llamas {name}. ¿En qué te ayudo?"
+    return f"Claro, {name}. ¿En qué te ayudo?"
+
+
 def first_name(name: str | None) -> str:
     return (name or "").split()[0] if name else ""
 
