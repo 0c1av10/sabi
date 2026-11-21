@@ -164,14 +164,21 @@ async def fee_reply(db,phone,body):
     active=await get(db,phone)
     if active and active.domain in ('shopping','cinema','gym','events'):return None
     named=await restaurant_by_mention(db,body)
-    if not named and active and active.domain=='restaurant' and active.entity:
+    if not named and active and active.domain in ('restaurant','place') and active.entity:
         named=await restaurant_by_mention(db,active.entity)
+        # An unresolved place is the subject now; an older business list must not answer for it.
+        if not named:return None
     businesses=[named] if named else await _listed_businesses(db,phone)
     if not businesses:return await local_options(db,city.name,phone) or None
     lines=[]
     for r in businesses:
-        zone=next((z for z in zones_of(r) if find_city(z['name'])==city),None)
-        if not zone:lines.append(f'{r.name} no hace delivery a {city.name}.')
+        zones=zones_of(r)
+        zone=next((z for z in zones if find_city(z['name'])==city),None)
+        if not zones:
+            if r.delivery_fee is None:lines.append(f'El costo de delivery de {r.name} a {city.name} lo confirma el local al aprobar el pedido.')
+            elif r.delivery_fee:lines.append(f'El delivery de {r.name} cuesta {_fee(r.delivery_fee)}; el local confirma si llega a {city.name}.')
+            else:lines.append(f'El delivery de {r.name} es sin costo; el local confirma si llega a {city.name}.')
+        elif not zone:lines.append(f'{r.name} no hace delivery a {city.name}.')
         elif zone['fee']:lines.append(f'El delivery de {r.name} a {city.name} cuesta {_fee(zone["fee"])}.')
         else:lines.append(f'El delivery de {r.name} a {city.name} es sin costo.')
     return '\n'.join(lines)
