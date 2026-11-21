@@ -95,14 +95,14 @@ def _add(items: dict, name: str, price, category: str = "", desc: str = "", imag
         price = float(str(price).replace(",", "."))
     except ValueError:
         return
-    if not (2 < len(name) <= 70) or not (0 < price < 1000) or len(items) >= MAX_ITEMS:
-        return
-    if re.search(r"https?:|[{}<>=;]|\\u", name):
-        return
     known = items.get(name.lower())
     if known:
         # JSON-LD may list the dish without the description a menu object on the page has.
         known["description"] = known["description"] or _clean(desc)[:200]
+        return
+    if not (2 < len(name) <= 70) or not (0 < price < 1000) or len(items) >= MAX_ITEMS:
+        return
+    if re.search(r"https?:|[{}<>=;]|\\u", name):
         return
     items.setdefault(name.lower(), {"name": name, "price": round(price, 2),
                                     "category": _clean(category)[:60] or "Menú",

@@ -88,3 +88,12 @@ def test_importer_takes_the_description_from_a_later_source():
     importer._add(items, "Combo Resuelve", 18, "Promociones", "")
     importer._add(items, "Combo Resuelve", 18, "Promociones", "1 pollo + 1 refresco de 1 litro")
     assert items["combo resuelve"]["description"] == "1 pollo + 1 refresco de 1 litro"
+
+
+def test_importer_fills_descriptions_when_the_catalog_is_full():
+    from app import importer
+    items = {}
+    for n in range(importer.MAX_ITEMS):
+        importer._add(items, f"Plato {n:02d}", 5, "Platos", "")
+    importer._add(items, "Plato 00", 5, "Platos", "Con arroz")
+    assert items["plato 00"]["description"] == "Con arroz"
