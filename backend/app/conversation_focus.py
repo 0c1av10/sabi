@@ -54,6 +54,9 @@ async def place_reply(db,phone,body):
     focus=await get(db,phone)
     if not focus or focus.domain not in ('place','restaurant'):return None
     if re.search(r'\b(pizzeria|restaurante|local)\b',text):
+        from .auth import restaurant_by_mention
+        # A catalog business named here ("quiero pedir en NACIONAL Restaurante") is an order, not a place hint.
+        if await restaurant_by_mention(db,body):return None
         # Only explicit city patterns, never GPS or guessed neighboring city.
         citymatch=re.search(r'\ben\s+([a-záéíóúñ ]+?)(?:\s+en la |\s+por |$)',body,re.I)
         city=citymatch[1].strip().title() if citymatch else focus.city

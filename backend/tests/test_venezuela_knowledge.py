@@ -148,6 +148,7 @@ async def test_suggested_order_line_routes_to_business(Session, sent):
         await _catalog(db)
         reply = await focus.city_reply(db, "111", "Estoy en Lechería")
         assert "«quiero pedir en NACIONAL Restaurante»" in reply
+        assert await webhook._events_route(db, "111", "quiero pedir en NACIONAL Restaurante") is None
         restaurant, _, text = await webhook._resolve(db, "111", "quiero pedir en NACIONAL Restaurante")
         assert restaurant and restaurant.slug == "nacional" and text is None
         assert (await focus.get(db, "111")).city == "Lechería"
