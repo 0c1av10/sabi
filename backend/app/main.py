@@ -13,6 +13,7 @@ _ready = False
 
 # Delivery zones of NACIONAL's own storefront (provided by the owner). Applied once, only while the
 # restaurant has no zones, so anything edited later in the panel is never overwritten.
+# NACIONAL's fees per zone, confirmed by the owner (its website publishes none).
 KNOWN_DELIVERY_ZONES = {
     "nacional": [{"name": "Lechería", "fee": 2.0}, {"name": "Barcelona", "fee": 3.0},
                  {"name": "Puerto La Cruz", "fee": 4.0}],
