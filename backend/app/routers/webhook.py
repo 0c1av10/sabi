@@ -296,13 +296,14 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     # "Mejor en Lechería" moves the food task; named_business_query would read "Mejor" as a place.
     named_city=recommendation_city or focus.declared_city(body)
     # "allí", "en esa ciudad": the city the customer was just asking about, whatever the topic was.
-    here=bool(active and active.city and re.search(r'\b(?:alli|ahi|alla|aca|aqui|esa ciudad|esta ciudad)\b',text))
+    here=bool(active and active.city and re.search(r'\b(?:alli|ahi|alla|aca|aqui|esa ciudad|esta ciudad)\b',text)
+              and not re.search(r'\b(?:fuera|afuera|lejos|aparte)\s+de\b|\bque no sea\b',text))
     # A city Sabi doesn't know ("Pizza en Miami") is still a different city: never answer it with the old one.
     if (food and domain!='cinema' and not explicit_cinema(body) and (not named_city or venezuela.find_city(named_city))
             and (focus.declared_city(body) or not named_business_query(body)) and not await restaurant_by_mention(db,body)):
         new_city=venezuela.canonical(named_city) if named_city else ''
         kind=concierge.food_kind(body)
-        if (new_city and new_city!=active.city) or kind or here:
+        if (new_city and new_city!=active.city) or kind or (here and concierge.wants_food(body)):
             reply=await concierge.food_in_city(db,phone,new_city or active.city,kind or active.entity.partition(':')[2])
             await send_whatsapp_message(phone,reply)
             return reply

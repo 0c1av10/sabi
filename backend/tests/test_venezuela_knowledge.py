@@ -704,3 +704,17 @@ async def test_cinema_in_this_city_after_a_food_search_keeps_the_city(Session, s
         await _lecheria_food(db)
         reply = await webhook._events_route(db, "111", "¿Qué películas hay en el cine en esta ciudad?")
         assert "Lechería" in reply
+
+
+async def test_a_non_food_question_about_that_city_is_not_a_food_search(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Allí dan clases de boxeo?")
+        assert not (reply or "").startswith("En Lechería")
+
+
+async def test_outside_this_city_is_not_this_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué restaurantes hay fuera de esta ciudad?")
+        assert not (reply or "").startswith("En Lechería")
