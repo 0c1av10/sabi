@@ -188,6 +188,25 @@ async def test_oura_mock_quotes_delivery_after_asking_about_trio(Session, monkey
 
 
 @pytest.mark.asyncio
+async def test_oura_mock_keeps_order_when_asking_delivery_cost(Session):
+    await seed_known_businesses()
+    async with Session() as session:
+        restaurant, items = await get_catalog(session, "oura")
+
+    reply = run_mock_agent(
+        restaurant, list(items.values()), Conversation(state_json="{}"),
+        "Quiero dos Americanos por delivery a Barcelona, ¿cuánto cuesta?",
+    )
+
+    draft = reply.state["draft"]
+    assert [(item["name"], item["quantity"]) for item in draft["items"]] == [("Americano", 2)]
+    assert draft["order_type"] == "delivery" and draft["delivery_zone"] == "Barcelona"
+    assert "2 x Americano" in reply.reply
+    assert "Delivery (Barcelona) — €4,00" in reply.reply
+    assert "¿A qué dirección lo enviamos?" in reply.reply
+
+
+@pytest.mark.asyncio
 async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkeypatch):
     import anthropic
 

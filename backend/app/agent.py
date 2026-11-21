@@ -379,14 +379,6 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     rates = rates_of(restaurant)
     zones = delivery.zones_of(restaurant)
 
-    if (zones and re.search(r"\b(?:delivery|domicilio|env[ií]o)\b", text)
-            and re.search(r"\b(?:cu[aá]nto|cuesta|costo|precio|tarifa)\b", text)):
-        fees = "\n".join(
-            f"• {zone['name']}: " + (fmt_money(zone["fee"], *rates) if zone["fee"] else "gratis")
-            for zone in zones
-        )
-        return AgentResult(reply=f"El costo del delivery depende de la zona:\n{fees}", state=state)
-
     if re.search(r"\bqu[eé]\s+(?:(?:es\s+lo\s+que)\s+)?(?:incluye|trae|lleva|contiene)\b", text):
         question = delivery.plain(text)
         match = max(
@@ -419,6 +411,18 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         for _, _, name, qty in sorted(selected):
             quantities[name] = quantities.get(name, 0) + qty
         return [{"name": name, "quantity": qty, "extras": "", "notes": ""} for name, qty in quantities.items()]
+
+    asks_delivery_fee = (
+        bool(zones) and re.search(r"\b(?:delivery|domicilio|env[ií]o)\b", text) is not None
+        and re.search(r"\b(?:cu[aá]nto|cuesta|costo|precio|tarifa)\b", text) is not None
+    )
+    requested = matched_items() if asks_delivery_fee else None
+    if asks_delivery_fee and not requested:
+        fees = "\n".join(
+            f"• {zone['name']}: " + (fmt_money(zone["fee"], *rates) if zone["fee"] else "gratis")
+            for zone in zones
+        )
+        return AgentResult(reply=f"El costo del delivery depende de la zona:\n{fees}", state=state)
 
     # stage: awaiting confirmation of the draft
     if state.get("stage") == "confirming":
@@ -455,7 +459,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     if re.search(r"\b(hola|buenas|buenos d[ií]as|buenas tardes|buenas noches)\b", text) and not draft["items"]:
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})
 
-    if re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
+    if not asks_delivery_fee and re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
         return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, rates, descriptions=False),
                            state={**state, "draft": draft})
 
@@ -469,7 +473,8 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     if sched and sched.group(0) not in (draft.get("notes") or ""):
         draft["notes"] = ((draft.get("notes") or "") + " " + sched.group(0)).strip()
 
-    requested = matched_items()
+    if requested is None:
+        requested = matched_items()
 
     # "Ese" / "esa" referring to several options Sabi just offered: ask which one, never
     # pick for the client, and keep the rest of the draft untouched. A single offered
@@ -550,11 +555,17 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                 state["offer"] = extra.name
                 upsell = f" ¿Le sumamos {extra.name} por {fmt_money(extra.price, *rates)}?"
         got = ", ".join(f'{i["quantity"]} x {i["name"]}' for i in draft["items"])
+        quote = ""
+        if (missing or upsell) and asks_delivery_fee and draft["order_type"] == "delivery":
+            zone = delivery.find_zone(zones, draft.get("delivery_zone") or "")
+            if zone:
+                fee = fmt_money(zone["fee"], *rates) if zone["fee"] else "gratis"
+                quote = f" Delivery ({zone['name']}) — {fee}."
         if missing:
-            return AgentResult(reply=f"Anoté: {got}.{upsell} " + " ".join(missing),
+            return AgentResult(reply=f"Anoté: {got}.{quote}{upsell} " + " ".join(missing),
                                state={**state, "draft": draft})
         if upsell:
-            return AgentResult(reply=f"Anoté: {got}.{upsell} ¿O lo dejamos así?",
+            return AgentResult(reply=f"Anoté: {got}.{quote}{upsell} ¿O lo dejamos así?",
                                state={**state, "draft": draft})
         summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, rates_of(restaurant),
                                      delivery_fee_for(restaurant, draft))
