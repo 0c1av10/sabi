@@ -401,6 +401,7 @@ async def test_reply_naming_a_business_overrides_the_switch_offer(Session, sent)
         restaurant, routed, _ = await webhook._resolve(db, "555", "Bizza, quiero una pizza sin cebolla")
         assert restaurant and restaurant.slug == "bizza" and routed.endswith("sin cebolla")
         for phone, reply in [("333", "Sí, nada de NACIONAL"), ("444", "En Bizza no"), ("888", "No quiero NACIONAL"),
+                             ("1010", "Bizza, mejor no"), ("1111", "Bizza o NACIONAL?"),
                              ("666", "No, gracias. Y nada de NACIONAL"), ("777", "Sí, sin problema con Bizza")]:
             await memory.set_topic(db, phone, "tu pedido en NACIONAL Restaurante")
             await webhook._resolve(db, phone, "Tiene refresco")

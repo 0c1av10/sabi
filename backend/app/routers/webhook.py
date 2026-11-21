@@ -100,17 +100,23 @@ async def _silent_business_switch(db,phone,body,restaurant):
 
 
 def _leading_business(body,restaurants):
-    """The business a reply opens with ("Bizza, sin cebolla", "En NACIONAL"), unless a "no" follows it."""
-    words=venezuela.plain(re.sub(r'[^\w\s]',' ',body or '')).split()
+    """The business a reply opens with ("Bizza, sin cebolla", "En NACIONAL"). None when what follows
+    takes it back ("Bizza, mejor no", "Bizza o NACIONAL?") or names another business."""
+    plain=lambda t:venezuela.plain(re.sub(r'[^\w\s]',' ',t or '')).split()
+    words=plain(body)
     while words and words[0] in ('en','de','con','mejor'):words=words[1:]
+    names=[(r,plain(r.name)) for r in restaurants]
     best=None
-    for r in restaurants:
-        name=venezuela.plain(re.sub(r'[^\w\s]',' ',r.name)).split()
+    for r,name in names:
         n=0
         while n<len(name) and n<len(words) and words[n]==name[n]:n+=1
-        if n and (len(name[0])>2 or n>1) and (n==len(words) or words[n]!='no') and (not best or n>best[1]):
-            best=(r,n)
-    return best[0] if best else None
+        if n and (len(name[0])>2 or n>1) and (not best or n>best[1]):best=(r,n)
+    if not best:return None
+    r,n=best;rest=words[n:]
+    if rest[:1] in (['no'],['o'],['ni'],['tampoco'],['nunca']) or rest[:2]==['mejor','no']:return None
+    text=' '+' '.join(rest)+' '
+    if any(o.id!=r.id and name and len(name[0])>2 and f' {name[0]} ' in text for o,name in names):return None
+    return r
 
 
 async def _switch_answer(db,phone,body):
@@ -129,12 +135,15 @@ async def _switch_answer(db,phone,body):
         return None,body,None
     yes,no=_YES.match(body),_NO.match(body)
     rest=body[(yes or no).end():] if (yes or no) else body
-    lead=_leading_business(body,(await db.execute(select(Restaurant))).scalars().all())
+    restaurants=(await db.execute(select(Restaurant))).scalars().all()
+    lead=_leading_business(body,restaurants)
     if lead:
         if offered and lead.id==offered.id:return offered,body,None
         await memory.set_topic(db,phone,restore)
         return None,body,None
-    if await restaurant_by_mention(db,body):
+    words=f" {venezuela.plain(re.sub(r'[^\w\s]',' ',body))} "
+    named=[r for r in restaurants if (w:=venezuela.plain(re.sub(r'[^\w\s]',' ',r.name)).split()) and len(w[0])>2 and f' {w[0]} ' in words]
+    if named or await restaurant_by_mention(db,body):
         return None,body,(f'¿Lo pedimos en *{offered.name}* o seguimos con *{previous.name}*? '
                           'Respóndeme solo con el nombre del local.') if offered and previous else None
     if offered and yes:
