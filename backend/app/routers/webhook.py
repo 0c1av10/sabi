@@ -165,7 +165,8 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     if memory.name_pending(contact) and not gym_step:
         # Only the reply right after "¿Cómo te llamas?" can be a bare name, and only a known first name.
         await memory.end_name_prompt(db,phone,contact)
-        said=memory.bare_name(body) or (memory.extract_name(body) if len(body.split())<=4 else '')
+        # \"Soy Ana, ¿hay boxeo?\" saves the name (memory.note) but is answered by the routes below.
+        said=memory.bare_name(body) or (memory.extract_name(body) if len(body.split())<=4 and not re.search(r'[,;?]',body) else '')
         if said:await memory.set_name(db,phone,said)
     if said:
         reply=f'¡Mucho gusto, {memory.display_name(said)}! Ya me quedo con tu nombre. ¿En qué te ayudo?'

@@ -287,3 +287,13 @@ def test_city_starting_with_a_first_name_is_not_a_name(reply):
     from app import memory
     assert memory.bare_name(reply) == ""
     assert memory.bare_name("Juan Pérez") == "Juan Pérez"
+
+
+async def test_introduction_with_a_question_still_gets_its_answer(Session, sent):
+    from app import memory
+    async with Session() as db:
+        await memory.ask_name(db, "111")
+        reply = await webhook._events_route(db, "111", "Soy Ana, ¿hay boxeo?")
+        assert not (reply or "").startswith("¡Mucho gusto")
+        contact = await memory.get(db, "111")
+        assert contact.name == "Ana" and not memory.name_pending(contact)
