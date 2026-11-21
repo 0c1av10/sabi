@@ -70,3 +70,13 @@ async def test_full_dry_run_lists_delivery_pricing_it_would_fill(Session, monkey
         dry = await store.reimport(restaurant=r, db=db, dry_run=True)
         fields = {c["field"]: c["to"] for c in dry["changes"] if c["dish"] is None}
         assert fields == {"delivery_fee": 2.0, "delivery_zones": zones}
+
+
+async def test_description_sync_skips_dishes_sharing_a_name(Session):
+    async with Session() as db:
+        r = await _nacional(db)
+        rid = r.id
+        db.add(MenuItem(restaurant_id=rid, name="Combo Resuelve", price=20.0, category="Delivery", description=""))
+        await db.commit()
+        dry = await store.reimport(restaurant=r, db=db, mode="descriptions", dry_run=True)
+        assert dry["changes"] == []

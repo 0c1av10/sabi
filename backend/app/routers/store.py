@@ -206,9 +206,15 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
 
 async def _fill_descriptions(db: AsyncSession, restaurant: Restaurant, data: dict) -> list[dict]:
     """Only fills empty descriptions of dishes the business already has; nothing else changes."""
-    site = {it["name"].lower(): it["description"] for it in data["items"] if it["description"]}
+    from collections import Counter
+    menu = (await db.execute(select(MenuItem).where(MenuItem.restaurant_id == restaurant.id))).scalars().all()
+    # A name used by two dishes (here or on the site) is ambiguous: its description is not copied.
+    repeated = {n for c in (Counter(m.name.lower() for m in menu), Counter(it["name"].lower() for it in data["items"]))
+                for n, k in c.items() if k > 1}
+    site = {it["name"].lower(): it["description"] for it in data["items"]
+            if it["description"] and it["name"].lower() not in repeated}
     changes = []
-    for mi in (await db.execute(select(MenuItem).where(MenuItem.restaurant_id == restaurant.id))).scalars().all():
+    for mi in menu:
         if not mi.description and site.get(mi.name.lower()):
             mi.description = site[mi.name.lower()]
             changes.append({"dish": mi.name, "field": "description", "from": "", "to": mi.description})
