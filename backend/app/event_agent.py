@@ -293,8 +293,13 @@ async def run_demo_agent(db: AsyncSession, tools: EventTools, session: EventSess
         where = f" en {city}" if city else ""
         extra = ("\n\nTambién puedes abrir la cartelera oficial de TuEntradaWeb con el botón de abajo para "
                  "ver y comprar eventos reales." if res.get("cartelera") else "")
-        return done(f"Encontré {res['total']} opción(es){where}:\n{_events_text(res['eventos'])}\n\n"
-                    f"Dime cuál te llama la atención y te muestro zonas y precios.{extra}",
+        if res['total'] == 1:
+            intro = f"Encontré este evento{where}"
+            question = "¿Te gustaría ver sus zonas y precios?"
+        else:
+            intro = f"Encontré estas opciones{where}"
+            question = "¿Cuál te llama la atención para ver zonas y precios?"
+        return done(f"{intro}:\n{_events_text(res['eventos'])}\n\n{question}{extra}",
                     shown=[e["id"] for e in res["eventos"]], event_id=None)
 
     return done("¿Qué te gustaría hacer? Así te recomiendo un evento que vaya contigo.")
