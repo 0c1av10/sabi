@@ -379,18 +379,6 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     rates = rates_of(restaurant)
     zones = delivery.zones_of(restaurant)
 
-    if re.search(r"\bqu[eé]\s+(?:(?:es\s+lo\s+que)\s+)?(?:incluye|trae|lleva|contiene)\b", text):
-        question = delivery.plain(text)
-        match = max(
-            (i for i in available if re.search(rf"(?<!\w){re.escape(delivery.plain(i.name))}(?!\w)", question)),
-            key=lambda i: len(i.name),
-            default=None,
-        )
-        if match:
-            return AgentResult(reply=(f"*{match.name}* — {fmt_money(match.price, *rates)}. {match.description}"
-                                      if match.description else f"No tengo los ingredientes de {match.name} registrados."),
-                               state=state)
-
     def matched_items() -> list[dict]:
         words = "|".join(_NUM)
         quantity = rf"(?:(?P<number>\d+)\s*(?:x|de)?\s*|(?P<word>{words})\s+(?:de\s+)?)?"
@@ -416,13 +404,32 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         bool(zones) and re.search(r"\b(?:delivery|domicilio|env[ií]o)\b", text) is not None
         and re.search(r"\b(?:cu[aá]nto|cuesta|costo|precio|tarifa)\b", text) is not None
     )
-    requested = matched_items() if asks_delivery_fee else None
+    requested = None
+    if asks_delivery_fee:
+        order_intent = re.search(
+            r"(?<!\bno )\b(?:(?:quiero|quisiera)(?!\s+(?:saber|conocer|consultar|preguntar)\b)|"
+            r"dame|p[ií]de|p[ií]deme|agrega|agr[eé]game|a[nñ]ade|a[nñ][aá]deme|"
+            r"m[aá]ndame|env[ií]ame|ponme|anota|an[oó]tame|tr[aá]eme)\b", text,
+        )
+        requested = matched_items() if order_intent else []
     if asks_delivery_fee and not requested:
         fees = "\n".join(
             f"• {zone['name']}: " + (fmt_money(zone["fee"], *rates) if zone["fee"] else "gratis")
             for zone in zones
         )
         return AgentResult(reply=f"El costo del delivery depende de la zona:\n{fees}", state=state)
+
+    if re.search(r"\bqu[eé]\s+(?:(?:es\s+lo\s+que)\s+)?(?:incluye|trae|lleva|contiene)\b", text):
+        question = delivery.plain(text)
+        match = max(
+            (i for i in available if re.search(rf"(?<!\w){re.escape(delivery.plain(i.name))}(?!\w)", question)),
+            key=lambda i: len(i.name),
+            default=None,
+        )
+        if match:
+            return AgentResult(reply=(f"*{match.name}* — {fmt_money(match.price, *rates)}. {match.description}"
+                                      if match.description else f"No tengo los ingredientes de {match.name} registrados."),
+                               state=state)
 
     # stage: awaiting confirmation of the draft
     if state.get("stage") == "confirming":

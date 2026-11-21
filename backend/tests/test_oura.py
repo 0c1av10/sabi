@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -204,6 +205,34 @@ async def test_oura_mock_keeps_order_when_asking_delivery_cost(Session):
     assert "2 x Americano" in reply.reply
     assert "Delivery (Barcelona) — €4,00" in reply.reply
     assert "¿A qué dirección lo enviamos?" in reply.reply
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stage", ["chat", "confirming"])
+@pytest.mark.parametrize("message", [
+    "¿cuánto cuesta el delivery de los americanos?",
+    "Quiero saber cuánto cuesta el delivery de los americanos",
+])
+async def test_oura_mock_delivery_question_mentioning_items_keeps_state(Session, stage, message):
+    await seed_known_businesses()
+    async with Session() as session:
+        restaurant, items = await get_catalog(session, "oura")
+    state = {
+        "stage": stage,
+        "draft": {
+            "items": [{"name": "Americano", "quantity": 2}],
+            "order_type": "delivery", "delivery_zone": "Barcelona", "address": "Calle de prueba",
+        },
+    }
+
+    reply = run_mock_agent(
+        restaurant, list(items.values()), Conversation(state_json=json.dumps(state)),
+        message,
+    )
+
+    assert all(zone in reply.reply for zone in ZONE_QUOTES)
+    assert reply.state == state
+    assert reply.action == "continue" and reply.order is None
 
 
 @pytest.mark.asyncio
