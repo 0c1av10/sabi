@@ -58,3 +58,15 @@ async def test_full_reimport_reports_price_overwrites_and_new_dishes(Session):
         assert {(c["dish"], c["field"]) for c in dry["changes"]} == {
             ("Combo Resuelve", "price"), ("Combo Resuelve", "description"), ("Plato Nuevo", "added")}
         assert len(await _menu(db, rid)) == 2
+
+
+async def test_full_dry_run_lists_delivery_pricing_it_would_fill(Session, monkeypatch):
+    zones = [{"name": "Lechería", "fee": 2.0}, {"name": "Barcelona", "fee": 3.0}]
+    async def fake(url):
+        return {**SITE, "delivery_fee": 2.0, "delivery_zones": zones}
+    monkeypatch.setattr(store, "import_site", fake)
+    async with Session() as db:
+        r = await _nacional(db)
+        dry = await store.reimport(restaurant=r, db=db, dry_run=True)
+        fields = {c["field"]: c["to"] for c in dry["changes"] if c["dish"] is None}
+        assert fields == {"delivery_fee": 2.0, "delivery_zones": zones}

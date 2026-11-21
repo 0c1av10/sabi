@@ -94,10 +94,13 @@ async def _apply_import(db: AsyncSession, restaurant: Restaurant, data: dict,
     restaurant.tagline = restaurant.tagline or data["tagline"]
     # Delivery price read from the site; never overwrite what the owner already set.
     if restaurant.delivery_fee is None and data.get("delivery_fee") is not None:
+        changes.append({"dish": None, "field": "delivery_fee", "from": None, "to": data["delivery_fee"]})
         restaurant.delivery_fee = data["delivery_fee"]
     if not restaurant.delivery_zones and data.get("delivery_zones"):
+        changes.append({"dish": None, "field": "delivery_zones", "from": [], "to": data["delivery_zones"]})
         restaurant.delivery_zones = delivery.dump_zones(data["delivery_zones"])
     if not restaurant.delivery_info and data.get("delivery_info"):
+        changes.append({"dish": None, "field": "delivery_info", "from": "", "to": data["delivery_info"]})
         restaurant.delivery_info = data["delivery_info"]
     return len(data["items"])
 
