@@ -212,3 +212,29 @@ def test_mock_category_request_lists_its_dishes(beijing):
     result = run_mock_agent(r, items, Conversation(state_json="{}"), "precios de combos chinos")
     assert result.reply.startswith("Combos chinos:")
     assert "ARROZ ESPECIAL Y CHOP SUEY" in result.reply and len(result.reply) <= 4096
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("order_type,expected,absent", [
+    ("delivery", "Subtotal (sin delivery): $12,00", "Total:"),
+    ("retiro", "Total: $12,00", "Subtotal"),
+])
+async def test_approval_message_keeps_unknown_delivery_pending(Session, monkeypatch, order_type, expected, absent):
+    from app import service
+    from app.models import Customer, Order, OrderItem, PaymentStatus
+    monkeypatch.setattr(service, "send_whatsapp_message", AsyncMock())
+    async with Session() as db:
+        r = Restaurant(name="Beijing Restaurante", slug="beijing", pin="x", delivery_fee=None,
+                       delivery_zones="", exchange_rate=100, eur_rate=110)
+        db.add(r); await db.flush()
+        c = Customer(restaurant_id=r.id, phone="+580000"); db.add(c); await db.flush()
+        conv = Conversation(restaurant_id=r.id, customer_id=c.id); db.add(conv); await db.flush()
+        o = Order(restaurant_id=r.id, conversation_id=conv.id, customer_id=c.id, order_type=order_type,
+                  total=12, delivery_fee=None, payment_status=PaymentStatus.confirmed,
+                  items=[OrderItem(name="BEIJING INDIVIDUAL CHINO", quantity=1, unit_price=12)])
+        db.add(o); await db.commit()
+        await service.approve_order(db, r, o)
+        body = service.send_whatsapp_message.await_args.args[1]
+    assert expected in body and absent not in body
+    if order_type == "delivery":
+        assert "costo por confirmar con el restaurante" in body
