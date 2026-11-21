@@ -74,15 +74,33 @@ async def _unresolved_place_reply(db,phone,body):
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
 
 
+_SWITCH='cambio de local: '
+_YES=re.compile(r'^\s*(?:s[ií]|dale|ok|claro|listo|de una|perfecto)\b',re.I)
+
+
 async def _silent_business_switch(db,phone,body,restaurant):
     """A product match ("Tiene refresco") must not silently move someone who was ordering from one
-    business to another: Sabi says which business has it and asks."""
+    business to another: Sabi says which business has it and asks once."""
     contact=await memory.get(db,phone)
-    last=re.match(r'^tu pedido en (.+?)(?: \(|$)',(contact.last_topic if contact else '') or '')
-    if not last or concierge._plain(last[1])==concierge._plain(restaurant.name):return ''
+    topic=(contact.last_topic if contact else '') or ''
+    if not topic.startswith('tu pedido en '):return ''
+    same=f'tu pedido en {restaurant.name}'
+    if topic==same or topic.startswith(same+' ('):return ''
+    names=[r.name for r in (await db.execute(select(Restaurant))).scalars().all()]
+    previous=max((n for n in names if topic==f'tu pedido en {n}' or topic.startswith(f'tu pedido en {n} (')),key=len,default='')
+    if not previous:return ''
     if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
-    return (f'En el menú de *{last[1]}* no lo encuentro. Lo tiene *{restaurant.name}*. '
-            f'¿Quieres pedirlo en {restaurant.name} o seguimos con {last[1]}?')
+    await memory.set_topic(db,phone,_SWITCH+restaurant.name)
+    return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous}?'
+
+
+async def _confirmed_switch(db,phone,body):
+    """"Sí" right after the switch question goes to the business Sabi offered."""
+    contact=await memory.get(db,phone)
+    topic=(contact.last_topic if contact else '') or ''
+    if not topic.startswith(_SWITCH) or not _YES.match(body):return None
+    name=topic[len(_SWITCH):]
+    return (await db.execute(select(Restaurant).where(Restaurant.name==name))).scalars().first()
 
 
 async def _resolve(db: AsyncSession, phone: str, body: str):
@@ -110,7 +128,8 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
-    restaurant, routed_body = await restaurant_for_message(db, phone, body)
+    confirmed=await _confirmed_switch(db,phone,body)
+    restaurant, routed_body = (confirmed,body) if confirmed else await restaurant_for_message(db, phone, body)
     if restaurant:
         switched=await _silent_business_switch(db,phone,body,restaurant)
         if switched:return None,body,switched

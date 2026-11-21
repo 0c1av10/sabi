@@ -325,10 +325,29 @@ async def test_product_from_another_business_is_not_a_silent_switch(Session, sen
         assert restaurant and restaurant.slug == "bizza"
         await memory.set_topic(db, "222", "tu pedido en NACIONAL Restaurante")
         restaurant, _, text = await webhook._resolve(db, "222", "Tiene refresco")
-        assert restaurant is None and text == ("En el menú de *NACIONAL Restaurante* no lo encuentro. Lo tiene *Bizza*. "
-                                               "¿Quieres pedirlo en Bizza o seguimos con NACIONAL Restaurante?")
-        restaurant, _, _ = await webhook._resolve(db, "222", "Quiero un refresco de Bizza")
+        assert restaurant is None and text == ("Eso lo encontré en *Bizza*. "
+                                               "¿Quieres pedirlo allí o seguimos con NACIONAL Restaurante?")
+        restaurant, _, _ = await webhook._resolve(db, "222", "Sí, quiero un refresco")
         assert restaurant and restaurant.slug == "bizza"
+        await memory.set_topic(db, "333", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "333", "Tiene refresco")
+        restaurant, _, _ = await webhook._resolve(db, "333", "Sí")
+        assert restaurant and restaurant.slug == "bizza"
+        restaurant, _, _ = await webhook._resolve(db, "444", "Quiero un refresco de Bizza")
+        assert restaurant and restaurant.slug == "bizza"
+
+
+async def test_business_name_with_parenthesis_is_not_a_switch(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        db.add(Restaurant(name="Arepera (Lechería)", slug="arepera", pin="0000"))
+        await db.flush()
+        rid = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "arepera"))).first().id
+        db.add(MenuItem(restaurant_id=rid, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        await memory.set_topic(db, "111", "tu pedido en Arepera (Lechería) (recomendación de locales: Lechería)")
+        restaurant, _, text = await webhook._resolve(db, "111", "Tiene refresco")
+        assert restaurant and restaurant.slug == "arepera" and text is None
 
 
 async def test_greeting_asks_when_the_saved_name_is_not_usable(Session, sent):
