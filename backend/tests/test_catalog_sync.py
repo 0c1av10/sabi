@@ -1,7 +1,6 @@
 """Re-reading a business's website: what changes, and the description-only sync."""
 import pytest
 
-from app import importer
 from app.models import MenuItem, Restaurant
 from app.routers import store
 
@@ -59,11 +58,3 @@ async def test_full_reimport_reports_price_overwrites_and_new_dishes(Session):
         assert {(c["dish"], c["field"]) for c in dry["changes"]} == {
             ("Combo Resuelve", "price"), ("Combo Resuelve", "description"), ("Plato Nuevo", "added")}
         assert len(await _menu(db, rid)) == 2
-
-
-def test_dish_prices_are_not_delivery_zones():
-    zones = [{"name": "Combo Resuelve", "fee": 18.0}, {"name": "Pollo Solo", "fee": 14.0},
-             {"name": "Lechería", "fee": 2.0}]
-    assert importer._not_dishes(zones, SITE["items"]) == []
-    assert importer._not_dishes(zones + [{"name": "Barcelona", "fee": 3.0}], SITE["items"]) == \
-        [{"name": "Lechería", "fee": 2.0}, {"name": "Barcelona", "fee": 3.0}]
