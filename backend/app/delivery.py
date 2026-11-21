@@ -64,9 +64,9 @@ def find_zone(zones: list[dict], text: str) -> Optional[dict]:
     if hits:
         return max(hits, key=lambda z: len(z["name"]))
     # "Delivery a PLC", "lecheria": the same Venezuelan city written another way.
-    from .venezuela import city_in, find_city
-    city = city_in(text)
-    return next((z for z in zones if city and find_city(z["name"]) == city), None)
+    from .venezuela import cities_in, find_city
+    cities = cities_in(text)
+    return next((z for z in zones if find_city(z["name"]) in cities), None)
 
 
 def fee_for(restaurant, order_type: Optional[str], zone_name: str = "") -> float:

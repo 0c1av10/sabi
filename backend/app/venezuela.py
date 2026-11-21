@@ -116,10 +116,9 @@ def find_city(value: str) -> City | None:
     return _INDEX.get(key)
 
 
-def city_in(text: str) -> City | None:
-    """A city named inside longer text (an address, "delivery a PLC"); the longest name wins."""
-    match = _SCAN.search(plain(text))
-    return _INDEX[match[1]] if match else None
+def cities_in(text: str) -> list[City]:
+    """Every city named inside longer text ("Ciudad Guayana, Pto Ordaz", "delivery a PLC")."""
+    return [_INDEX[m[1]] for m in _SCAN.finditer(plain(text))]
 
 
 def canonical(value: str) -> str:

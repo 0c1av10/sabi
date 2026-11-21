@@ -74,6 +74,7 @@ def test_partial_and_neighboring_zones_stay_their_own_area():
     assert delivery.find_zone(zones, "Lechería, Av. Principal") is None
     assert delivery.find_zone(zones, "San Félix") is None
     assert delivery.find_zone(zones, "pto ordaz")["name"] == "Puerto Ordaz"
+    assert delivery.find_zone(zones, "Ciudad Guayana, Pto Ordaz, Alta Vista")["name"] == "Puerto Ordaz"
 
 
 # Real conversation (2026-11-20): "En lechería que me recomiendas" → "comida".
