@@ -53,7 +53,15 @@ KNOWN_BUSINESSES = [{
     "name": "Pizzería Abruzzo's", "slug": "abruzzos",
     "tagline": "Pizzería italiana contemporánea",
     "website": "https://www.pizzeriaabruzzos.com/",
-    "opening_hours": "Los horarios dependen de la sucursal; consulta la información de sucursales.",
+    "opening_hours": (
+        "Hora local. Charallave, C.C. Vanessa Mall y Hatillo: diario 09:00–22:00. "
+        "Guatire, C.C. La Parada y Sabana Grande: diario 11:00–22:00. "
+        "Guatire, C.C. Buenaventura: lun–sáb 12:00–22:00; el registro publicado del domingo "
+        "dice 00:00–22:00 (confirmar con el local). "
+        "Lechería y Los Palos Grandes: diario 12:00–23:00. "
+        "Paseo Colón: diario 12:00–22:15. Santa Fe: diario 11:00–23:00. "
+        "UCAB: lun–vie 11:00–17:00; sáb–dom cerrado."
+    ),
     "delivery_info": ABRUZZOS_INFO,
     "menu": ABRUZZOS_MENU,
 }]

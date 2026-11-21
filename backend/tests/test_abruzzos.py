@@ -49,6 +49,7 @@ async def test_seed_once_preserves_all_merchant_and_menu_edits(Session):
         assert r.owner_phone == ""
         assert r.delivery_fee is None and delivery.zones_of(r) == []
         assert r.delivery_info == ABRUZZOS_INFO
+        assert "Lechería y Los Palos Grandes: diario 12:00–23:00" in r.opening_hours
         items = (await db.execute(select(MenuItem).where(MenuItem.restaurant_id == r.id))).scalars().all()
         assert len(items) == 65
         assert {(i.name, i.price, i.category, i.description) for i in items} == set(ABRUZZOS_MENU)
@@ -69,6 +70,20 @@ async def test_seed_once_preserves_all_merchant_and_menu_edits(Session):
         assert len(items) == 65
         edited = await db.get(MenuItem, item_id)
         assert edited.description == "Owner description" and edited.price == 99
+
+
+@pytest.mark.asyncio
+async def test_branch_hours_shortcut_uses_published_schedule(Session):
+    from app.main import seed_known_businesses
+
+    await seed_known_businesses()
+    async with Session() as db:
+        r = (await db.execute(select(Restaurant).where(Restaurant.slug == "abruzzos"))).scalar_one()
+        result = await agent.run_agent(db, r, Conversation(state_json="{}"), [],
+                                       "¿Cuál es el horario de Lechería?")
+        assert "Lechería y Los Palos Grandes: diario 12:00–23:00" in result.reply
+        assert "UCAB: lun–vie 11:00–17:00; sáb–dom cerrado" in result.reply
+        assert "domingo dice 00:00–22:00 (confirmar con el local)" in result.reply
 
 
 def test_menu_context_empty_unavailable_and_bounded_descriptions():
