@@ -124,7 +124,7 @@ def named_business_query(body: str) -> tuple[str,str] | None:
     food={'delivery','retiro','pedido','comida','cocina','pizza','pizzas','pastelitos','cachapa','cachapas','sushi','pollo','cine','cines','pelicula','peliculas','evento','entradas','laptop','taxi','viaje','direccion','precio','horario'}
     from .venezuela import find_city
     # "dónde comer en Lechería" names a city, not a place called Lechería.
-    if find_city(entity):return None
+    if find_city(entity) and not business_word:return None
     words=_norm(entity)
     if not words or len(words)>5 or any(w in food for w in words):return None
     if words[0] in {'hola','busca','buscame','dime','me','nos','cuentame','recomienda','recomiendame','quiero','tengo','necesito','mandame','mandamelo','enviamelo','pasamelo','dimelo','damelo','muestramelo','dividelo','separalo','resumelo','ponlo','hazlo','escribelo','una','un','dos','tres','para','cuanto','cuantos','hay','tienen','que','cuando','residencias','avenida','calle'}:return None
