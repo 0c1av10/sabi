@@ -22,15 +22,35 @@ CROQUETAS = "Croquetas fluidas de cordero, morcilla y pescado."
 PARRILLA = "Cecina de res, muslo de pollo, baby back ribs, chorizo de ajo y morcilla."
 
 
+@pytest.mark.parametrize("coffee", ["Americano", "Espresso", "Café con Leche"])
+def test_published_small_coffee_uses_its_own_price(loaded_oura_menu, coffee):
+    restaurant, items = loaded_oura_menu
+    small = f"{coffee} pequeño"
+    available = {item.name.lower(): item for item in items}
+    assert available[coffee.lower()].price == 3
+    reply = run_mock_agent(restaurant, items, Conversation(state_json="{}"), f"Quiero un {small}")
+    draft = reply.state["draft"]
+    assert [item["name"] for item in draft["items"]] == [small]
+    draft["order_type"] = "retiro"
+    summary, total = summarize_order(draft, available, rates_of(restaurant))
+    assert f"{small} — €2,00" in summary and total == 2
+
+
+@pytest.fixture
+def loaded_oura_menu():
+    restaurant = Restaurant(currency="EUR", exchange_rate=1, eur_rate=1)
+    items = [MenuItem(name=n, price=p, category=c, description=d, available=True) for n, p, c, d in OURA_MENU]
+    return restaurant, items
+
+
 @pytest.mark.parametrize(("message", "expected"), [
     ("Quiero un Carpaccio de Lomito", [("Carpaccio de Lomito", 1)]),
     ("Quiero dos Agua Sparkling", [("Agua Sparkling", 2)]),
     ("Quiero un Don Margarita", [("Don Margarita", 1)]),
     ("Quiero 2 Carpaccio de Lomito y 3 Lomito", [("Carpaccio de Lomito", 2), ("Lomito", 3)]),
 ])
-def test_mock_orders_longest_nonoverlapping_menu_names(message, expected):
-    restaurant = Restaurant(currency="EUR", exchange_rate=1, eur_rate=1)
-    items = [MenuItem(name=n, price=p, category=c, description=d, available=True) for n, p, c, d in OURA_MENU]
+def test_mock_orders_longest_nonoverlapping_menu_names(loaded_oura_menu, message, expected):
+    restaurant, items = loaded_oura_menu
     reply = run_mock_agent(restaurant, items, Conversation(state_json="{}"), message)
     assert [(item["name"], item["quantity"]) for item in reply.state["draft"]["items"]] == expected
 
@@ -77,7 +97,7 @@ async def test_seed_published_oura_data_and_preserves_edits(Session):
         assert "+58 424-833-2553" in restaurant.tagline
         assert "Precios incluyen IVA · No incluyen el 10% de servicio." in restaurant.tagline
         assert "Viernes — Sábado 12:00 — 01:00" in restaurant.opening_hours
-        assert len(items) == 131 and all(item.available for item in items.values())
+        assert len(items) == 134 and all(item.available for item in items.values())
         assert len({item.category for item in items.values()}) == 20
         assert items["Trío de Ceviches"].description == CEVICHES
         assert items["Trío de Croquetas"].description == CROQUETAS
@@ -97,7 +117,7 @@ async def test_seed_published_oura_data_and_preserves_edits(Session):
     await seed_known_businesses()
     async with Session() as session:
         restaurant, items = await get_catalog(session, "oura")
-        assert len(items) == 131 and items["Trío de Ceviches"].price == 17
+        assert len(items) == 134 and items["Trío de Ceviches"].price == 17
         assert restaurant.pin == pin and delivery.zones_of(restaurant) == []
 
 
@@ -123,7 +143,7 @@ async def test_oura_store_and_panel_tenant_isolation(Session, client, monkeypatc
     login = await client.post("/api/auth/login", json={"slug": "oura", "pin": "claveoura"})
     assert login.status_code == 200
     headers = {"X-Sabi-Token": login.json()["token"]}
-    assert len((await client.get("/api/menu", headers=headers)).json()) == 131
+    assert len((await client.get("/api/menu", headers=headers)).json()) == 134
     assert (await client.delete(f"/api/menu/{other_id}", headers=headers)).status_code == 404
 
     order = await client.post("/api/store/oura/orders", json={
