@@ -61,7 +61,12 @@ def find_zone(zones: list[dict], text: str) -> Optional[dict]:
         if plain(z["name"]) == needle:
             return z
     hits = [z for z in zones if re.search(rf"(?<!\w){re.escape(plain(z['name']))}(?!\w)", needle)]
-    return max(hits, key=lambda z: len(z["name"])) if hits else None
+    if hits:
+        return max(hits, key=lambda z: len(z["name"]))
+    # "Delivery a PLC", "lecheria": the same Venezuelan city written another way.
+    from .venezuela import city_in, find_city
+    city = city_in(text)
+    return next((z for z in zones if city and find_city(z["name"]) == city), None)
 
 
 def fee_for(restaurant, order_type: Optional[str], zone_name: str = "") -> float:

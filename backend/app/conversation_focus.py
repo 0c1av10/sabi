@@ -75,7 +75,8 @@ def declared_city(body):
     value=match[1].strip()
     from .concierge import _plain
     if len(value.split())>4 or re.search(r'\b(mensajes?|partes?|lineas?|palabras?|tabla|lista|resumen|detalle|ingles|espanol|pizzas?|restaurante|local|delivery|pedido|mi|la|el|casa|trabajo|oficina|tres|dos|mejor)\b',_plain(value)):return ''
-    return value
+    from .venezuela import canonical
+    return canonical(value)
 
 _BARE_ANSWER=re.compile(r"^[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,30}(?:\s+[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,30}){0,2}$")
 _BARE_NOT_CITY={'nada','no se','nose','buscala','buscalo','busca','ninguna','ninguno','da igual',
@@ -96,7 +97,8 @@ async def pending_city_answer(db,phone,body):
     if not _BARE_ANSWER.fullmatch(candidate) or text in _BARE_NOT_CITY:return ''
     if concierge.is_greeting(candidate) or concierge.wants_food(candidate):return ''
     if await restaurant_by_mention(db,candidate):return ''
-    return candidate.title()
+    from .venezuela import canonical
+    return canonical(candidate.title())
 
 
 async def city_reply(db,phone,body):
@@ -116,4 +118,7 @@ async def city_reply(db,phone,body):
         if same:return f'Mantengo la consulta de {active.entity or "locales"} en {city}. No hace falta que repitas la ciudad para esta consulta.'
         return f'La consulta ahora es de {active.entity or "locales"} en {city}. No tengo opciones ni una sede verificadas allí. Si tienes un enlace de esa sede, pásamelo; no usaré el menú ni el delivery de otra ciudad.'
     await save(db,phone,domain='place',city=city)
+    from .venezuela import local_options
+    local=await local_options(db,city,phone)
+    if local:return local
     return f'Para esta consulta usaré {city}. ¿Qué local o tipo de comida quieres buscar? Aún necesito una fuente verificada de esa ciudad.'

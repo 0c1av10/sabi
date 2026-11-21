@@ -18,7 +18,7 @@ from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, se
 from ..service import handle_inbound_message, recent_inbound_count
 from ..cinema_whatsapp import explicit_cinema, wants_cinema, handle_cinema_whatsapp
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge, gym_whatsapp, memory, pilot_yummy, shopping_inquiry, place_source, conversation_focus as focus
+from .. import concierge, gym_whatsapp, memory, pilot_yummy, shopping_inquiry, place_source, venezuela, conversation_focus as focus
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -110,6 +110,9 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         await memory.set_topic(db, phone, topic)
         previous=await focus.get(db,phone)
         city=previous.city if previous and previous.domain=='restaurant' and previous.entity==restaurant.name else ''
+        # A city asked for just before, where this business registered delivery, stays the task city.
+        if not city and previous and previous.city and (previous.domain=='general' or (previous.domain=='place' and not previous.entity)) and await venezuela.covers(db,restaurant,previous.city):
+            city=previous.city
         await focus.save(db,phone,domain='restaurant',entity=restaurant.name,city=city)
         return restaurant, routed_body, None
     active=await focus.get(db,phone)
@@ -183,7 +186,7 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
             reply=f'Seguimos con cine en {target_city}. No tengo una cartelera verificada disponible ahora.'
         elif domain=='food':
             await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
-            reply=f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
+            reply=await venezuela.local_options(db,target_city,phone) or f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
         else:
             await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
             reply=f'¿Buscas comida o un plan de cine en {target_city}?'
