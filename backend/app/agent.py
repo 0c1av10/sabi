@@ -44,7 +44,9 @@ def menu_text(items: list[MenuItem], rates: tuple[float, float]) -> str:
     lines = []
     for it in items:
         if it.available:
-            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}")
+            description = " ".join((it.description or "").split())
+            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}"
+                         + (f" — {description}" if description else ""))
     return "\n".join(lines)
 
 
@@ -57,7 +59,7 @@ def delivery_fee_for(restaurant: Restaurant, order: dict) -> float:
 
 
 def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float],
-                    delivery_fee: float = 0.0) -> tuple[str, float]:
+                    delivery_fee: float = 0.0, delivery_pending: bool = False) -> tuple[str, float]:
     total = 0.0
     lines = []
     for oi in order.get("items", []):
@@ -76,7 +78,11 @@ def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tupl
     if delivery_fee and order.get("order_type") == "delivery":
         total += delivery_fee
         fee_line = f"\n• Delivery{zone} — {fmt_money(delivery_fee, *rates)}"
-    return "\n".join(lines) + fee_line + f"\n{tipo}{notes}\nTotal: {fmt_money(total, *rates)}", total
+    pending = delivery_pending and order.get("order_type") == "delivery"
+    if pending:
+        fee_line = "\n• Delivery — costo por confirmar con el restaurante (no incluido)"
+    label = "Subtotal (sin delivery)" if pending else "Total"
+    return "\n".join(lines) + fee_line + f"\n{tipo}{notes}\n{label}: {fmt_money(total, *rates)}", total
 
 
 def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dict | None, list[str]]:
@@ -126,6 +132,7 @@ Reglas:
 - Mantén los precios compactos en una sola línea: "$X · Bs Y".
 - Si no sabes algo, di qué dato falta. Nunca ofrezcas ni afirmes pasar la conversación al dueño: no hay un canal humano verificado. No uses action=handoff.
 - Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
+- Si el costo de delivery no está definido, di que lo confirma el restaurante; nunca lo presentes como cero o gratis. El importe de los platos es un subtotal sin delivery, no el total final.
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba. No afirmes que se envió o recibió ni prometas una aprobación o un plazo. Elegir método de pago no prueba pago. Una referencia es una declaración no verificada.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
 - Si el cliente valida el resumen (sí, ok, confirmo), action=submit_order.
@@ -313,7 +320,8 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
             else:
                 reply = "Tu solicitud está pendiente de registro. Aún no hay confirmación del restaurante ni del pago."
         else:
-            summary, _ = summarize_order(order, available, rates, delivery_fee_for(restaurant, order))
+            summary, _ = summarize_order(order, available, rates, delivery_fee_for(restaurant, order),
+                                         restaurant.delivery_fee is None and not delivery.zones_of(restaurant))
             reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
 
     new_state = {**state, "draft": order}
@@ -522,7 +530,8 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
             return AgentResult(reply=f"Anoté: {got}.{upsell} ¿O lo dejamos así?",
                                state={**state, "draft": draft})
         summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, rates_of(restaurant),
-                                     delivery_fee_for(restaurant, draft))
+                                     delivery_fee_for(restaurant, draft),
+                                     restaurant.delivery_fee is None and not delivery.zones_of(restaurant))
         return AgentResult(
             reply=f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante.",
             action="ask_confirm", order=draft, state={**state, "stage": "confirming", "draft": draft})
