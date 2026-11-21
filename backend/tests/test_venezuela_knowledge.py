@@ -331,8 +331,13 @@ async def test_product_from_another_business_is_not_a_silent_switch(Session, sen
         assert restaurant and restaurant.slug == "bizza"
         await memory.set_topic(db, "333", "tu pedido en NACIONAL Restaurante")
         await webhook._resolve(db, "333", "Tiene refresco")
-        restaurant, _, _ = await webhook._resolve(db, "333", "Sí")
-        assert restaurant and restaurant.slug == "bizza"
+        restaurant, routed, _ = await webhook._resolve(db, "333", "Sí")
+        assert restaurant and restaurant.slug == "bizza" and routed == "Tiene refresco"
+        await memory.set_topic(db, "555", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "555", "Tiene refresco")
+        restaurant, routed, _ = await webhook._resolve(db, "555", "No, seguimos. Quiero un refresco")
+        assert restaurant and restaurant.slug == "nacional"
+        assert (await memory.get(db, "555")).last_topic == "tu pedido en NACIONAL Restaurante"
         restaurant, _, _ = await webhook._resolve(db, "444", "Quiero un refresco de Bizza")
         assert restaurant and restaurant.slug == "bizza"
 

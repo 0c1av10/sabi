@@ -76,6 +76,7 @@ async def _unresolved_place_reply(db,phone,body):
 
 _SWITCH='cambio de local: '
 _YES=re.compile(r'^\s*(?:s[ií]|dale|ok|claro|listo|de una|perfecto)\b',re.I)
+_NO=re.compile(r'^\s*(?:no\b|seguimos|sigo|mejor no|me quedo)',re.I)
 
 
 async def _silent_business_switch(db,phone,body,restaurant):
@@ -86,21 +87,29 @@ async def _silent_business_switch(db,phone,body,restaurant):
     if not topic.startswith('tu pedido en '):return ''
     same=f'tu pedido en {restaurant.name}'
     if topic==same or topic.startswith(same+' ('):return ''
-    names=[r.name for r in (await db.execute(select(Restaurant))).scalars().all()]
-    previous=max((n for n in names if topic==f'tu pedido en {n}' or topic.startswith(f'tu pedido en {n} (')),key=len,default='')
+    known=(await db.execute(select(Restaurant))).scalars().all()
+    previous=max((r for r in known if topic==f'tu pedido en {r.name}' or topic.startswith(f'tu pedido en {r.name} (')),
+                 key=lambda r:len(r.name),default=None)
     if not previous:return ''
     if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
-    await memory.set_topic(db,phone,_SWITCH+restaurant.name)
-    return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous}?'
+    # Both businesses and the request are kept so the answer can pick one without repeating it.
+    await memory.set_topic(db,phone,f'{_SWITCH}{restaurant.id}>{previous.id}|{body}'[:80])
+    return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous.name}?'
 
 
-async def _confirmed_switch(db,phone,body):
-    """"Sí" right after the switch question goes to the business Sabi offered."""
+async def _switch_answer(db,phone,body):
+    """(restaurant, body) chosen by the reply to the switch question; (None, body) otherwise."""
     contact=await memory.get(db,phone)
-    topic=(contact.last_topic if contact else '') or ''
-    if not topic.startswith(_SWITCH) or not _YES.match(body):return None
-    name=topic[len(_SWITCH):]
-    return (await db.execute(select(Restaurant).where(Restaurant.name==name))).scalars().first()
+    m=re.match(r'^cambio de local: (\d+)>(\d+)\|(.*)$',(contact.last_topic if contact else '') or '',re.S)
+    if not m:return None,body
+    offered,previous,asked=await db.get(Restaurant,int(m[1])),await db.get(Restaurant,int(m[2])),m[3]
+    if offered and _YES.match(body):
+        # A bare "Sí" carries the original request ("Tiene refresco") to the business offered.
+        return offered,(body if re.search(r'\w{3,}',_YES.sub('',body,count=1)) else asked)
+    if previous:
+        await memory.set_topic(db,phone,f'tu pedido en {previous.name}')
+        if _NO.match(body):return previous,body
+    return None,body
 
 
 async def _resolve(db: AsyncSession, phone: str, body: str):
@@ -128,8 +137,8 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
-    confirmed=await _confirmed_switch(db,phone,body)
-    restaurant, routed_body = (confirmed,body) if confirmed else await restaurant_for_message(db, phone, body)
+    picked,picked_body=await _switch_answer(db,phone,body)
+    restaurant, routed_body = (picked,picked_body) if picked else await restaurant_for_message(db, phone, body)
     if restaurant:
         switched=await _silent_business_switch(db,phone,body,restaurant)
         if switched:return None,body,switched
