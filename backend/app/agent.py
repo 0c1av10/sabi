@@ -40,11 +40,11 @@ def fmt_money(usd: float, rate: float, _eur_rate: float) -> str:
     return f"${_num(usd)} · Bs {_num(bs)}"
 
 
-def menu_text(items: list[MenuItem], rates: tuple[float, float]) -> str:
+def menu_text(items: list[MenuItem], rates: tuple[float, float], *, include_descriptions: bool = False) -> str:
     lines = []
     for it in items:
         if it.available:
-            description = " ".join((it.description or "").split())
+            description = " ".join((it.description or "").split()) if include_descriptions else ""
             if len(description) > 2000:
                 description = description[:2000] + "…"
             lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}"
@@ -242,7 +242,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     context = (
         f"\nRestaurante: {restaurant.name}\nHorarios: {restaurant.opening_hours}\n"
         f"{delivery_context(restaurant, rates)}\n"
-        f"Menú disponible hoy:\n{menu_text(items, rates)}\n"
+        f"Menú disponible hoy:\n{menu_text(items, rates, include_descriptions=True)}\n"
         f"Agotado hoy: {', '.join(sold_out) or 'nada'}\n"
         f"Pedido en curso: {json.dumps(state.get('draft'), ensure_ascii=False)}\n"
         f"Ya ofreciste complemento: {'sí' if state.get('upsell_offered') else 'no'}"

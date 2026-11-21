@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from app import agent, delivery
-from app.known_menus import ABRUZZOS_INFO, ABRUZZOS_MENU
+from app.known_menus import ABRUZZOS_INFO, ABRUZZOS_MENU, BIZZA_MENU
 from app.models import Conversation, MenuItem, Restaurant
 
 
@@ -91,11 +91,24 @@ def test_menu_context_empty_unavailable_and_bounded_descriptions():
     item = MenuItem(name="Dish", price=2, category="Menu", available=True, description=None)
     assert agent.menu_text([item], (1, 1)) == "- Dish (Menu): $2,00 · Bs 2,00"
     item.description = "Ingredients\nwith   spaces"
-    assert "Ingredients with spaces" in agent.menu_text([item], (1, 1))
+    assert "Ingredients" not in agent.menu_text([item], (1, 1))
+    assert "Ingredients with spaces" in agent.menu_text([item], (1, 1), include_descriptions=True)
     item.description = "x" * 10000
-    assert agent.menu_text([item], (1, 1)).endswith("x" * 2000 + "…")
+    assert agent.menu_text([item], (1, 1), include_descriptions=True).endswith("x" * 2000 + "…")
     item.available = False
     assert agent.menu_text([item], (1, 1)) == ""
+    assert agent.menu_text([item], (1, 1), include_descriptions=True) == ""
+
+
+def test_bizza_customer_menu_keeps_compact_lines_under_whatsapp_limit():
+    items = [MenuItem(name=n, price=p, category=c, description=d, available=True)
+             for n, p, c, d in BIZZA_MENU]
+    r = Restaurant(name="Bizza", exchange_rate=875.65, eur_rate=980.61)
+    result = agent.run_mock_agent(r, items, Conversation(state_json="{}"), "menú", [])
+    expected = "Este es nuestro menú:\n" + "\n".join(
+        f"- {i.name} ({i.category}): {agent.fmt_money(i.price, 875.65, 980.61)}" for i in items)
+    assert result.reply == expected
+    assert len(result.reply) <= 4096
 
 
 @pytest.mark.asyncio
