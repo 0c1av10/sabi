@@ -172,8 +172,8 @@ async def test_where_is_question_is_not_a_city(Session, sent, question):
         await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante", city="Lechería")
         assert focus.declared_city(question) == ""
         reply = await webhook._events_route(db, "111", question)
-        assert reply == ("NACIONAL Restaurante hace delivery en Lechería, Barcelona y Puerto La Cruz, "
-                         "según las zonas que registró. No tengo su dirección exacta verificada.")
+        assert reply == ("NACIONAL Restaurante hace delivery a Lechería ($2,00), Barcelona ($3,00) y "
+                         "Puerto La Cruz ($4,00). No tengo su dirección exacta.")
         assert (await focus.get(db, "111")).city == "Lechería"
 
 
@@ -181,7 +181,7 @@ async def test_where_is_question_without_registered_zones(Session, sent):
     async with Session() as db:
         await _catalog(db)
         reply = await webhook._events_route(db, "111", "¿Dónde queda MC Racuchos?")
-        assert reply == "No tengo registrada la ciudad de MC Racuchos y no voy a adivinarla."
+        assert reply == "No tengo la ubicación de MC Racuchos."
 
 
 @pytest.mark.parametrize("question", ["¿Dónde queda Pizzería Roma?", "¿Dónde queda el gym?",
@@ -310,3 +310,12 @@ def test_name_containing_a_city_word_is_still_a_name(reply):
 def test_bare_name_must_be_the_whole_reply(reply):
     from app import memory
     assert memory.bare_name(reply) == ""
+
+
+async def test_city_options_show_only_each_business_and_its_fee(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        reply = await venezuela.local_options(db, "Lechería")
+        assert reply.startswith("En Lechería te puedo atender con estos locales:\n")
+        assert "• *NACIONAL Restaurante* — delivery a Lechería ($2,00)" in reply
+        assert "registr" not in reply and "zonas" not in reply
