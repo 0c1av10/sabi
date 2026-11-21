@@ -2,12 +2,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Mascot from "../../../components/Mascot";
 import { ink } from "../../../lib/brand";
-import { bs, eur, usd, type Rates } from "../../../lib/money";
+import { bs, eur, nativeMoney, type Rates } from "../../../lib/money";
 
 type Item = { id: number; name: string; price: number; category: string; description: string; image_url: string };
 type Store = {
   name: string; slug: string; tagline: string; logo_url: string; brand_color: string;
-  opening_hours: string; whatsapp: string; rates: Rates; menu: Item[];
+  opening_hours: string; whatsapp: string; currency: string; rates: Rates; menu: Item[];
   delivery_fee: number | null; delivery_info: string; delivery_zones: { name: string; fee: number }[];
 };
 
@@ -46,6 +46,8 @@ export default function Tienda({ params }: { params: { slug: string } }) {
   const brand = store.brand_color;
   const onBrand = ink(brand);
   const R = store.rates;
+  const isEuro = store.currency === "EUR";
+  const money = (value: number) => nativeMoney(value, store.currency);
   const lines = store.menu.filter((i) => cart[i.id]).map((i) => ({ ...i, qty: cart[i.id] }));
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
@@ -101,7 +103,7 @@ export default function Tienda({ params }: { params: { slug: string } }) {
                   <button aria-label="Agregar uno" onClick={() => add(l.id, 1)} className="px-2.5 py-1">+</button>
                 </div>
                 <span className="flex-1">{l.name}</span>
-                <span className="tabular-nums">{usd(l.qty * l.price)}</span>
+                <span className="tabular-nums">{money(l.qty * l.price)}</span>
               </li>
             ))}
           </ul>
@@ -125,7 +127,7 @@ export default function Tienda({ params }: { params: { slug: string } }) {
                       <button type="button" key={z.name} onClick={() => setForm({ ...form, delivery_zone: z.name })}
                         className="rounded-xl border px-3 py-2 transition"
                         style={form.delivery_zone === z.name ? { background: brand, color: onBrand, borderColor: brand } : { borderColor: "#e7e5e4" }}>
-                        {z.name} · {z.fee === 0 ? "gratis" : `+${usd(z.fee)}`}
+                        {z.name} · {z.fee === 0 ? "gratis" : `+${money(z.fee)}`}
                       </button>
                     ))}
                   </div>
@@ -149,19 +151,19 @@ export default function Tienda({ params }: { params: { slug: string } }) {
           <div className="border-t border-stone-100 p-5">
             {isDelivery && checkout && (
               <div className="mb-3 space-y-1 text-sm text-stone-500">
-                <div className="flex justify-between tabular-nums"><span>Pedido</span><span>{usd(subtotal)}</span></div>
+                <div className="flex justify-between tabular-nums"><span>Pedido</span><span>{money(subtotal)}</span></div>
                 <div className="flex justify-between tabular-nums">
                   <span>Delivery</span>
-                  <span>{zones.length ? (zone ? (zone.fee === 0 ? "Gratis" : usd(zone.fee)) : "Elige tu zona") : store.delivery_fee === null ? "Lo confirma el local" : store.delivery_fee === 0 ? "Gratis" : usd(store.delivery_fee)}</span>
+                  <span>{zones.length ? (zone ? (zone.fee === 0 ? "Gratis" : money(zone.fee)) : "Elige tu zona") : store.delivery_fee === null ? "Lo confirma el local" : store.delivery_fee === 0 ? "Gratis" : money(store.delivery_fee)}</span>
                 </div>
                 {store.delivery_info && <p className="whitespace-pre-line text-xs text-stone-400">{store.delivery_info}</p>}
               </div>
             )}
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-stone-500">Total</span>
-              <span className="text-xl font-semibold tabular-nums">{usd(total)}</span>
+              <span className="text-xl font-semibold tabular-nums">{money(total)}</span>
             </div>
-            <p className="text-right text-xs text-stone-400 tabular-nums">{eur(total, R)} · {bs(total, R)}</p>
+            {!isEuro && <p className="text-right text-xs text-stone-400 tabular-nums">{eur(total, R)} · {bs(total, R)}</p>}
             {checkout ? (
               <button form="checkout" disabled={sending} className="mt-4 w-full rounded-full py-3 font-semibold transition active:scale-[0.98] disabled:opacity-60" style={{ background: brand, color: onBrand }}>
                 {sending ? "Enviando…" : "Enviar pedido"}
@@ -214,8 +216,8 @@ export default function Tienda({ params }: { params: { slug: string } }) {
                         <p className="font-medium">{i.name}</p>
                         {i.description && <p className="mt-0.5 line-clamp-2 text-sm text-stone-500">{i.description}</p>}
                         <p className="mt-1.5 text-sm tabular-nums">
-                          <span className="font-semibold">{usd(i.price)}</span>
-                          <span className="text-stone-400"> · {eur(i.price, R)} · {bs(i.price, R)}</span>
+                          <span className="font-semibold">{money(i.price)}</span>
+                          {!isEuro && <span className="text-stone-400"> · {eur(i.price, R)} · {bs(i.price, R)}</span>}
                         </p>
                       </div>
                       {i.image_url && <img src={i.image_url} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-xl object-cover md:h-24 md:w-24" />}
@@ -246,7 +248,7 @@ export default function Tienda({ params }: { params: { slug: string } }) {
         <button onClick={() => setOpen(true)} className="fixed inset-x-4 bottom-4 z-20 flex items-center justify-between rounded-full px-6 py-4 font-semibold shadow-xl lg:hidden"
           style={{ background: brand, color: onBrand }}>
           <span>{done ? "Pedido enviado" : `Ver pedido · ${count}`}</span>
-          {!done && <span className="tabular-nums">{usd(total)}</span>}
+          {!done && <span className="tabular-nums">{money(total)}</span>}
         </button>
       )}
       {open && (

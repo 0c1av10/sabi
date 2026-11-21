@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "../../../lib/api";
-import { usd, eur, bs, Rates } from "../../../lib/money";
+import { nativeMoney, eur, bs, Rates } from "../../../lib/money";
 
 type Order = { status: string; total: number; items: { name: string; quantity: number }[] };
 type Item = { name: string; category: string; available: boolean };
@@ -37,8 +37,8 @@ function Copiloto() {
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <div>
           <p className="text-xs text-stone-500">Ticket promedio</p>
-          <p className="mt-1 text-xl font-bold">{usd(avg)}</p>
-          <p className="text-xs text-stone-500">{eur(avg, rates)} · {bs(avg, rates)}</p>
+          <p className="mt-1 text-xl font-bold">{nativeMoney(avg, me.currency)}</p>
+          {me.currency !== "EUR" && <p className="text-xs text-stone-500">{eur(avg, rates)} · {bs(avg, rates)}</p>}
         </div>
         <div>
           <p className="text-xs text-stone-500">Lo más pedido</p>
