@@ -148,10 +148,10 @@ def where_reply(restaurant) -> str:
     from .delivery import zones_of
     names = [z["name"] for z in zones_of(restaurant)]
     if not names:
-        return f"No tengo registrada la ciudad de {restaurant.name} y no voy a adivinarla."
+        return f"No tengo la ubicación de {restaurant.name}."
+    names = [f"{z['name']} ({_fee(z['fee'])})" for z in zones_of(restaurant)]
     where = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " y " + names[-1]
-    return (f"{restaurant.name} hace delivery en {where}, según las zonas que registró. "
-            "No tengo su dirección exacta verificada.")
+    return f"{restaurant.name} hace delivery a {where}. No tengo su dirección exacta."
 
 
 async def covering(db, city: str) -> list[tuple]:
@@ -191,5 +191,5 @@ async def local_options(db, city: str, phone: str = "") -> str:
         from . import memory
         await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r, _ in hits))
     lines = "\n".join(f"• *{r.name}* — delivery a {z['name']} ({_fee(z['fee'])})" for r, z in hits)
-    return (f"En {name} te puedo atender con estos locales, según las zonas de delivery que cada uno registró:\n"
+    return (f"En {name} te puedo atender con estos locales:\n"
             f"{lines}\n\n¿En cuál quieres pedir? Dime, por ejemplo, «quiero pedir en {hits[0][0].name}».")
