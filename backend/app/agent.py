@@ -391,19 +391,23 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                                state=state)
 
     def matched_items() -> list[dict]:
-        matches = [(m.start(), m.end(), mi.name) for name, mi in items_by_name.items()
-                   for m in re.finditer(rf"(?<!\w){re.escape(name)}(?!\w)", text)]
-        selected: list[tuple[int, int, str]] = []
-        for start, end, name in sorted(matches, key=lambda hit: (hit[0] - hit[1], hit[0])):
-            if not any(start < stop and end > begin for begin, stop, _ in selected):
-                selected.append((start, end, name))
+        words = "|".join(_NUM)
+        quantity = rf"(?:(?P<number>\d+)\s*(?:x|de)?\s*|(?P<word>{words})\s+(?:de\s+)?)?"
+        matches = []
+        for name, item in items_by_name.items():
+            plural = r"(?:es|s)?" if name[-1:].isalpha() else ""
+            pattern = rf"(?<!\w){quantity}(?P<item>{re.escape(name)}{plural})(?!\w)"
+            for match in re.finditer(pattern, text):
+                qty = int(match["number"]) if match["number"] else _NUM.get(match["word"], 1)
+                matches.append((*match.span("item"), item.name, qty))
+
+        selected: list[tuple[int, int, str, int]] = []
+        for start, end, name, qty in sorted(matches, key=lambda hit: (-len(hit[2]), hit[0])):
+            if not any(start < stop and end > begin for begin, stop, _, _ in selected):
+                selected.append((start, end, name, qty))
 
         quantities: dict[str, int] = {}
-        for start, _, name in sorted(selected):
-            prefix = text[:start]
-            number = re.search(r"\b(\d+)\s*(?:x|de)?\s*$", prefix)
-            word = re.search(r"\b([a-z]+)\s+(?:de\s+)?$", prefix)
-            qty = int(number[1]) if number else _NUM.get(word[1], 1) if word else 1
+        for _, _, name, qty in sorted(selected):
             quantities[name] = quantities.get(name, 0) + qty
         return [{"name": name, "quantity": qty, "extras": "", "notes": ""} for name, qty in quantities.items()]
 

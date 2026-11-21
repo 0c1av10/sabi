@@ -48,11 +48,23 @@ def loaded_oura_menu():
     ("Quiero dos Agua Sparkling", [("Agua Sparkling", 2)]),
     ("Quiero un Don Margarita", [("Don Margarita", 1)]),
     ("Quiero 2 Carpaccio de Lomito y 3 Lomito", [("Carpaccio de Lomito", 2), ("Lomito", 3)]),
+    ("2xAmericano", [("Americano", 2)]),
+    ("2 x Americano", [("Americano", 2)]),
+    ("dos Americanos", [("Americano", 2)]),
+    ("2xAmericano pequeño y dos Lomitos", [("Americano pequeño", 2), ("Lomito", 2)]),
+    ("Quiero un americanoteca", []),
 ])
 def test_mock_orders_longest_nonoverlapping_menu_names(loaded_oura_menu, message, expected):
     restaurant, items = loaded_oura_menu
     reply = run_mock_agent(restaurant, items, Conversation(state_json="{}"), message)
     assert [(item["name"], item["quantity"]) for item in reply.state["draft"]["items"]] == expected
+
+
+def test_mock_accepts_es_plural():
+    restaurant = Restaurant(currency="USD", exchange_rate=1, eur_rate=1)
+    items = [MenuItem(name="Flan", price=3, category="Postres", available=True)]
+    reply = run_mock_agent(restaurant, items, Conversation(state_json="{}"), "Quiero dos flanes")
+    assert [(item["name"], item["quantity"]) for item in reply.state["draft"]["items"]] == [("Flan", 2)]
 
 
 async def get_catalog(session, slug):
