@@ -149,7 +149,6 @@ def where_reply(restaurant) -> str:
     names = [z["name"] for z in zones_of(restaurant)]
     if not names:
         return f"No tengo la ubicación de {restaurant.name}."
-    names = [f"{z['name']} ({_fee(z['fee'])})" for z in zones_of(restaurant)]
     where = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " y " + names[-1]
     return f"{restaurant.name} hace delivery a {where}. No tengo su dirección exacta."
 
@@ -180,9 +179,10 @@ def _fee(usd: float) -> str:
     return "sin costo" if not usd else "$" + f"{usd:.2f}".replace(".", ",")
 
 
-async def local_options(db, city: str, phone: str = "") -> str:
+async def local_options(db, city: str, phone: str = "", fees: bool = False) -> str:
     """Businesses that registered delivery to `city`, or '' when none did. The offered names are
-    remembered as the current topic so "Y nacional?" right after is read in context."""
+    remembered as the current topic so "Y nacional?" right after is read in context.
+    The delivery fee is shown only when asked (`fees`); otherwise it comes up while building the order."""
     hits = await covering(db, city)
     if not hits:
         return ""
@@ -190,6 +190,7 @@ async def local_options(db, city: str, phone: str = "") -> str:
     if phone:
         from . import memory
         await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r, _ in hits))
-    lines = "\n".join(f"• *{r.name}* — delivery a {z['name']} ({_fee(z['fee'])})" for r, z in hits)
+    lines = "\n".join(f"• *{r.name}*" + (f" — delivery a {z['name']} ({_fee(z['fee'])})" if fees else "")
+                      for r, z in hits)
     return (f"En {name} te puedo atender con estos locales:\n"
             f"{lines}\n\n¿En cuál quieres pedir? Dime, por ejemplo, «quiero pedir en {hits[0][0].name}».")

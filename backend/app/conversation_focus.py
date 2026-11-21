@@ -185,7 +185,7 @@ async def fee_reply(db,phone,body):
         # An unresolved place is the subject now; an older business list must not answer for it.
         if not named:return None
     businesses=[named] if named else await _listed_businesses(db,phone)
-    if not businesses:return await local_options(db,city.name,phone) or None
+    if not businesses:return await local_options(db,city.name,phone,fees=True) or None
     lines=[]
     for r in businesses:
         zones=zones_of(r)
