@@ -245,3 +245,20 @@ async def test_service_request_after_name_prompt_is_not_a_name(Session, sent, an
         await webhook._events_route(db, "111", "Como me llamo")
         await webhook._events_route(db, "111", answer)
         assert not (await memory.get(db, "111")).name
+
+
+@pytest.mark.parametrize("answer,name", [("Octavio", "Octavio"), ("Mañana", None)])
+async def test_name_prompt_keeps_the_interrupted_topic(Session, sent, answer, name):
+    from app import memory
+    async with Session() as db:
+        await memory.note(db, "111", topic="cine")
+        await webhook._events_route(db, "111", "Como me llamo")
+        assert memory.name_pending(await memory.get(db, "111"))
+        await memory.end_name_prompt(db, "111", await memory.get(db, "111"))
+        assert (await memory.get(db, "111")).last_topic == "cine"
+        await memory.ask_name(db, "111")
+        await webhook._events_route(db, "111", answer)
+        contact = await memory.get(db, "111")
+        assert contact.name == name and not memory.name_pending(contact)
+        if name:
+            assert contact.last_topic == "cine"

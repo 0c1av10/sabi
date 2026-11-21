@@ -83,6 +83,21 @@ _ASKS_WHICH = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes)\b")
 NAME_PENDING = "nombre pendiente"
 
 
+def name_pending(contact: "Contact | None") -> bool:
+    return bool(contact and (contact.last_topic or "").startswith(NAME_PENDING))
+
+
+async def ask_name(db: AsyncSession, phone: str) -> None:
+    """Marks that Sabi asked for the name, keeping the topic it interrupted."""
+    c = await get(db, phone)
+    previous = "" if not c or name_pending(c) else (c.last_topic or "")
+    await set_topic(db, phone, f"{NAME_PENDING}:{previous}"[:80])
+
+
+async def end_name_prompt(db: AsyncSession, phone: str, contact: "Contact") -> None:
+    await set_topic(db, phone, (contact.last_topic or "")[len(NAME_PENDING) + 1:] or "general")
+
+
 def name_reply(contact: "Contact | None", body: str) -> str:
     """Answers "¿Cómo me llamo?" / "Llámame por mi nombre" from memory; '' for anything else."""
     text = _plain(body)

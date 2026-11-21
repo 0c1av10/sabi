@@ -158,14 +158,14 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone, reply)
         return reply
     contact=await memory.note(db, phone, body, profile_name)
-    if contact and contact.last_topic==memory.NAME_PENDING and contact.name_source!='user':
+    if memory.name_pending(contact) and contact.name_source!='user':
         # Sabi just asked "¿Cómo te llamas?": a bare short reply is the name.
         said=memory.extract_name('Me llamo '+body) if len(body.split())<=3 else ''
         if said and (concierge.is_greeting(body) or concierge.wants_food(body) or any(concierge.cuisine_request(body))
                      or venezuela.find_city(body) or await restaurant_by_mention(db,body)
                      or explicit_cinema(body) or await gym_whatsapp.wants_gym(db,phone,body)):said=''
         # Only the reply right after the question can be a bare name.
-        await memory.set_topic(db,phone,'general')
+        await memory.end_name_prompt(db,phone,contact)
         if said:
             await memory.set_name(db,phone,said)
             reply=f'¡Mucho gusto, {memory.display_name(said)}! Ya me quedo con tu nombre. ¿En qué te ayudo?'
@@ -173,7 +173,7 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
             return reply
     name_reply=memory.name_reply(contact,body)
     if name_reply:
-        if 'Cómo te llamas' in name_reply:await memory.set_topic(db,phone,memory.NAME_PENDING)
+        if 'Cómo te llamas' in name_reply:await memory.ask_name(db,phone)
         await send_whatsapp_message(phone,name_reply)
         return name_reply
     # A new explicit domain outranks both unresolved-place and sticky sessions.
