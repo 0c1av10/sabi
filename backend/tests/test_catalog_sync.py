@@ -106,3 +106,16 @@ def test_importer_tolerates_a_null_description():
     importer._add(items, "Pollo Solo", 14, "Promociones", None)
     importer._add(items, "Pollo Nuevo", 9, "Promociones", None)
     assert items["pollo solo"]["description"] == "" and items["pollo nuevo"]["description"] == ""
+
+
+def test_ai_menu_carries_what_each_combo_includes():
+    from app.agent import menu_text
+    from app.models import MenuItem
+    combo = MenuItem(name="Combo Resuelve", price=18.0, category="Combos", available=True,
+                     description="1 pollo a la brasa + 2 acompañantes a escoger + 1 refresco de 1 litro")
+    plain = MenuItem(name="Quesillo", price=5.0, category="Postres", available=True, description="")
+    ai = menu_text([combo, plain], (40.0, 0.0), details=True)
+    assert "Combo Resuelve" in ai and "1 refresco de 1 litro" in ai
+    assert ai.splitlines()[1].startswith("- Quesillo (Postres): $5")
+    # The menu Sabi sends the customer stays short.
+    assert "refresco" not in menu_text([combo], (40.0, 0.0))
