@@ -13,6 +13,7 @@ from app.models import Conversation, Customer, MenuItem, Message, Restaurant
     ("beijing", "¿COMBOS CHINOS?", "ARROZ ESPECIAL Y CHOP SUEY"),
     ("beijing", "entradas japonesas", "EBY FUJI"),
     ("beijing", "cotidiano deluxe chino", "COTIDIANO DELUXE CHINO"),
+    ("beijing", "cotidiano deluxe chino sin cebolla", "COTIDIANO DELUXE CHINO"),
     ("bizza", "pizzas", "MARGARITA"),
 ])
 async def test_menu_followup_stays_with_merchant(Session, client, monkeypatch, merchant, followup, expected):

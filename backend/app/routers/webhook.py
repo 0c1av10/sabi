@@ -84,14 +84,16 @@ async def _active_menu_reference(db: AsyncSession, phone: str, body: str) -> boo
         return False
     def normalized(text):
         return " ".join(re.findall(r"\w+", concierge._plain(text)))
-    requested, unknown = concierge.cuisine_request(body)
-    if not requested or unknown:
-        return False
     text = f" {normalized(body)} "
     items = (await db.execute(select(MenuItem.name, MenuItem.category).where(
         MenuItem.restaurant_id == restaurant_id))).all()
+    if any(f" {name} " in text for item in items if (name := normalized(item.name or ""))):
+        return True
+    requested, unknown = concierge.cuisine_request(body)
+    if not requested or unknown:
+        return False
     return any(f" {label} " in text and concierge.cuisine_request(label) == (requested, False)
-               for item in items for value in item if (label := normalized(value or "")))
+               for item in items if (label := normalized(item.category or "")))
 
 
 async def _resolve(db: AsyncSession, phone: str, body: str):
