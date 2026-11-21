@@ -174,6 +174,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         reply='Seguimos con cine'+(f' en {active.city}.' if active.city else '. ¿En qué ciudad te gustaría ver la cartelera?')
         await send_whatsapp_message(phone,reply)
         return reply
+    location_reply=await focus.location_reply(db,phone,body)
+    if location_reply:
+        await send_whatsapp_message(phone,location_reply)
+        return location_reply
     recommendation_city=concierge.recommendation_city(body)
     domain=concierge.explicit_recommendation_domain(body)
     negated=bool(re.search(r'\b(?:no|ni)\b',text))

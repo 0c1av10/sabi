@@ -127,6 +127,25 @@ def canonical(value: str) -> str:
     return city.name if city else value
 
 
+_WHERE = re.compile(r"\b(?:(?:en )?(?:que|cual) ciudad (?:queda|esta|estan|quedan)|donde (?:queda|esta|estan|quedan|se ubica)n?)\b")
+
+
+def asks_location(text: str) -> bool:
+    """"¿En qué ciudad queda?" asks where a business is; it never names a city."""
+    return bool(_WHERE.search(plain(text)))
+
+
+def where_reply(restaurant) -> str:
+    """Where a catalog business works, only from the delivery zones it registered."""
+    from .delivery import zones_of
+    names = [z["name"] for z in zones_of(restaurant)]
+    if not names:
+        return f"No tengo registrada la ciudad de {restaurant.name} y no voy a adivinarla."
+    where = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " y " + names[-1]
+    return (f"{restaurant.name} hace delivery en {where}, según las zonas que registró. "
+            "No tengo su dirección exacta verificada.")
+
+
 async def covering(db, city: str) -> list[tuple]:
     """(restaurant, zone) for every catalog business whose own delivery zones include `city`.
     Internal test businesses ("Prueba ...") are never offered."""

@@ -162,3 +162,25 @@ async def test_city_written_in_the_order_is_kept(Session, sent):
         await focus.city_reply(db, "111", "Estoy en Lechería")
         restaurant, _, _ = await webhook._resolve(db, "111", "quiero pedir en NACIONAL Restaurante en plc")
         assert restaurant and (await focus.get(db, "111")).city == "Puerto La Cruz"
+
+
+@pytest.mark.parametrize("question", ["¿En qué ciudad queda?", "en que ciudad queda",
+                                      "NACIONAL Restaurante en qué ciudad queda?", "¿Dónde queda NACIONAL Restaurante?"])
+async def test_where_is_question_is_not_a_city(Session, sent, question):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante", city="Lechería")
+        assert focus.declared_city(question) == ""
+        reply = await webhook._events_route(db, "111", question)
+        assert reply == ("NACIONAL Restaurante hace delivery en Lechería, Barcelona y Puerto La Cruz, "
+                         "según las zonas que registró. No tengo su dirección exacta verificada.")
+        assert (await focus.get(db, "111")).city == "Lechería"
+
+
+async def test_where_is_question_without_registered_zones(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        reply = await webhook._events_route(db, "111", "¿Dónde queda MC Racuchos?")
+        assert reply == "No tengo registrada la ciudad de MC Racuchos y no voy a adivinarla."
+        assert await webhook._events_route(db, "222", "¿En qué ciudad queda?") == \
+            "¿De qué local quieres saber dónde queda?"

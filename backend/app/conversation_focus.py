@@ -71,7 +71,8 @@ async def place_reply(db,phone,body):
 def declared_city(body):
     """An explicit task-location statement, never a GPS or residence inference."""
     from .auth import response_format_request
-    if response_format_request(body):return ''
+    from .venezuela import asks_location
+    if response_format_request(body) or asks_location(body):return ''
     text=body.strip().strip(' ¿?!.')
     match=re.fullmatch(r'(?:estoy en|busca en|buscame en|mejor en|ahora en|cambia (?:a|para)|en)\s+([A-Za-zÁÉÍÓÚÑÜáéíóúñü ]{2,80})',text,re.I)
     if not match:return ''
@@ -104,6 +105,19 @@ async def pending_city_answer(db,phone,body):
     if await restaurant_by_mention(db,candidate):return ''
     from .venezuela import canonical
     return canonical(candidate.title())
+
+
+async def location_reply(db,phone,body):
+    """Answers "¿En qué ciudad queda NACIONAL?" from the business's registered delivery zones."""
+    from .venezuela import asks_location, where_reply
+    if not asks_location(body):return None
+    from .auth import restaurant_by_mention
+    active=await get(db,phone)
+    entity=active.entity if active and active.domain in ('place','restaurant') else ''
+    restaurant=await restaurant_by_mention(db,body) or (entity and await restaurant_by_mention(db,entity))
+    if restaurant:return where_reply(restaurant)
+    if entity:return f'No tengo verificada la ubicación de {entity}. Si tienes su enlace oficial, pásamelo para revisarla.'
+    return '¿De qué local quieres saber dónde queda?'
 
 
 async def city_reply(db,phone,body):
