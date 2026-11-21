@@ -574,3 +574,8 @@ def test_cityless_zone_gives_way_to_the_zone_the_address_names():
     assert delivery.zone_for_order(zones, "Centro", "Calle 5, Barcelona")["name"] == "Barcelona"
     assert delivery.zone_for_order(zones, "Centro", "Calle 5, Lechería")["name"] == "Centro"
     assert delivery.zone_for_order(zones, "Centro", "Centro, Av. Barcelona, Lechería")["name"] == "Centro"
+
+
+def test_longer_zone_named_in_the_address_wins_over_the_one_inside_it():
+    zones = delivery.load_zones(json.dumps([{"name": "Centro", "fee": 2}, {"name": "Centro de Barcelona", "fee": 3}]))
+    assert delivery.zone_for_order(zones, "Centro", "Centro de Barcelona, calle 4")["name"] == "Centro de Barcelona"
