@@ -93,8 +93,8 @@ async def test_bare_city_answer_completes_pending_place(Session):
     async with Session() as db:
         await focus.save(db, "111", domain="place", entity="Abruzzos")
         reply = await focus.city_reply(db, "111", "Lecheria")
-        assert reply and "Lecheria" in reply
-        assert (await focus.get(db, "111")).city == "Lecheria"
+        assert reply and "Lechería" in reply
+        assert (await focus.get(db, "111")).city == "Lechería"
 
 
 async def test_restaurant_mention_is_not_taken_as_city(Session):

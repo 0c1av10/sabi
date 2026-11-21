@@ -41,12 +41,13 @@ def fmt_money(amount: float, rate: float, _eur_rate: float, currency: str = "USD
     return f"${_num(amount)} · Bs {_num(amount * rate)}"
 
 
-def menu_text(items: list[MenuItem], rates: tuple[float, float, str], *, descriptions: bool = True) -> str:
+def menu_text(items: list[MenuItem], rates: tuple[float, float] | tuple[float, float, str],
+              details: bool = False) -> str:
     lines = []
     for it in items:
         if it.available:
             line = f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}"
-            if descriptions and it.description:
+            if details and it.description:
                 desc = " ".join(it.description.split())
                 if desc:
                     line += f" — {desc[:240]}" + ("…" if len(desc) > 240 else "")
@@ -128,6 +129,7 @@ Reglas:
 - Si algo no está disponible, ofrece la alternativa más parecida del menú.
 - Nunca presiones, ni inventes promociones o descuentos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
+- Lo que trae cada ítem está en su descripción del menú: si preguntan por algo (un refresco, un acompañante) que no se vende solo pero viene en un combo, di qué combo lo incluye. No afirmes que un ítem trae algo que su descripción no dice.
 {price_rules}
 - Si no sabes algo, di qué dato falta. Nunca ofrezcas ni afirmes pasar la conversación al dueño: no hay un canal humano verificado. No uses action=handoff.
 - Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
@@ -247,7 +249,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     context = (
         f"\nRestaurante: {restaurant.name}\nHorarios: {restaurant.opening_hours}\n"
         f"{delivery_context(restaurant, rates)}\n"
-        f"Menú disponible hoy:\n{menu_text(items, rates)}\n"
+        f"Menú disponible hoy:\n{menu_text(items, rates, details=True)}\n"
         f"Agotado hoy: {', '.join(sold_out) or 'nada'}\n"
         f"Pedido en curso: {json.dumps(state.get('draft'), ensure_ascii=False)}\n"
         f"Ya ofreciste complemento: {'sí' if state.get('upsell_offered') else 'no'}"
@@ -467,7 +469,7 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})
 
     if not asks_delivery_fee and re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
-        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, rates, descriptions=False),
+        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, rates),
                            state={**state, "draft": draft})
 
     if re.search(r"\b(horarios?|abierto|atienden|abren|cierran)\b", text):

@@ -249,7 +249,7 @@ async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkey
     result = run_mock_agent(restaurant, available, conv, "¿qué incluye el trío de ceviches?")
     assert result.reply == f"*Trío de Ceviches* — €15,99. {CEVICHES}"
     assert result.action == "continue" and result.order is None and result.state == {}
-    assert f"€15,99 — {CEVICHES}" in menu_text(available, rates)
+    assert f"€15,99 — {CEVICHES}" in menu_text(available, rates, details=True)
     assert "$15,99 · Bs " in fmt_money(15.99, *rates_of(bizza))
     for zone, amount in zip(ZONES, ("€2,50", "€3,50", "€4,00", "€4,00"), strict=True):
         assert f"{zone['name']}: {amount}" in delivery_context(restaurant, rates)
@@ -266,6 +266,7 @@ async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkey
     async def create(**kwargs):
         prompt = kwargs["system"]
         assert CEVICHES in prompt and PARRILLA in prompt
+        assert "No afirmes que un ítem trae algo que su descripción no dice." in prompt
         assert all(zone in prompt for zone in ZONE_QUOTES)
         assert "Expresa los precios en euros" in prompt and "Nunca muestres euros" not in prompt
         return SimpleNamespace(content=[SimpleNamespace(type="tool_use", input={"reply": "\n".join(ZONE_QUOTES)})])

@@ -21,6 +21,9 @@ async def get(db,phone,now=None):
     row=(await db.execute(select(ConversationFocus).where(ConversationFocus.phone==digits(phone),ConversationFocus.expires_at>now).execution_options(populate_existing=True))).scalar_one_or_none()
     from .auth import response_format_request
     if row and row.domain in ('place','restaurant') and response_format_request(row.entity+' en '+row.city):return None
+    from .venezuela import asks_location
+    # A question saved as a city ("qué ciudad queda") is not a task city.
+    if row and asks_location(row.city):return None
     return row
 
 async def save(db,phone,*,domain,entity='',city='',platform='',now=None):
@@ -54,6 +57,9 @@ async def place_reply(db,phone,body):
     focus=await get(db,phone)
     if not focus or focus.domain not in ('place','restaurant'):return None
     if re.search(r'\b(pizzeria|restaurante|local)\b',text):
+        from .auth import restaurant_by_mention
+        # A catalog business named here ("quiero pedir en NACIONAL Restaurante") is an order, not a place hint.
+        if await restaurant_by_mention(db,body):return None
         # Only explicit city patterns, never GPS or guessed neighboring city.
         citymatch=re.search(r'\ben\s+([a-záéíóúñ ]+?)(?:\s+en la |\s+por |$)',body,re.I)
         city=citymatch[1].strip().title() if citymatch else focus.city
@@ -68,12 +74,16 @@ async def place_reply(db,phone,body):
 def declared_city(body):
     """An explicit task-location statement, never a GPS or residence inference."""
     from .auth import response_format_request
-    if response_format_request(body):return ''
+    from .venezuela import asks_location
+    if response_format_request(body) or asks_location(body):return ''
     text=body.strip().strip(' ¿?!.')
     match=re.fullmatch(r'(?:estoy en|busca en|buscame en|mejor en|ahora en|cambia (?:a|para)|en)\s+([A-Za-zÁÉÍÓÚÑÜáéíóúñü ]{2,80})',text,re.I)
     if not match:return ''
     value=match[1].strip()
     from .concierge import _plain
+    from .venezuela import canonical, find_city
+    # A known city ("Puerto La Cruz") is a city even when it contains a stop word.
+    if find_city(value):return canonical(value)
     if len(value.split())>4 or re.search(r'\b(mensajes?|partes?|lineas?|palabras?|tabla|lista|resumen|detalle|ingles|espanol|pizzas?|restaurante|local|delivery|pedido|mi|la|el|casa|trabajo|oficina|tres|dos|mejor)\b',_plain(value)):return ''
     return value
 
@@ -93,10 +103,29 @@ async def pending_city_answer(db,phone,body):
     from . import concierge
     from .auth import restaurant_by_mention
     text=concierge._plain(candidate)
-    if not _BARE_ANSWER.fullmatch(candidate) or text in _BARE_NOT_CITY:return ''
+    from .venezuela import asks_location
+    if not _BARE_ANSWER.fullmatch(candidate) or text in _BARE_NOT_CITY or asks_location(candidate):return ''
     if concierge.is_greeting(candidate) or concierge.wants_food(candidate):return ''
     if await restaurant_by_mention(db,candidate):return ''
-    return candidate.title()
+    from .venezuela import canonical
+    return canonical(candidate.title())
+
+
+async def location_reply(db,phone,body):
+    """Answers "¿En qué ciudad queda NACIONAL?" from the business's registered delivery zones.
+    Anything it cannot answer (another place, a gym, a link to read) is left for the other routes."""
+    from .venezuela import asks_location, location_subject, where_reply
+    if not asks_location(body) or re.search(r'https?://',body):return None
+    from .auth import restaurant_by_mention
+    restaurant=await restaurant_by_mention(db,body)
+    if restaurant:return where_reply(restaurant)
+    if location_subject(body):return None
+    active=await get(db,phone)
+    entity=active.entity if active and active.domain in ('place','restaurant') else ''
+    if not entity:return None
+    restaurant=await restaurant_by_mention(db,entity)
+    if restaurant:return where_reply(restaurant)
+    return f'No tengo verificada la ubicación de {entity}. Si tienes su enlace oficial, pásamelo para revisarla.'
 
 
 async def city_reply(db,phone,body):
@@ -116,4 +145,7 @@ async def city_reply(db,phone,body):
         if same:return f'Mantengo la consulta de {active.entity or "locales"} en {city}. No hace falta que repitas la ciudad para esta consulta.'
         return f'La consulta ahora es de {active.entity or "locales"} en {city}. No tengo opciones ni una sede verificadas allí. Si tienes un enlace de esa sede, pásamelo; no usaré el menú ni el delivery de otra ciudad.'
     await save(db,phone,domain='place',city=city)
+    from .venezuela import local_options
+    local=await local_options(db,city,phone)
+    if local:return local
     return f'Para esta consulta usaré {city}. ¿Qué local o tipo de comida quieres buscar? Aún necesito una fuente verificada de esa ciudad.'
