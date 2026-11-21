@@ -91,13 +91,12 @@ async def _active_menu_reference(db: AsyncSession, phone: str, body: str) -> boo
                if (label := normalized(value or "")) and f" {label} " in text}
     if not matched:
         return False
-    requested, _ = concierge.cuisine_request(body)
-    discovery = re.search(
-        r"\b(?:recomiend\w*|quiero (?:comida|cocina)|donde (?:hay|comer|conseguir|puedo)|"
-        r"busco|busca(?:me)?|buscar|opciones (?:de|para))\b", text)
-    if requested and discovery:
-        return any(concierge.cuisine_request(label) == (requested, False) for label in matched)
-    return True
+    def cuisines(phrase):
+        return {name for name, patterns in concierge.CUISINES.items()
+                if any(re.search(r"\b" + pattern + r"\b", concierge._plain(phrase)) for pattern in patterns)}
+    requested = cuisines(body)
+    matched_cuisines = set().union(*(cuisines(label) for label in matched))
+    return requested <= matched_cuisines
 
 
 async def _resolve(db: AsyncSession, phone: str, body: str):
