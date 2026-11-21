@@ -288,11 +288,25 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         return fee_reply
     recommendation_city=concierge.recommendation_city(body)
     domain=concierge.explicit_recommendation_domain(body)
-    negated=bool(re.search(r'\b(?:no|ni)\b',text))
-    if negated and re.search(r'\b(cine|cines|comida|comer|peliculas?)\b',text):
+    if concierge.rejects_domain(body):
         reply='¿Quieres seguir con cine, buscar comida o hacer otra consulta?'
         await send_whatsapp_message(phone,reply)
         return reply
+    food=active and active.domain=='general' and active.entity.partition(':')[0]=='food'
+    # "Mejor en Lechería" moves the food task; named_business_query would read "Mejor" as a place.
+    named_city=recommendation_city or focus.declared_city(body)
+    # "allí", "en esa ciudad": the city the customer was just asking about, whatever the topic was.
+    here=bool(active and active.city and re.search(r'\b(?:alli|ahi|alla|aca|aqui|esa ciudad|esta ciudad)\b',text)
+              and not re.search(r'\b(?:fuera|afuera|lejos|aparte)\s+de\s+(?:alli|ahi|alla|aca|aqui|esa ciudad|esta ciudad)\b',text))
+    # A city Sabi doesn't know ("Pizza en Miami") is still a different city: never answer it with the old one.
+    if (food and domain!='cinema' and not explicit_cinema(body) and (not named_city or venezuela.find_city(named_city))
+            and (focus.declared_city(body) or not named_business_query(body)) and not await restaurant_by_mention(db,body)):
+        new_city=venezuela.canonical(named_city) if named_city else ''
+        kind=concierge.food_kind(body)
+        if (new_city and new_city!=active.city) or kind or (here and concierge.wants_food(body)):
+            reply=await concierge.food_in_city(db,phone,new_city or active.city,kind or active.entity.partition(':')[2])
+            await send_whatsapp_message(phone,reply)
+            return reply
     recommendation=concierge.ambiguous_recommendation(body)
     pending=active and active.domain=='general' and active.entity=='pending_recommendation_domain'
     target_city=recommendation_city or (active.city if pending else '')
@@ -303,8 +317,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
                 return await handle_cinema_whatsapp(db,phone,body,external_id)
             reply=f'Seguimos con cine en {target_city}. No tengo una cartelera verificada disponible ahora.'
         elif domain=='food':
-            await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
-            reply=await venezuela.local_options(db,target_city,phone) or f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
+            if venezuela.find_city(target_city):reply=await concierge.food_in_city(db,phone,target_city,concierge.food_kind(body))
+            else:
+              await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
+              reply=await venezuela.local_options(db,target_city,phone) or f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
         else:
             await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
             reply=f'¿Buscas comida o un plan de cine en {target_city}?'
@@ -316,12 +332,13 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone,reply)
         return reply
     if explicit_cinema(body) or city_clarification:
-        city='Puerto La Cruz' if city_clarification else (active.city if active and active.domain=='cinema' else '')
+        inherited=active.city if active and (active.domain=='cinema' or here) else ''
+        city='Puerto La Cruz' if city_clarification else (venezuela.canonical(named_city) if venezuela.find_city(named_city) else '' if named_city else inherited)
         await focus.save(db,phone,domain='cinema',city=city)
         cinema_body=body if not city_clarification else 'Cine en Puerto La Cruz'
         if await wants_cinema(db,phone,cinema_body):
             return await handle_cinema_whatsapp(db,phone,cinema_body,external_id)
-        reply='La consulta ahora es de cine. No tengo una cartelera verificada disponible en este momento.'
+        reply='La consulta ahora es de cine'+(f' en {city}' if city else '')+'. No tengo una cartelera verificada disponible en este momento.'
         await send_whatsapp_message(phone,reply)
         return reply
     city_reply=await focus.city_reply(db,phone,body)

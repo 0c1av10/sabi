@@ -266,6 +266,8 @@ async def handle_cinema_whatsapp(db, phone: str, body: str, external_id=None) ->
         await db.commit()
         query=body+(f'\nCiudad explícita para esta consulta: {task_city}.' if task_city else '')
         text = await run_cinema_agent(query, history=history)
+        if text==UNAVAILABLE and task_city:
+            text=f'No logré verificar la cartelera de cine en {task_city}. No tengo horarios confirmados para mostrarte.'
         current=await focus.get(db,phone)
         if not current or current.domain!='cinema' or current.updated_at!=focus_version:
             logging.getLogger('sabi.cinema').info('cinema_reply_superseded')

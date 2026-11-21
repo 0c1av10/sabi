@@ -31,6 +31,18 @@ def _plain(text: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
 
 
+_REJECTED_DOMAIN = re.compile(
+    r"\b(?:no|ni)\s+(?:quiero\s+|busco\s+|me\s+interesa\s+)?(?:ir\s+al\s+|ver\s+|el\s+|la\s+)?"
+    r"(?:cine|cines|comida|comer|peliculas?)\b"
+    r"|\b(?:cine|cines|comida|peliculas?)\s+no\b")
+
+
+def rejects_domain(body: str) -> bool:
+    """"No quiero comida", "ni cine": the customer turns a topic down. A "no" about something else
+    ("solo información, no hagas pedidos", "no compres entradas") is not one."""
+    return bool(_REJECTED_DOMAIN.search(_plain(body)))
+
+
 def wants_food(body: str) -> bool:
     return bool(FOOD_INTENT.search(_plain(body)))
 
@@ -41,6 +53,44 @@ CUISINES={
     'arabe':('arabes?',), 'venezolana':('venezolan[ao]s?',),
     'peruana':('peruan[ao]s?',),'india':('hind[uú]','india'),
     'tailandesa':('tailandes(?:a|as|es)?',),'criolla':('crioll[ao]s?',)}
+
+DISHES={'pizza':('pizzas?','pizzerias?'),'hamburguesas':('hamburguesas?','burgers?'),
+        'arepas':('arepas?',),'empanadas':('empanadas?',),'parrilla':('parrillas?',)}
+
+
+def food_kind(body):
+    """The dish or cuisine a food follow-up names ("¿Y pizza?" -> pizza), or ''."""
+    text=_plain(body)
+    for name,patterns in {**DISHES,**CUISINES}.items():
+        if any(re.search(r'\b'+p+r'\b',text) for p in patterns):return name
+    return ''
+
+
+async def _serves(db,restaurant,kind):
+    patterns={**DISHES,**CUISINES}[kind]
+    exact=re.compile(r'\b(?:'+'|'.join(patterns)+r')\b')
+    if exact.search(_plain(restaurant.tagline or '')):return True
+    lead=re.compile(r'^(?:'+'|'.join(patterns)+r')\b')
+    items=(await db.execute(select(MenuItem).where(MenuItem.restaurant_id==restaurant.id,MenuItem.available.is_(True)))).scalars().all()
+    return any(lead.match(_plain(m.name).strip()) or exact.fullmatch(_plain(m.category or '').strip()) for m in items)
+
+
+async def food_in_city(db,phone,city,kind=''):
+    """Food asked for in one city. The city and the dish stay the task until the customer
+    changes one ("¿Y pizza?" keeps the city, "Mejor en Lechería" keeps the pizza)."""
+    from . import conversation_focus as focus
+    name=venezuela.canonical(city)
+    if phone:await focus.save(db,phone,domain='general',entity='food'+(':'+kind if kind else ''),city=name)
+    label=('comida '+kind if kind in CUISINES else kind)
+    hits=[r for r,_ in await venezuela.covering(db,name)]
+    matching=[r for r in hits if await _serves(db,r,kind)] if kind else hits
+    if matching:return await venezuela.local_options(db,name,phone,only=matching)
+    if not hits:
+        return (f'En {name} no tengo locales'+(f' de {label}' if kind else '')+' verificados. '
+                'No voy a usar opciones de otra ciudad. ¿Tienes un local o enlace oficial de allí que quieras revisar?')
+    return (f'En {name} no tengo locales de {label} verificados. Sí te puedo atender allí con:\n'
+            +'\n'.join(f'• *{r.name}*' for r in hits)+'\n\n¿Quieres ver el menú de alguno?')
+
 
 def cuisine_request(body):
     text=_plain(body)
@@ -64,7 +114,7 @@ def recommendation_city(body):
         match=re.search(pattern,text)
         if match:
             value=original[match.start(1):match.end(1)].strip().strip(',').title()
-            if venezuela.find_city(value) or not re.search(r'\b(casa|mi|el|la|mensajes|partes|lista|tabla|ingles|espanol)\b',_plain(value)):
+            if venezuela.find_city(value) or not re.search(r'\b(casa|mi|el|la|esa|esta|mensajes|partes|lista|tabla|ingles|espanol)\b',_plain(value)):
                 return venezuela.canonical(value)
     return ''
 
@@ -101,6 +151,7 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "", phone
     remembered as the current topic so a later handoff to a business can see them."""
     city=recommendation_city(body)
     if city:
+        if venezuela.find_city(city):return await food_in_city(db,phone,city,food_kind(body))
         local=await venezuela.local_options(db,city,phone)
         if local:return local
         return f'Buscas comida en {city}. No tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
@@ -165,7 +216,7 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
     if said and len(body.split()) <= 6:
         return (f"¡Mucho gusto, {memory.display_name(said)}! 😊 Ya me quedo con tu nombre. "
                 "¿Qué se te antoja hoy: comida, entradas o una clase de boxeo?"), False
-    if re.search(r'\b(?:no|ni)\b',_plain(body)) and re.search(r'\b(cine|cines|comida|comer|peliculas?)\b',_plain(body)):
+    if rejects_domain(body):
         return '¿Quieres seguir con cine, buscar comida o hacer otra consulta?',False
     if ambiguous_recommendation(body):
         city=recommendation_city(body)

@@ -103,9 +103,9 @@ async def test_uncovered_city_still_refuses_to_invent(Session, sent):
     async with Session() as db:
         await _catalog(db)
         reply = await webhook._events_route(db, "111", "Quiero comida en Valencia")
-        assert "filtro geográfico" in reply and "NACIONAL" not in reply
+        assert reply.startswith("En Valencia no tengo locales verificados.") and "NACIONAL" not in reply
         text = await concierge.recommendations(db, body="Quiero comida en Caracas")
-        assert "filtro geográfico" in text and "NACIONAL" not in text
+        assert "no tengo locales verificados" in text and "NACIONAL" not in text
 
 
 # Real conversation: after the city, the customer names the business ("Y nacional ?").
@@ -517,6 +517,117 @@ async def test_fee_question_origin_city_is_not_destination_or_business(Session, 
         )
 
 
+async def test_owner_sequence_keeps_the_city_through_food_and_cinema(Session, sent, monkeypatch):
+    from app import cinema_whatsapp as cinema
+    queries = []
+
+    async def run(body, **kw):
+        queries.append(body)
+        return cinema.UNAVAILABLE
+
+    async def quiet(*args):
+        return {"mock": True}
+    monkeypatch.setattr(cinema, "run_cinema_agent", run)
+    monkeypatch.setattr(cinema, "send_whatsapp_message", quiet)
+    monkeypatch.setattr(cinema.settings, "cinema_mcp_enabled", True)
+
+    async def say(db, text):
+        reply = await webhook._events_route(db, "111", text)
+        if reply is None:
+            restaurant, _, reply = await webhook._resolve(db, "111", text)
+            assert restaurant is None, f"{text!r} went to {restaurant.name}"
+        return reply
+
+    async with Session() as db:
+        await _catalog(db)
+        step1 = await say(db, "Estoy buscando dónde comer en Cumaná. Solo quiero información, no hagas pedidos ni reservas.")
+        assert step1.startswith("En Cumaná no tengo locales verificados.")
+        assert "NACIONAL" not in step1
+        step2 = await say(db, "¿Y pizza?")
+        assert step2.startswith("En Cumaná no tengo locales de pizza verificados.")
+        step3 = await say(db, "Mejor en Lechería.")
+        assert step3.startswith("En Lechería no tengo locales de pizza verificados.")
+        assert "*NACIONAL Restaurante*" in step3 and "$" not in step3
+        step4 = await say(db, "Ahora quiero ver qué hay en el cine allí. Solo consulta, no compres entradas.")
+        assert step4 == "No logré verificar la cartelera de cine en Lechería. No tengo horarios confirmados para mostrarte."
+        assert "Ciudad explícita para esta consulta: Lechería." in queries[0]
+
+
+@pytest.mark.parametrize("text,rejects", [
+    ("No quiero comida, mejor cine", True), ("ni cine ni nada", True), ("cine no", True),
+    ("Solo quiero información, no hagas pedidos ni reservas de comida", False),
+    ("Quiero ir al cine, no compres entradas", False),
+])
+def test_no_about_something_else_is_not_turning_a_topic_down(text, rejects):
+    assert concierge.rejects_domain(text) is rejects
+
+
+async def _lecheria_food(db):
+    await _catalog(db)
+    reply = await webhook._events_route(db, "111", "Estoy buscando dónde comer en Lechería.")
+    assert reply.startswith("En Lechería te puedo atender")
+
+
+async def test_a_named_business_after_a_food_search_goes_to_that_business(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "Quiero una pizza de NACIONAL")
+        assert not (reply or "").startswith("En Lechería")
+
+
+async def test_an_unknown_city_after_a_food_search_is_not_the_old_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "Pizza en Miami")
+        assert "Lechería" not in (reply or "") and "NACIONAL" not in (reply or "")
+
+
+async def test_cinema_in_a_named_city_after_a_food_search_uses_that_city(Session, sent, monkeypatch):
+    from app import cinema_whatsapp as cinema
+    queries = []
+
+    async def run(body, **kw):
+        queries.append(body)
+        return cinema.UNAVAILABLE
+
+    async def quiet(*args):
+        return {"mock": True}
+    monkeypatch.setattr(cinema, "run_cinema_agent", run)
+    monkeypatch.setattr(cinema, "send_whatsapp_message", quiet)
+    monkeypatch.setattr(cinema.settings, "cinema_mcp_enabled", True)
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "Quiero ver el cine aquí en Caracas. No compres entradas.")
+        assert "Caracas" in reply and "Lechería" not in reply
+        assert "Ciudad explícita para esta consulta: Caracas." in queries[0]
+
+
+async def test_cinema_in_that_city_after_a_food_search_keeps_the_city(Session, sent, monkeypatch):
+    from app import cinema_whatsapp as cinema
+    queries = []
+
+    async def run(body, **kw):
+        queries.append(body)
+        return cinema.UNAVAILABLE
+
+    async def quiet(*args):
+        return {"mock": True}
+    monkeypatch.setattr(cinema, "run_cinema_agent", run)
+    monkeypatch.setattr(cinema, "send_whatsapp_message", quiet)
+    monkeypatch.setattr(cinema.settings, "cinema_mcp_enabled", True)
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué películas hay en esa ciudad? No compres entradas.")
+        assert "Lechería" in reply
+        assert "Ciudad explícita para esta consulta: Lechería." in queries[0]
+
+
+def test_a_restaurant_named_after_a_city_is_still_a_business():
+    from app.auth import named_business_query
+    assert named_business_query("¿Dónde queda el Restaurante Valencia?")[0] == "Valencia"
+    assert named_business_query("Estoy buscando dónde comer en Lechería.") is None
+
+
 @pytest.mark.parametrize("written,name,state", [
     ("Cantaura", "Cantaura", "Anzoátegui"), ("tucupido", "Tucupido", "Guárico"),
     ("Santa Elena", "Santa Elena de Uairén", "Bolívar"), ("Petare", "Petare", "Miranda"),
@@ -579,3 +690,38 @@ def test_cityless_zone_gives_way_to_the_zone_the_address_names():
 def test_longer_zone_named_in_the_address_wins_over_the_one_inside_it():
     zones = delivery.load_zones(json.dumps([{"name": "Centro", "fee": 2}, {"name": "Centro de Barcelona", "fee": 3}]))
     assert delivery.zone_for_order(zones, "Centro", "Centro de Barcelona, calle 4")["name"] == "Centro de Barcelona"
+
+
+async def test_restaurants_in_that_city_after_a_food_search_stay_in_the_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué restaurantes hay en esa ciudad?")
+        assert reply.startswith("En Lechería te puedo atender") and "Prueba" not in reply
+
+
+async def test_cinema_in_this_city_after_a_food_search_keeps_the_city(Session, sent, monkeypatch):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué películas hay en el cine en esta ciudad?")
+        assert "Lechería" in reply
+
+
+async def test_a_non_food_question_about_that_city_is_not_a_food_search(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Allí dan clases de boxeo?")
+        assert not (reply or "").startswith("En Lechería")
+
+
+async def test_outside_this_city_is_not_this_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué restaurantes hay fuera de esta ciudad?")
+        assert not (reply or "").startswith("En Lechería")
+
+
+async def test_a_genre_exclusion_keeps_the_cinema_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué películas hay en el cine en esta ciudad que no sea de terror?")
+        assert "Lechería" in reply
