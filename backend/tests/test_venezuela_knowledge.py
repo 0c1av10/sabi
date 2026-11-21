@@ -85,7 +85,7 @@ async def test_food_in_covered_city_lists_only_registered_zones(Session, sent):
         assert await webhook._events_route(db, "111", "En lechería que me recomiendas") == \
             "¿Buscas comida o un plan de cine en Lechería?"
         reply = await webhook._events_route(db, "111", "comida")
-        assert "NACIONAL Restaurante" in reply and "delivery a Lechería ($2,00)" in reply
+        assert "• *NACIONAL Restaurante*\n" in reply and "$" not in reply
         assert "MC Racuchos" not in reply and "Prueba" not in reply
         assert (await memory.get(db, "111")).last_topic == "recomendación de locales: NACIONAL Restaurante"
 
@@ -94,7 +94,7 @@ async def test_alias_city_in_direct_food_request(Session, sent):
     async with Session() as db:
         await _catalog(db)
         reply = await webhook._events_route(db, "111", "Quiero comida en PLC")
-        assert "En Puerto La Cruz" in reply and "($4,00)" in reply
+        assert "En Puerto La Cruz" in reply and "NACIONAL Restaurante" in reply and "$" not in reply
         text = await concierge.recommendations(db, body="Quiero comida en lecheria", phone="111")
         assert "NACIONAL Restaurante" in text and "MC Racuchos" not in text
 
@@ -172,8 +172,8 @@ async def test_where_is_question_is_not_a_city(Session, sent, question):
         await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante", city="Lechería")
         assert focus.declared_city(question) == ""
         reply = await webhook._events_route(db, "111", question)
-        assert reply == ("NACIONAL Restaurante hace delivery a Lechería ($2,00), Barcelona ($3,00) y "
-                         "Puerto La Cruz ($4,00). No tengo su dirección exacta.")
+        assert reply == ("NACIONAL Restaurante hace delivery a Lechería, Barcelona y "
+                         "Puerto La Cruz. No tengo su dirección exacta.")
         assert (await focus.get(db, "111")).city == "Lechería"
 
 
@@ -312,11 +312,14 @@ def test_bare_name_must_be_the_whole_reply(reply):
     assert memory.bare_name(reply) == ""
 
 
-async def test_city_options_show_only_each_business_and_its_fee(Session, sent):
+async def test_city_options_show_the_fee_only_when_asked(Session, sent):
     async with Session() as db:
         await _catalog(db)
         reply = await venezuela.local_options(db, "Lechería")
-        assert reply.startswith("En Lechería te puedo atender con estos locales:\n")
+        assert reply.startswith("En Lechería te puedo atender con estos locales:\n• *NACIONAL Restaurante*\n")
+        assert "$" not in reply and "delivery" not in reply
+        assert "registr" not in reply and "zonas" not in reply
+        reply = await focus.fee_reply(db, "222", "¿Cuánto sale el delivery a Lechería?")
         assert "• *NACIONAL Restaurante* — delivery a Lechería ($2,00)" in reply
         assert "registr" not in reply and "zonas" not in reply
 
