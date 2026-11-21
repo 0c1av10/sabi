@@ -86,8 +86,9 @@ def zone_for_order(zones: list[dict], zone_name: str, address: str) -> Optional[
         chosen_cities = {c.name for c in cities_in(chosen["name"])}
         if not in_address or chosen_cities & in_address:
             return chosen
-        # A zone without a city ("Centro") gives way only to another zone the address names.
-        if not chosen_cities and not from_address:
+        # A zone without a city ("Centro") gives way only to another zone the address names
+        # when the address does not name it too ("Centro, Av. Barcelona, Lechería" stays Centro).
+        if not chosen_cities and (not from_address or find_zone([chosen], address or "")):
             return chosen
     return from_address
 
