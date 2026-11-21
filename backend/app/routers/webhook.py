@@ -87,13 +87,17 @@ async def _active_menu_reference(db: AsyncSession, phone: str, body: str) -> boo
     text = f" {normalized(body)} "
     items = (await db.execute(select(MenuItem.name, MenuItem.category).where(
         MenuItem.restaurant_id == restaurant_id))).all()
-    if any(f" {name} " in text for item in items if (name := normalized(item.name or ""))):
-        return True
-    requested, unknown = concierge.cuisine_request(body)
-    if not requested or unknown:
+    matched = {label for item in items for value in item
+               if (label := normalized(value or "")) and f" {label} " in text}
+    if not matched:
         return False
-    return any(f" {label} " in text and concierge.cuisine_request(label) == (requested, False)
-               for item in items if (label := normalized(item.category or "")))
+    requested, _ = concierge.cuisine_request(body)
+    discovery = re.search(
+        r"\b(?:recomiend\w*|quiero (?:comida|cocina)|donde (?:hay|comer|conseguir|puedo)|"
+        r"busco|busca(?:me)?|buscar|opciones (?:de|para))\b", text)
+    if requested and discovery:
+        return any(concierge.cuisine_request(label) == (requested, False) for label in matched)
+    return True
 
 
 async def _resolve(db: AsyncSession, phone: str, body: str):
