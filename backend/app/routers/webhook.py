@@ -282,6 +282,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     if location_reply:
         await send_whatsapp_message(phone,location_reply)
         return location_reply
+    fee_reply=await focus.fee_reply(db,phone,body)
+    if fee_reply:
+        await send_whatsapp_message(phone,fee_reply)
+        return fee_reply
     recommendation_city=concierge.recommendation_city(body)
     domain=concierge.explicit_recommendation_domain(body)
     negated=bool(re.search(r'\b(?:no|ni)\b',text))
