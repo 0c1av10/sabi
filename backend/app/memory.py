@@ -81,7 +81,8 @@ _ASKS_NAME = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes (?:como me 
                         r"(?:llamame|tratame|adresame|dirigete a mi|hablame) (?:por|con) mi nombre)\b")
 _ASKS_WHICH = re.compile(r"\b(?:como me llamo|cual es mi nombre|sabes)\b")
 NAME_PENDING = "nombre pendiente"
-_NAME_FILLER = {"por", "favor", "porfa", "sabi", "hola", "oye", "y", "ok", "dale", "ahora", "desde", "siempre", "tu"}
+_NAME_FILLER = {"por", "favor", "porfa", "sabi", "hola", "oye", "y", "ok", "dale", "ahora", "desde", "siempre", "tu",
+                "sabes", "recuerdas", "dime", "me"}
 
 
 def name_pending(contact: "Contact | None") -> bool:

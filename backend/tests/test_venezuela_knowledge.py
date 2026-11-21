@@ -268,3 +268,10 @@ def test_name_request_with_an_order_is_left_to_the_order():
     from app import memory
     assert memory.name_reply(None, "Llámame por mi nombre y quiero pedir en NACIONAL Restaurante") == ""
     assert memory.name_reply(None, "Hola Sabi, ¿cómo me llamo?") == "Aún no sé tu nombre. ¿Cómo te llamas?"
+
+
+def test_name_question_variants_are_answered():
+    from app import memory
+    contact = memory.Contact(phone="111", name="Octavio")
+    assert memory.name_reply(contact, "¿Sabes cuál es mi nombre?") == "Te llamas Octavio. ¿En qué te ayudo?"
+    assert memory.name_reply(contact, "¿Recuerdas cómo me llamo?") == "Te llamas Octavio. ¿En qué te ayudo?"
