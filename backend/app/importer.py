@@ -23,6 +23,13 @@ BASE_MENU = [
 ]
 
 
+def _not_dishes(zones: list[dict], dishes) -> list[dict]:
+    """A menu line "Combo Resuelve · $18" is a dish price, never a delivery zone."""
+    names = {d["name"].strip().lower() for d in dishes}
+    kept = [z for z in zones if z["name"].strip().lower() not in names]
+    return kept if len(kept) >= 2 else []
+
+
 def normalize_url(url: str) -> str:
     url = url.strip()
     if url and not re.match(r"^https?://", url, re.I):
@@ -272,6 +279,6 @@ async def import_site(url: str) -> Optional[dict]:
         "items": list(items.values()),
         "delivery_fee": delivery["fee"],
         "delivery_info": delivery["info"],
-        "delivery_zones": delivery["zones"],
+        "delivery_zones": _not_dishes(delivery["zones"], items.values()),
         "website": url,
     }
