@@ -74,6 +74,87 @@ async def _unresolved_place_reply(db,phone,body):
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
 
 
+_SWITCH='cambio de local: '
+_YES=re.compile(r'^\s*(?:s[ií]|dale|ok|claro|listo|de una|perfecto)\b',re.I)
+_NO=re.compile(r'^\s*(?:no\b|seguimos|sigo|mejor no|me quedo)',re.I)
+
+
+async def _silent_business_switch(db,phone,body,restaurant):
+    """A product match ("Tiene refresco") must not silently move someone who was ordering from one
+    business to another: Sabi says which business has it and asks once."""
+    contact=await memory.get(db,phone)
+    topic=(contact.last_topic if contact else '') or ''
+    if not topic.startswith('tu pedido en '):return ''
+    same=f'tu pedido en {restaurant.name}'
+    if topic==same or topic.startswith(same+' ('):return ''
+    known=(await db.execute(select(Restaurant))).scalars().all()
+    previous=max((r for r in known if topic==f'tu pedido en {r.name}' or topic.startswith(f'tu pedido en {r.name} (')),
+                 key=lambda r:len(r.name),default=None)
+    if not previous:return ''
+    if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
+    # Both businesses are kept so the answer can pick one, and the request too when it fits whole:
+    # a cut request (missing a time or an instruction) is never forwarded, the customer says it again.
+    pending=f'{_SWITCH}{restaurant.id}>{previous.id}|'
+    await memory.set_topic(db,phone,pending+(body if len(pending+body)<=80 else ''))
+    return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous.name}?'
+
+
+def _leading_business(body,restaurants):
+    """The business a reply opens with ("Bizza, sin cebolla", "En NACIONAL"). None when what follows
+    takes it back ("Bizza, mejor no", "Bizza o NACIONAL?") or names another business."""
+    plain=lambda t:venezuela.plain(re.sub(r'[^\w\s]',' ',t or '')).split()
+    words=plain(body)
+    while words and words[0] in ('en','de','con','mejor'):words=words[1:]
+    names=[(r,plain(r.name)) for r in restaurants]
+    best=None
+    for r,name in names:
+        n=0
+        while n<len(name) and n<len(words) and words[n]==name[n]:n+=1
+        if n and (len(name[0])>2 or n>1) and (not best or n>best[1]):best=(r,n)
+    if not best:return None
+    r,n=best;rest=words[n:]
+    if rest[:1] in (['no'],['o'],['ni'],['tampoco'],['nunca']) or rest[:2]==['mejor','no']:return None
+    text=' '+' '.join(rest)+' '
+    if any(o.id!=r.id and name and len(name[0])>2 and f' {name[0]} ' in text for o,name in names):return None
+    return r
+
+
+async def _switch_answer(db,phone,body):
+    """(restaurant, body, reply) chosen by the reply to the switch question; restaurant and reply None
+    when there is no pending question. Only a clear answer is acted on: a bare yes or no, or a reply that
+    opens with a business name. Any other reply that names a business gets the question again, so a
+    message never goes to a business the customer may have ruled out ("No quiero NACIONAL")."""
+    contact=await memory.get(db,phone)
+    m=re.match(r'^cambio de local: (\d+)>(\d+)\|(.*)$',(contact.last_topic if contact else '') or '',re.S)
+    if not m:return None,body,None
+    offered,previous,asked=await db.get(Restaurant,int(m[1])),await db.get(Restaurant,int(m[2])),m[3]
+    restore=f'tu pedido en {previous.name}' if previous else ''
+    if re.search(r'\[sabi:',body,re.I):
+        # A store link is the customer's explicit choice: normal routing reads it first.
+        await memory.set_topic(db,phone,restore)
+        return None,body,None
+    yes,no=_YES.match(body),_NO.match(body)
+    rest=body[(yes or no).end():] if (yes or no) else body
+    restaurants=(await db.execute(select(Restaurant))).scalars().all()
+    lead=_leading_business(body,restaurants)
+    if lead:
+        if offered and lead.id==offered.id:return offered,body,None
+        await memory.set_topic(db,phone,restore)
+        return None,body,None
+    words=f" {venezuela.plain(re.sub(r'[^\w\s]',' ',body))} "
+    named=[r for r in restaurants if (w:=venezuela.plain(re.sub(r'[^\w\s]',' ',r.name)).split()) and len(w[0])>2 and f' {w[0]} ' in words]
+    if named or await restaurant_by_mention(db,body):
+        return None,body,(f'¿Lo pedimos en *{offered.name}* o seguimos con *{previous.name}*? '
+                          'Respóndeme solo con el nombre del local.') if offered and previous else None
+    if offered and yes:
+        # A bare "Sí" carries the original request ("Tiene refresco") to the business offered.
+        return offered,(body if not asked or re.search(r'\w{3,}',rest) else asked),None
+    if previous:
+        await memory.set_topic(db,phone,restore)
+        if no:return previous,body,None
+    return None,body,None
+
+
 async def _resolve(db: AsyncSession, phone: str, body: str):
     """(restaurant, body, reply). `reply` is Sabi's concierge text when no business is named
     (None when a plain welcome was already sent recently)."""
@@ -99,8 +180,12 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
-    restaurant, routed_body = await restaurant_for_message(db, phone, body)
+    picked,picked_body,again=await _switch_answer(db,phone,body)
+    if again:return None,body,again
+    restaurant, routed_body = (picked,picked_body) if picked else await restaurant_for_message(db, phone, body)
     if restaurant:
+        switched=await _silent_business_switch(db,phone,body,restaurant)
+        if switched:return None,body,switched
         # Keep what Sabi had just offered in the general chat: the business agent reads
         # the topic as context, so "Y nacional?" after a recommendation is not read in a void.
         contact=await memory.get(db,phone)

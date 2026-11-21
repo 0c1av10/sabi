@@ -182,8 +182,9 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
         text = await recommendations(db,body=body,phone=phone)
         return text, False
     returning = bool(contact and contact.last_topic)
-    if phone and not (contact and contact.name):
-        # Without a name Sabi asks for it, so every later greeting can use it.
+    if phone and not name:
+        # Without a usable name (none saved, or one that is not a name) Sabi asks for it, so every
+        # later greeting can use it. A stored value is never changed here.
         await memory.ask_name(db, phone)
         return ("Hola de nuevo." if returning else "¡Hola! 👋 Soy Sabi.") + " " + memory.ASK_NAME, True
     return await _hello(db, name, returning), True
