@@ -600,3 +600,29 @@ async def test_cinema_in_a_named_city_after_a_food_search_uses_that_city(Session
         reply = await webhook._events_route(db, "111", "Quiero ver el cine aquí en Caracas. No compres entradas.")
         assert "Caracas" in reply and "Lechería" not in reply
         assert "Ciudad explícita para esta consulta: Caracas." in queries[0]
+
+
+async def test_cinema_in_that_city_after_a_food_search_keeps_the_city(Session, sent, monkeypatch):
+    from app import cinema_whatsapp as cinema
+    queries = []
+
+    async def run(body, **kw):
+        queries.append(body)
+        return cinema.UNAVAILABLE
+
+    async def quiet(*args):
+        return {"mock": True}
+    monkeypatch.setattr(cinema, "run_cinema_agent", run)
+    monkeypatch.setattr(cinema, "send_whatsapp_message", quiet)
+    monkeypatch.setattr(cinema.settings, "cinema_mcp_enabled", True)
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué películas hay en esa ciudad? No compres entradas.")
+        assert "Lechería" in reply
+        assert "Ciudad explícita para esta consulta: Lechería." in queries[0]
+
+
+def test_a_restaurant_named_after_a_city_is_still_a_business():
+    from app.auth import named_business_query
+    assert named_business_query("¿Dónde queda el Restaurante Valencia?")[0] == "Valencia"
+    assert named_business_query("Estoy buscando dónde comer en Lechería.") is None

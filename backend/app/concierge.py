@@ -114,7 +114,7 @@ def recommendation_city(body):
         match=re.search(pattern,text)
         if match:
             value=original[match.start(1):match.end(1)].strip().strip(',').title()
-            if venezuela.find_city(value) or not re.search(r'\b(casa|mi|el|la|mensajes|partes|lista|tabla|ingles|espanol)\b',_plain(value)):
+            if venezuela.find_city(value) or not re.search(r'\b(casa|mi|el|la|esa|esta|mensajes|partes|lista|tabla|ingles|espanol)\b',_plain(value)):
                 return venezuela.canonical(value)
     return ''
 
