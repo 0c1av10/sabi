@@ -86,7 +86,7 @@ async def test_seed_and_public_menu_keep_full_descriptions(Session, client):
         assert "Los Naranjos" in r.opening_hours
         items = (await db.execute(select(MenuItem).where(MenuItem.restaurant_id == r.id))).scalars().all()
         assert {(i.name, i.price, i.category, i.description) for i in items} == set(BEIJING_MENU)
-        text = menu_text(items, (100, 110))
+        text = menu_text(items, (100, 110), descriptions=True)
         assert "ELIGE 1 PROTEÍNA Y 2 ACOMPAÑANTES" in text
         assert "POLLO CRISPY (150 GRS)" in text
         items[0].description = "Edición del local"
@@ -110,7 +110,7 @@ def test_menu_text_compact_full_description_and_unavailable():
     desc = "ELIGE 1 PROTEÍNA\n Y 2 ACOMPAÑANTES. " + "opciones " * 40 + "REFRESCO 12 OZ"
     items = [MenuItem(name="Combo", price=12, category="Promos", description=desc, available=True),
              MenuItem(name="Agotado", price=1, category="Promos", description="Oculto", available=False)]
-    text = menu_text(items, (100, 110))
+    text = menu_text(items, (100, 110), descriptions=True)
     assert text == "- Combo (Promos): $12,00 · Bs 1.200,00 — " + " ".join(desc.split())
     assert len(text.splitlines()) == 1
 
@@ -180,3 +180,18 @@ def test_order_totals_known_unknown_and_pickup(beijing, order_type, fee, pending
 def test_empty_order_does_not_invent_items():
     text, amount = summarize_order({"items": [{"name": "Inexistente", "quantity": 1}]}, {}, (100, 110))
     assert amount == 0 and "Inexistente" not in text
+
+
+def test_mock_order_matches_longest_dish_name_only(beijing):
+    r, items = beijing
+    conv = Conversation(state_json=json.dumps({"upsold": True}))
+    result = run_mock_agent(r, items, conv, "quiero un beijing individual chino")
+    names = [i["name"] for i in (result.state.get("draft") or {}).get("items", [])]
+    assert names == ["BEIJING INDIVIDUAL CHINO"]
+
+
+def test_mock_menu_reply_fits_whatsapp(beijing):
+    r, items = beijing
+    result = run_mock_agent(r, items, Conversation(state_json="{}"), "menu")
+    assert len(result.reply) <= 4096
+    assert "Combos chinos" in result.reply

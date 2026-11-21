@@ -40,11 +40,14 @@ def fmt_money(usd: float, rate: float, _eur_rate: float) -> str:
     return f"${_num(usd)} · Bs {_num(bs)}"
 
 
-def menu_text(items: list[MenuItem], rates: tuple[float, float]) -> str:
+MAX_MENU_REPLY = 3500  # WhatsApp text messages cap at 4096 characters.
+
+
+def menu_text(items: list[MenuItem], rates: tuple[float, float], descriptions: bool = False) -> str:
     lines = []
     for it in items:
         if it.available:
-            description = " ".join((it.description or "").split())
+            description = " ".join((it.description or "").split()) if descriptions else ""
             lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}"
                          + (f" — {description}" if description else ""))
     return "\n".join(lines)
@@ -245,7 +248,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     context = (
         f"\nRestaurante: {restaurant.name}\nHorarios: {restaurant.opening_hours}\n"
         f"{delivery_context(restaurant, rates)}\n"
-        f"Menú disponible hoy:\n{menu_text(items, rates)}\n"
+        f"Menú disponible hoy:\n{menu_text(items, rates, descriptions=True)}\n"
         f"Agotado hoy: {', '.join(sold_out) or 'nada'}\n"
         f"Pedido en curso: {json.dumps(state.get('draft'), ensure_ascii=False)}\n"
         f"Ya ofreciste complemento: {'sí' if state.get('upsell_offered') else 'no'}"
@@ -390,7 +393,8 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                             qty = n
                             break
                 found.append({"name": mi.name, "quantity": qty, "extras": "", "notes": ""})
-        return found
+        names = [f["name"].lower() for f in found]
+        return [f for f in found if not any(f["name"].lower() != n and f["name"].lower() in n for n in names)]
 
     # stage: awaiting confirmation of the draft
     if state.get("stage") == "confirming":
@@ -428,8 +432,12 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})
 
     if re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
-        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, rates_of(restaurant)),
-                           state={**state, "draft": draft})
+        menu = menu_text(available, rates_of(restaurant))
+        if len(menu) > MAX_MENU_REPLY:
+            categories = ", ".join(dict.fromkeys(i.category for i in available if i.category))
+            menu = (f"Tenemos {len(available)} platos en estas categorías: {categories}. "
+                    "Dime qué categoría o plato te interesa y te paso los precios.")
+        return AgentResult(reply="Este es nuestro menú:\n" + menu, state={**state, "draft": draft})
 
     if re.search(r"\b(horarios?|abierto|atienden|abren|cierran)\b", text):
         return AgentResult(reply=f"Nuestro horario es: {restaurant.opening_hours}",
