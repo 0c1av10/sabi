@@ -294,9 +294,11 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         return reply
     food=active and active.domain=='general' and active.entity.partition(':')[0]=='food'
     # "Mejor en Lechería" moves the food task; named_business_query would read "Mejor" as a place.
-    if food and domain!='cinema' and not explicit_cinema(body) and (focus.declared_city(body) or not named_business_query(body)):
-        new_city=recommendation_city or focus.declared_city(body)
-        new_city=venezuela.canonical(new_city) if venezuela.find_city(new_city or '') else ''
+    named_city=recommendation_city or focus.declared_city(body)
+    # A city Sabi doesn't know ("Pizza en Miami") is still a different city: never answer it with the old one.
+    if (food and domain!='cinema' and not explicit_cinema(body) and (not named_city or venezuela.find_city(named_city))
+            and (focus.declared_city(body) or not named_business_query(body)) and not await restaurant_by_mention(db,body)):
+        new_city=venezuela.canonical(named_city) if named_city else ''
         kind=concierge.food_kind(body)
         if (new_city and new_city!=active.city) or kind:
             reply=await concierge.food_in_city(db,phone,new_city or active.city,kind or active.entity.partition(':')[2])
@@ -329,7 +331,8 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     if explicit_cinema(body) or city_clarification:
         # "el cine allí" is the city the customer was just asking about, whatever the topic was.
         here=active and active.city and re.search(r'\b(?:alli|ahi|alla|aca|aqui|esa ciudad)\b',text)
-        city='Puerto La Cruz' if city_clarification else (active.city if active and (active.domain=='cinema' or here) else '')
+        inherited=active.city if active and (active.domain=='cinema' or here) else ''
+        city='Puerto La Cruz' if city_clarification else (venezuela.canonical(named_city) if venezuela.find_city(named_city) else '' if named_city else inherited)
         await focus.save(db,phone,domain='cinema',city=city)
         cinema_body=body if not city_clarification else 'Cine en Puerto La Cruz'
         if await wants_cinema(db,phone,cinema_body):

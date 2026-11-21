@@ -560,3 +560,43 @@ async def test_owner_sequence_keeps_the_city_through_food_and_cinema(Session, se
 ])
 def test_no_about_something_else_is_not_turning_a_topic_down(text, rejects):
     assert concierge.rejects_domain(text) is rejects
+
+
+async def _lecheria_food(db):
+    await _catalog(db)
+    reply = await webhook._events_route(db, "111", "Estoy buscando dónde comer en Lechería.")
+    assert reply.startswith("En Lechería te puedo atender")
+
+
+async def test_a_named_business_after_a_food_search_goes_to_that_business(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "Quiero una pizza de NACIONAL")
+        assert not (reply or "").startswith("En Lechería")
+
+
+async def test_an_unknown_city_after_a_food_search_is_not_the_old_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "Pizza en Miami")
+        assert "Lechería" not in (reply or "") and "NACIONAL" not in (reply or "")
+
+
+async def test_cinema_in_a_named_city_after_a_food_search_uses_that_city(Session, sent, monkeypatch):
+    from app import cinema_whatsapp as cinema
+    queries = []
+
+    async def run(body, **kw):
+        queries.append(body)
+        return cinema.UNAVAILABLE
+
+    async def quiet(*args):
+        return {"mock": True}
+    monkeypatch.setattr(cinema, "run_cinema_agent", run)
+    monkeypatch.setattr(cinema, "send_whatsapp_message", quiet)
+    monkeypatch.setattr(cinema.settings, "cinema_mcp_enabled", True)
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "Quiero ver el cine aquí en Caracas. No compres entradas.")
+        assert "Caracas" in reply and "Lechería" not in reply
+        assert "Ciudad explícita para esta consulta: Caracas." in queries[0]
