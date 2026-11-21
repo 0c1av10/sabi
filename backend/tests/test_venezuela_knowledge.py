@@ -319,3 +319,104 @@ async def test_city_options_show_only_each_business_and_its_fee(Session, sent):
         assert reply.startswith("En Lechería te puedo atender con estos locales:\n")
         assert "• *NACIONAL Restaurante* — delivery a Lechería ($2,00)" in reply
         assert "registr" not in reply and "zonas" not in reply
+
+
+
+
+async def test_product_from_another_business_is_not_a_silent_switch(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        await _catalog(db)
+        db.add(Restaurant(name="Bizza", slug="bizza", pin="0000"))
+        await db.flush()
+        bizza = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "bizza"))).first()
+        db.add(MenuItem(restaurant_id=bizza.id, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        restaurant, _, text = await webhook._resolve(db, "111", "Tiene refresco")
+        assert restaurant and restaurant.slug == "bizza"
+        await memory.set_topic(db, "222", "tu pedido en NACIONAL Restaurante")
+        restaurant, _, text = await webhook._resolve(db, "222", "Tiene refresco")
+        assert restaurant is None and text == ("Eso lo encontré en *Bizza*. "
+                                               "¿Quieres pedirlo allí o seguimos con NACIONAL Restaurante?")
+        restaurant, _, _ = await webhook._resolve(db, "222", "Sí, quiero un refresco")
+        assert restaurant and restaurant.slug == "bizza"
+        await memory.set_topic(db, "333", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "333", "Tiene refresco")
+        restaurant, routed, _ = await webhook._resolve(db, "333", "Sí")
+        assert restaurant and restaurant.slug == "bizza" and routed == "Tiene refresco"
+        await memory.set_topic(db, "555", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "555", "Tiene refresco")
+        restaurant, routed, _ = await webhook._resolve(db, "555", "No, seguimos. Quiero un refresco")
+        assert restaurant and restaurant.slug == "nacional"
+        assert (await memory.get(db, "555")).last_topic == "tu pedido en NACIONAL Restaurante"
+        restaurant, _, _ = await webhook._resolve(db, "444", "Quiero un refresco de Bizza")
+        assert restaurant and restaurant.slug == "bizza"
+
+
+async def test_business_name_with_parenthesis_is_not_a_switch(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        db.add(Restaurant(name="Arepera (Lechería)", slug="arepera", pin="0000"))
+        await db.flush()
+        rid = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "arepera"))).first().id
+        db.add(MenuItem(restaurant_id=rid, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        await memory.set_topic(db, "111", "tu pedido en Arepera (Lechería) (recomendación de locales: Lechería)")
+        restaurant, _, text = await webhook._resolve(db, "111", "Tiene refresco")
+        assert restaurant and restaurant.slug == "arepera" and text is None
+
+
+async def test_greeting_asks_when_the_saved_name_is_not_usable(Session, sent):
+    async with Session() as db:
+        db.add(memory.Contact(phone="111", name="Entonces", name_source="profile", last_topic="tu pedido en NACIONAL Restaurante"))
+        await db.commit()
+        text, _ = await concierge.reply(db, "Hola", "111")
+        assert text == "Hola de nuevo. " + memory.ASK_NAME
+
+
+async def test_long_request_is_never_forwarded_cut(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        await _catalog(db)
+        db.add(Restaurant(name="Bizza", slug="bizza", pin="0000"))
+        await db.flush()
+        bizza = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "bizza"))).first()
+        db.add(MenuItem(restaurant_id=bizza.id, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        await memory.set_topic(db, "222", "tu pedido en NACIONAL Restaurante")
+        long = "Tiene refresco de 1 litro bien frío para retirar mañana a las 7 de la noche en la sede de Lechería"
+        await webhook._resolve(db, "222", long)
+        restaurant, routed, _ = await webhook._resolve(db, "222", "Sí")
+        assert restaurant.slug == "bizza" and routed == "Sí"
+
+
+async def test_reply_naming_a_business_overrides_the_switch_offer(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        await _catalog(db)
+        db.add(Restaurant(name="Bizza", slug="bizza", pin="0000"))
+        await db.flush()
+        bizza = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "bizza"))).first()
+        db.add(MenuItem(restaurant_id=bizza.id, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        await memory.set_topic(db, "222", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "222", "Tiene refresco")
+        restaurant, _, text = await webhook._resolve(db, "222", "En NACIONAL Restaurante")
+        assert restaurant and restaurant.slug == "nacional" and text is None
+        await memory.set_topic(db, "555", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "555", "Tiene refresco")
+        await memory.set_topic(db, "999", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "999", "Tiene refresco")
+        restaurant, _, _ = await webhook._resolve(db, "999", "Sí, en Bizza [sabi:nacional]")
+        assert restaurant and restaurant.slug == "nacional"
+        restaurant, routed, _ = await webhook._resolve(db, "555", "Bizza, quiero una pizza sin cebolla")
+        assert restaurant and restaurant.slug == "bizza" and routed.endswith("sin cebolla")
+        for phone, reply in [("333", "Sí, nada de NACIONAL"), ("444", "En Bizza no"), ("888", "No quiero NACIONAL"),
+                             ("1010", "Bizza, mejor no"), ("1111", "Bizza o NACIONAL?"),
+                             ("666", "No, gracias. Y nada de NACIONAL"), ("777", "Sí, sin problema con Bizza")]:
+            await memory.set_topic(db, phone, "tu pedido en NACIONAL Restaurante")
+            await webhook._resolve(db, phone, "Tiene refresco")
+            restaurant, _, text = await webhook._resolve(db, phone, reply)
+            assert restaurant is None and text.startswith("¿Lo pedimos en *Bizza*"), reply
+            restaurant, _, _ = await webhook._resolve(db, phone, "Bizza")
+            assert restaurant and restaurant.slug == "bizza", reply
