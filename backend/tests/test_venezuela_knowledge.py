@@ -284,3 +284,17 @@ async def test_surname_matching_a_gym_keyword_is_still_a_name(Session, sent):
         assert await webhook._events_route(db, "111", "Ana Rondón") == \
             "¡Mucho gusto, Ana! Ya me quedo con tu nombre. ¿En qué te ayudo?"
         assert (await memory.get(db, "111")).name == "Ana Rondón"
+
+
+async def test_name_prompt_leaves_boxing_requests_and_signup_to_the_gym(Session, sent):
+    from app import gym_whatsapp, memory
+    async with Session() as db:
+        await webhook._events_route(db, "111", "Como me llamo")
+        await webhook._events_route(db, "111", "Reservar cupo")
+        assert not (await memory.get(db, "111")).name
+        session, _ = await gym_whatsapp._state(db, "222")
+        await gym_whatsapp.reply_for(db, "222", "Quiero una clase de boxeo")
+        assert (await gym_whatsapp._state(db, "222"))[1].get("step") == "name"
+        await memory.ask_name(db, "222")
+        await webhook._events_route(db, "222", "Ana")
+        assert (await gym_whatsapp._state(db, "222"))[1].get("step") != "name"

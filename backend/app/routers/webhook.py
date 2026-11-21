@@ -158,13 +158,16 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone, reply)
         return reply
     contact=await memory.note(db, phone, body, profile_name)
-    if memory.name_pending(contact) and contact.name_source!='user':
+    # During a gym signup the booking flow owns the name question and its answer.
+    _,gym_state=await gym_whatsapp._state(db,phone)
+    gym_step=bool(gym_state.get('step'))
+    if memory.name_pending(contact) and contact.name_source!='user' and not gym_step:
         # Sabi just asked "¿Cómo te llamas?": a bare short reply is the name.
         said=memory.extract_name('Me llamo '+body) if len(body.split())<=3 else ''
         if said and (concierge.is_greeting(body) or concierge.wants_food(body) or any(concierge.cuisine_request(body))
                      or venezuela.find_city(body) or await restaurant_by_mention(db,body)
                      or explicit_cinema(body)
-                     or re.search(r'\b(?:boxeo|boxear|gimnasio|gym|clases?|entrenar|entrenamiento)\b',concierge._plain(body))):said=''
+                     or re.search(r'\b(?:boxeo|boxear|gimnasio|gym|clases?|entrenar|entrenamiento|reservar|cupos?)\b',concierge._plain(body))):said=''
         # Only the reply right after the question can be a bare name.
         await memory.end_name_prompt(db,phone,contact)
         if said:
@@ -172,7 +175,7 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
             reply=f'¡Mucho gusto, {memory.display_name(said)}! Ya me quedo con tu nombre. ¿En qué te ayudo?'
             await send_whatsapp_message(phone,reply)
             return reply
-    name_reply=memory.name_reply(contact,body)
+    name_reply='' if gym_step else memory.name_reply(contact,body)
     if name_reply:
         if 'Cómo te llamas' in name_reply:await memory.ask_name(db,phone)
         await send_whatsapp_message(phone,name_reply)
