@@ -99,43 +99,37 @@ async def _silent_business_switch(db,phone,body,restaurant):
     return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous.name}?'
 
 
-def _ruled_out(body,restaurant):
-    """True when the reply negates the business it names ("nada de NACIONAL", "en Bizza no")."""
-    words=[w for w in venezuela.plain(restaurant.name).split() if len(w)>2]
-    if not words:return False
-    for clause in re.split(r'[,.;:!?¿¡]',body or ''):
-        text=f' {venezuela.plain(clause)} '
-        if f' {words[0]} ' in text:
-            before,_,after=text.partition(f' {words[0]} ')
-            return bool({'no','sin','ni','nada'}&set(before.split()[-3:])) or after.split()[-1:]==['no']
-    return False
+_NEGATION={'no','sin','ni','nada','tampoco'}
 
 
 async def _switch_answer(db,phone,body):
-    """(restaurant, body) chosen by the reply to the switch question; (None, body) otherwise."""
+    """(restaurant, body, reply) chosen by the reply to the switch question; restaurant and reply None
+    when there is no pending question. A reply that is not clear gets the question again: a message
+    never goes to a business the customer may have ruled out."""
     contact=await memory.get(db,phone)
     m=re.match(r'^cambio de local: (\d+)>(\d+)\|(.*)$',(contact.last_topic if contact else '') or '',re.S)
-    if not m:return None,body
+    if not m:return None,body,None
     offered,previous,asked=await db.get(Restaurant,int(m[1])),await db.get(Restaurant,int(m[2])),m[3]
-    # A reply that names a business ("Sí, pero en Bizza", a [sabi:...] link) goes where it says.
+    yes,no=_YES.match(body),_NO.match(body)
+    rest=body[(yes or no).end():] if (yes or no) else body
     named=await restaurant_by_mention(db,body)
-    if named and _ruled_out(body,named):
-        # "Sí, nada de NACIONAL" rules a business out: never send the message there.
-        other=offered if previous and named.id==previous.id else previous if offered and named.id==offered.id else None
-        if other:
-            await memory.set_topic(db,phone,f'tu pedido en {other.name}')
-            return other,body
-        named=None
-    if re.search(r'\[sabi:',body,re.I) or (named and named.id!=(offered.id if offered else None)):
+    if named or re.search(r'\[sabi:',body,re.I):
+        negated=bool(_NEGATION&set(venezuela.plain(rest).split()))
+        if negated or (no and offered and named and named.id==offered.id):
+            # "Sí, nada de NACIONAL", "No, gracias. Y nada de NACIONAL", "En Bizza no": ask, don't guess.
+            return None,body,(f'¿Lo pedimos en *{offered.name}* o seguimos con *{previous.name}*? '
+                              'Respóndeme con el nombre del local.') if offered and previous else None
+        if offered and named and named.id==offered.id:return offered,body,None
+        # "Sí, pero en NACIONAL", "No, seguimos con NACIONAL" or another business: it goes where it says.
         await memory.set_topic(db,phone,f'tu pedido en {previous.name}' if previous else '')
-        return None,body
-    if offered and _YES.match(body):
+        return None,body,None
+    if offered and yes:
         # A bare "Sí" carries the original request ("Tiene refresco") to the business offered.
-        return offered,(body if not asked or re.search(r'\w{3,}',_YES.sub('',body,count=1)) else asked)
+        return offered,(body if not asked or re.search(r'\w{3,}',rest) else asked),None
     if previous:
         await memory.set_topic(db,phone,f'tu pedido en {previous.name}')
-        if _NO.match(body):return previous,body
-    return None,body
+        if no:return previous,body,None
+    return None,body,None
 
 
 async def _resolve(db: AsyncSession, phone: str, body: str):
@@ -163,7 +157,8 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
-    picked,picked_body=await _switch_answer(db,phone,body)
+    picked,picked_body,again=await _switch_answer(db,phone,body)
+    if again:return None,body,again
     restaurant, routed_body = (picked,picked_body) if picked else await restaurant_for_message(db, phone, body)
     if restaurant:
         switched=await _silent_business_switch(db,phone,body,restaurant)
