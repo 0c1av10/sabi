@@ -92,6 +92,69 @@ CITIES = (
     City("Ciudad Ojeda", "Zulia"),
 )
 
+# Every other municipality seat (Wikipedia, "Anexo:Municipios de Venezuela"), so any town a customer
+# names is recognized. Seats that are also everyday words, first names or surnames ("Libertad",
+# "Soledad", "Cordero", "Colón") are left out so they are never read as a city.
+_SEATS = {
+    "Amazonas": ("Isla Ratón", "La Esmeralda", "Maroa", "San Carlos de Río Negro",
+        "San Fernando de Atabapo", "San Juan de Manapiare"),
+    "Anzoátegui": ("Aragua de Barcelona", "Boca de Uchire", "Cantaura", "Clarines", "El Chaparro", "Mapire",
+        "Onoto", "Pariaguán", "Píritu", "San José de Guanipa", "San Mateo", "Santa Ana", "Valle de Guanape"),
+    "Apure": ("Achaguas", "Biruaca", "Elorza", "Guasdualito", "San Juan de Payara"),
+    "Aragua": ("Barbacoas", "Camatagua", "Colonia Tovar", "El Consejo", "El Limón", "Las Tejerías",
+        "Ocumare de la Costa", "Palo Negro", "San Casimiro", "San Sebastián de los Reyes",
+        "Santa Cruz de Aragua", "Santa Rita", "Villa de Cura"),
+    "Barinas": ("Barinitas", "Barrancas", "Ciudad Bolivia", "Ciudad de Nutrias", "El Cantón", "Obispos",
+        "Sabaneta", "Santa Bárbara de Barinas", "Socopó"),
+    "Bolívar": ("Caicara del Orinoco", "Ciudad Piar", "El Callao", "El Palmar", "Guasipati", "Maripa",
+        "Santa Elena de Uairén"),
+    "Carabobo": ("Bejuma", "Güigüe", "Los Guayos", "Mariara", "Montalbán", "Morón", "San Joaquín",
+        "Tocuyito"),
+    "Cojedes": ("El Baúl", "El Pao", "Las Vegas", "Macapo", "Tinaco", "Tinaquillo"),
+    "Delta Amacuro": ("Curiapo", "Pedernales", "Sierra Imataca"),
+    "Falcón": ("Cabure", "Capatárida", "Chichiriviche", "Churuguara", "Dabajuro", "Jacura",
+        "La Cruz de Taratara", "La Vela de Coro", "Mene de Mauroa", "Mirimire", "Palmasola", "Pedregal",
+        "Pueblo Nuevo", "Puerto Cumarebo", "San Juan de los Cayos", "San Luis", "Santa Cruz de Bucaral",
+        "Santa Cruz de Los Taques", "Tocópero", "Urumaco", "Yaracal"),
+    "Guárico": ("Altagracia de Orituco", "Camaguán", "Chaguaramas", "El Socorro", "El Sombrero", "Guayabal",
+        "Las Mercedes", "San José de Guaribe", "Santa María de Ipire", "Tucupido", "Zaraza"),
+    "Lara": ("Duaca", "El Tocuyo", "Quíbor", "Sanare", "Sarare", "Siquisique"),
+    "Miranda": ("Baruta", "Carrizal", "Caucagua", "Chacao", "Cúa", "Cúpira", "El Hatillo", "Mamporal",
+        "Ocumare del Tuy", "Petare", "Río Chico", "San Antonio de los Altos", "San Francisco de Yare",
+        "San José de Barlovento", "Santa Lucía", "Santa Teresa del Tuy"),
+    "Monagas": ("Aguasay", "Aragua de Maturín", "Barrancas del Orinoco", "Caicara de Maturín", "Caripe",
+        "Caripito", "Punta de Mata", "Quiriquire", "San Antonio de Capayacuar", "Temblador", "Uracoa"),
+    "Mérida": ("Arapuey", "Aricagua", "Bailadores", "Canaguá", "Ejido", "Guaraque", "La Azulita",
+        "Lagunillas", "Mucuchíes", "Nueva Bolivia", "Pueblo Llano", "Santa Cruz de Mora",
+        "Santa Elena de Arenales", "Santa María de Caparo", "Santo Domingo", "Tabay", "Timotes", "Torondoy",
+        "Tucaní"),
+    "Nueva Esparta": ("Boca de Río", "El Valle", "La Plaza de Paraguachí", "Punta de Piedras",
+        "San Juan Bautista", "San Pedro de Coche"),
+    "Portuguesa": ("Agua Blanca", "Biscucuy", "Boconoíto", "Chabasquén", "El Playón", "Guanarito", "Ospino",
+        "Papelón", "San Rafael de Onoto", "Villa Bruzual"),
+    "Sucre": ("Araya", "Cariaco", "Casanay", "Cumanacoa", "El Pilar", "Güiria", "Irapa", "Marigüitar",
+        "Río Caribe", "San Antonio del Golfo", "San José de Areocuar", "Tunapuy", "Yaguaraparo"),
+    "Trujillo": ("Betijoque", "Boconó", "Campo Elías", "Carache", "Chejendé", "El Dividive", "El Paradero",
+        "Escuque", "La Quebrada", "Monte Carmelo", "Motatán", "Pampanito", "Pampán", "Sabana Grande",
+        "Sabana de Mendoza", "Santa Apolonia", "Santa Isabel"),
+    "Táchira": ("Abejales", "Capacho Nuevo", "Capacho Viejo", "Coloncito", "El Cobre", "La Fría",
+        "La Grita", "La Tendida", "Las Mesas", "Lobatera", "Michelena", "Pregonero", "Queniquea", "Rubio",
+        "San Josecito", "San José de Bolívar", "San Rafael del Piñal", "San Simón", "Santa Ana de Táchira",
+        "Seboruco", "Táriba", "Umuquena", "Ureña"),
+    "Yaracuy": ("Aroa", "Boraure", "Chivacoa", "Cocorote", "Farriar", "Guama", "Nirgua", "Sabana de Parra",
+        "San Pablo", "Urachiche", "Yaritagua", "Yumare"),
+    "Zulia": ("Bachaquero", "Bobures", "Casigua El Cubo", "El Chivo", "El Toro", "Encontrados",
+        "La Concepción", "La Villa del Rosario", "Los Puertos de Altagracia", "Machiques",
+        "San Carlos del Zulia", "San Francisco", "San Rafael del Moján", "San Timoteo", "Sinamaica",
+        "Tía Juana"),
+}
+_SEAT_ALIASES = {"Santa Elena de Uairén": ("santa elena",), "Casigua El Cubo": ("casigua",),
+                 "San Rafael del Moján": ("el mojan",),
+                 "Puerto Cumarebo": ("pto cumarebo",), "Ocumare del Tuy": ("ocumare",)}
+# Two different towns share "Santa Bárbara"; only the full names are recognized.
+CITIES += (City("Santa Bárbara del Zulia", "Zulia", ("santa barbara de zulia",)),)
+CITIES += tuple(City(n, s, _SEAT_ALIASES.get(n, ())) for s, names in _SEATS.items() for n in names)
+
 
 def plain(text: str) -> str:
     nfkd = unicodedata.normalize("NFKD", text or "")

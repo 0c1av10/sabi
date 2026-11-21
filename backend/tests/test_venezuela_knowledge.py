@@ -626,3 +626,67 @@ def test_a_restaurant_named_after_a_city_is_still_a_business():
     from app.auth import named_business_query
     assert named_business_query("¿Dónde queda el Restaurante Valencia?")[0] == "Valencia"
     assert named_business_query("Estoy buscando dónde comer en Lechería.") is None
+
+
+@pytest.mark.parametrize("written,name,state", [
+    ("Cantaura", "Cantaura", "Anzoátegui"), ("tucupido", "Tucupido", "Guárico"),
+    ("Santa Elena", "Santa Elena de Uairén", "Bolívar"), ("Petare", "Petare", "Miranda"),
+    ("El Tocuyo", "El Tocuyo", "Lara"), ("Ureña", "Ureña", "Táchira"), ("quibor", "Quíbor", "Lara"),
+    ("Cumaná", "Cumaná", "Sucre"), ("Caracas", "Caracas", "Distrito Capital"),
+])
+def test_every_municipality_seat_is_a_city(written, name, state):
+    city = venezuela.find_city(written)
+    assert city and (city.name, city.state) == (name, state)
+
+
+@pytest.mark.parametrize("word", ["Cordero", "Delicias", "Libertad", "Soledad", "Colón", "Miranda"])
+def test_seats_that_are_everyday_words_are_not_cities(word):
+    assert venezuela.find_city(word) is None
+
+
+def test_neighboring_cities_stay_distinct():
+    zones = delivery.load_zones(NACIONAL_ZONES)
+    pick = lambda zone, address: (delivery.zone_for_order(zones, zone, address) or {}).get("name")  # noqa: E731
+    # The address decides, even when the model filled the neighboring city as the zone.
+    assert pick("Barcelona", "Calle Bolívar, Puerto La Cruz") == "Puerto La Cruz"
+    assert pick("Barcelona", "Av. Principal de Lechería") == "Lechería"
+    # A city outside the zones is not billed as a registered one.
+    assert pick("Barcelona", "Calle Sucre, Cumaná") is None
+    assert pick("Lechería", "Av. Urdaneta, Caracas") is None
+    # No city in the address: the zone the customer gave is kept.
+    assert pick("Barcelona", "Calle 5, casa 3") == "Barcelona"
+
+
+def test_agent_context_names_each_zone_state():
+    r = Restaurant(name="NACIONAL Restaurante", slug="nacional", pin="0", delivery_zones=NACIONAL_ZONES)
+    text = delivery.describe(r, lambda v: f"${v:.0f}")
+    assert "Lechería (Anzoátegui): $2; Barcelona (Anzoátegui): $3; Puerto La Cruz (Anzoátegui): $4" in text
+    assert "nunca cobres una por otra" in text
+
+
+def test_street_named_after_a_city_does_not_change_the_zone():
+    zones = delivery.load_zones(NACIONAL_ZONES)
+    assert delivery.zone_for_order(zones, "Lechería", "Av. Barcelona, Lechería, casa 3")["name"] == "Lechería"
+
+
+def test_neighborhood_zone_kept_for_an_address_in_its_city():
+    zones = delivery.load_zones(json.dumps([{"name": "Centro de Lechería", "fee": 2}, {"name": "Barcelona", "fee": 3}]))
+    assert delivery.zone_for_order(zones, "Centro de Lechería", "Calle 5, Lechería")["name"] == "Centro de Lechería"
+    assert delivery.zone_for_order(zones, "Centro de Lechería", "Calle 5, Barcelona")["name"] == "Barcelona"
+
+
+def test_the_two_santa_barbaras_are_different_cities():
+    assert venezuela.find_city("Santa Bárbara del Zulia").state == "Zulia"
+    assert venezuela.find_city("Santa Bárbara de Barinas").state == "Barinas"
+
+
+def test_cityless_zone_gives_way_to_the_zone_the_address_names():
+    zones = delivery.load_zones(json.dumps([{"name": "Centro", "fee": 2}, {"name": "Barcelona", "fee": 3}]))
+    assert delivery.zone_for_order(zones, "Centro", "Calle 5, Barcelona")["name"] == "Barcelona"
+    assert delivery.zone_for_order(zones, "Centro", "Calle 5, Lechería")["name"] == "Centro"
+    assert delivery.zone_for_order(zones, "Centro", "Centro, Av. Barcelona, Lechería")["name"] == "Centro"
+
+
+def test_longer_zone_named_in_the_address_wins_over_the_one_inside_it():
+    zones = delivery.load_zones(json.dumps([{"name": "Centro", "fee": 2}, {"name": "Centro de Barcelona", "fee": 3}]))
+    assert delivery.zone_for_order(zones, "Centro", "Centro de Barcelona, calle 4")["name"] == "Centro de Barcelona"
