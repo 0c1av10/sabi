@@ -690,3 +690,17 @@ def test_cityless_zone_gives_way_to_the_zone_the_address_names():
 def test_longer_zone_named_in_the_address_wins_over_the_one_inside_it():
     zones = delivery.load_zones(json.dumps([{"name": "Centro", "fee": 2}, {"name": "Centro de Barcelona", "fee": 3}]))
     assert delivery.zone_for_order(zones, "Centro", "Centro de Barcelona, calle 4")["name"] == "Centro de Barcelona"
+
+
+async def test_restaurants_in_that_city_after_a_food_search_stay_in_the_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué restaurantes hay en esa ciudad?")
+        assert reply.startswith("En Lechería te puedo atender") and "Prueba" not in reply
+
+
+async def test_cinema_in_this_city_after_a_food_search_keeps_the_city(Session, sent, monkeypatch):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué películas hay en el cine en esta ciudad?")
+        assert "Lechería" in reply

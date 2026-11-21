@@ -295,12 +295,14 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     food=active and active.domain=='general' and active.entity.partition(':')[0]=='food'
     # "Mejor en Lechería" moves the food task; named_business_query would read "Mejor" as a place.
     named_city=recommendation_city or focus.declared_city(body)
+    # "allí", "en esa ciudad": the city the customer was just asking about, whatever the topic was.
+    here=bool(active and active.city and re.search(r'\b(?:alli|ahi|alla|aca|aqui|esa ciudad|esta ciudad)\b',text))
     # A city Sabi doesn't know ("Pizza en Miami") is still a different city: never answer it with the old one.
     if (food and domain!='cinema' and not explicit_cinema(body) and (not named_city or venezuela.find_city(named_city))
             and (focus.declared_city(body) or not named_business_query(body)) and not await restaurant_by_mention(db,body)):
         new_city=venezuela.canonical(named_city) if named_city else ''
         kind=concierge.food_kind(body)
-        if (new_city and new_city!=active.city) or kind:
+        if (new_city and new_city!=active.city) or kind or here:
             reply=await concierge.food_in_city(db,phone,new_city or active.city,kind or active.entity.partition(':')[2])
             await send_whatsapp_message(phone,reply)
             return reply
@@ -329,8 +331,6 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone,reply)
         return reply
     if explicit_cinema(body) or city_clarification:
-        # "el cine allí" is the city the customer was just asking about, whatever the topic was.
-        here=active and active.city and re.search(r'\b(?:alli|ahi|alla|aca|aqui|esa ciudad)\b',text)
         inherited=active.city if active and (active.domain=='cinema' or here) else ''
         city='Puerto La Cruz' if city_clarification else (venezuela.canonical(named_city) if venezuela.find_city(named_city) else '' if named_city else inherited)
         await focus.save(db,phone,domain='cinema',city=city)
