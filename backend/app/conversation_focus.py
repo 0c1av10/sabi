@@ -148,8 +148,9 @@ async def _listed_businesses(db,phone):
 # Only filler (or "delivery de <local>") between the price word and the city, so "¿cuánto cuesta una pizza en Barcelona?" is a product question.
 _FEE_FILLER=r'(?:\s+(?:me|te|le|nos|sale|saldria|cuesta|costaria|cobran|es|seria|esta|el|la|del|de))*'
 _FEE_ASK=re.compile(r'\b(?:cuanto|precio|costo|tarifa)\b'+_FEE_FILLER+
-                    r'(?:\s+(?:delivery|envio|domicilio|despacho)(?:\s+(?:de|del)\s+.+?)?)?'
-                    r'\s+(?:a|para|hasta|hacia|en)\s+(.+)$')
+                    r'(?:\s+(?:delivery|envio|domicilio|despacho)(?:\s+(?:de|del)\s+(?P<biz>.+?))?)?'
+                    r'\s+(?=(?:a|para|hasta|hacia|en)\s)')
+_FEE_PREP=re.compile(r'(?:^|\s)(?:a|para|hasta|hacia|en)\s+')
 
 
 async def fee_reply(db,phone,body):
@@ -161,12 +162,19 @@ async def fee_reply(db,phone,body):
     text=plain(body)
     m=_FEE_ASK.search(text)
     if not m or re.search(r'\b(?:viaje|carrera|taxi|ride|yummy|entradas?|boletos?|pasaje)\b',text):return None
-    words=m[1].split()
-    city=next((c for n in range(len(words),0,-1) if (c:=find_city(' '.join(words[:n])))),None)
+    rest=text[m.end():]
+    city=biz=None
+    # The last city named is the destination: "de NACIONAL en Lechería a Barcelona" is to Barcelona.
+    for p in _FEE_PREP.finditer(rest):
+        words=rest[p.end():].split()
+        c=next((c for n in range(len(words),0,-1) if (c:=find_city(' '.join(words[:n])))),None)
+        if c:city,biz=c,(f"{m['biz']} {rest[:p.start()]}".strip() if m['biz'] else None)
     if not city:return None
     active=await get(db,phone)
     if active and active.domain in ('shopping','cinema','gym','events'):return None
-    named=await restaurant_by_mention(db,body)
+    named=await restaurant_by_mention(db,biz or body)
+    # A business we don't know must not get the fee of the one in focus.
+    if biz and not named:return None
     if not named and active and active.domain in ('restaurant','place') and active.entity:
         named=await restaurant_by_mention(db,active.entity)
         # An unresolved place is the subject now; an older business list must not answer for it.
