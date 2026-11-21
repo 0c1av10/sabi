@@ -105,6 +105,11 @@ async def _switch_answer(db,phone,body):
     m=re.match(r'^cambio de local: (\d+)>(\d+)\|(.*)$',(contact.last_topic if contact else '') or '',re.S)
     if not m:return None,body
     offered,previous,asked=await db.get(Restaurant,int(m[1])),await db.get(Restaurant,int(m[2])),m[3]
+    # A reply that names a business ("Sí, pero en Bizza", a [sabi:...] link) goes where it says.
+    named=await restaurant_by_mention(db,body)
+    if re.search(r'\[sabi:',body,re.I) or (named and named.id!=(offered.id if offered else None)):
+        await memory.set_topic(db,phone,f'tu pedido en {previous.name}' if previous else '')
+        return None,body
     if offered and _YES.match(body):
         # A bare "Sí" carries the original request ("Tiene refresco") to the business offered.
         return offered,(body if not asked or re.search(r'\w{3,}',_YES.sub('',body,count=1)) else asked)

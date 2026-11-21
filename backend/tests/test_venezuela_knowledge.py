@@ -377,3 +377,18 @@ async def test_long_request_is_never_forwarded_cut(Session, sent):
         await webhook._resolve(db, "222", long)
         restaurant, routed, _ = await webhook._resolve(db, "222", "Sí")
         assert restaurant.slug == "bizza" and routed == "Sí"
+
+
+async def test_reply_naming_a_business_overrides_the_switch_offer(Session, sent):
+    from app.models import MenuItem
+    async with Session() as db:
+        await _catalog(db)
+        db.add(Restaurant(name="Bizza", slug="bizza", pin="0000"))
+        await db.flush()
+        bizza = (await db.execute(Restaurant.__table__.select().where(Restaurant.slug == "bizza"))).first()
+        db.add(MenuItem(restaurant_id=bizza.id, name="REFRESCO 1L.", price=2.5, category="Bebidas"))
+        await db.commit()
+        await memory.set_topic(db, "222", "tu pedido en NACIONAL Restaurante")
+        await webhook._resolve(db, "222", "Tiene refresco")
+        restaurant, _, text = await webhook._resolve(db, "222", "Sí, pero en NACIONAL Restaurante")
+        assert restaurant and restaurant.slug == "nacional" and text is None
