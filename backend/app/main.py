@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_db
-from .known_menus import BIZZA_MENU
+from .known_menus import ABRUZZOS_INFO, ABRUZZOS_MENU, BIZZA_MENU
 from .routers import events, events_admin, panel, pilot_yummy, store, webhook
 
 
@@ -49,6 +49,21 @@ KNOWN_BUSINESSES = [{
     "opening_hours": "",
     "delivery_info": "",
     "menu": BIZZA_MENU,
+}, {
+    "name": "Pizzería Abruzzo's", "slug": "abruzzos",
+    "tagline": "Pizzería italiana contemporánea",
+    "website": "https://www.pizzeriaabruzzos.com/",
+    "opening_hours": (
+        "Hora local. Charallave, C.C. Vanessa Mall y Hatillo: diario 09:00–22:00. "
+        "Guatire, C.C. La Parada y Sabana Grande: diario 11:00–22:00. "
+        "Guatire, C.C. Buenaventura: lun–sáb 12:00–22:00; el registro publicado del domingo "
+        "dice 00:00–22:00 (confirmar con el local). "
+        "Lechería y Los Palos Grandes: diario 12:00–23:00. "
+        "Paseo Colón: diario 12:00–22:15. Santa Fe: diario 11:00–23:00. "
+        "UCAB: lun–vie 11:00–17:00; sáb–dom cerrado."
+    ),
+    "delivery_info": ABRUZZOS_INFO,
+    "menu": ABRUZZOS_MENU,
 }]
 
 

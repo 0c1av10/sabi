@@ -44,9 +44,11 @@ def menu_text(items: list[MenuItem], rates: tuple[float, float], details: bool =
     lines = []
     for it in items:
         if it.available:
-            # The model needs what a combo includes ("+ 1 refresco de 1 litro"), not only its price.
-            desc = f" — {it.description}" if details and it.description else ""
-            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}{desc}")
+            description = " ".join((it.description or "").split()) if details else ""
+            if len(description) > 2000:
+                description = description[:2000] + "…"
+            lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}"
+                         + (f" — {description}" if description else ""))
     return "\n".join(lines)
 
 
