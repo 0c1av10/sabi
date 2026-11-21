@@ -179,11 +179,13 @@ def _fee(usd: float) -> str:
     return "sin costo" if not usd else "$" + f"{usd:.2f}".replace(".", ",")
 
 
-async def local_options(db, city: str, phone: str = "", fees: bool = False) -> str:
+async def local_options(db, city: str, phone: str = "", fees: bool = False, only=None) -> str:
     """Businesses that registered delivery to `city`, or '' when none did. The offered names are
     remembered as the current topic so "Y nacional?" right after is read in context.
     The delivery fee is shown only when asked (`fees`); otherwise it comes up while building the order."""
     hits = await covering(db, city)
+    if only is not None:
+        hits = [(r, z) for r, z in hits if r in only]
     if not hits:
         return ""
     name = find_city(city).name

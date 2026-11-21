@@ -103,9 +103,9 @@ async def test_uncovered_city_still_refuses_to_invent(Session, sent):
     async with Session() as db:
         await _catalog(db)
         reply = await webhook._events_route(db, "111", "Quiero comida en Valencia")
-        assert "filtro geográfico" in reply and "NACIONAL" not in reply
+        assert reply.startswith("En Valencia no tengo locales verificados.") and "NACIONAL" not in reply
         text = await concierge.recommendations(db, body="Quiero comida en Caracas")
-        assert "filtro geográfico" in text and "NACIONAL" not in text
+        assert "no tengo locales verificados" in text and "NACIONAL" not in text
 
 
 # Real conversation: after the city, the customer names the business ("Y nacional ?").
@@ -515,3 +515,48 @@ async def test_fee_question_origin_city_is_not_destination_or_business(Session, 
         assert await focus.fee_reply(db, "111", "¿Cuánto cuesta el delivery en Lechería?") == (
             "El delivery de NACIONAL Restaurante a Lechería cuesta $2,00."
         )
+
+
+async def test_owner_sequence_keeps_the_city_through_food_and_cinema(Session, sent, monkeypatch):
+    from app import cinema_whatsapp as cinema
+    queries = []
+
+    async def run(body, **kw):
+        queries.append(body)
+        return cinema.UNAVAILABLE
+
+    async def quiet(*args):
+        return {"mock": True}
+    monkeypatch.setattr(cinema, "run_cinema_agent", run)
+    monkeypatch.setattr(cinema, "send_whatsapp_message", quiet)
+    monkeypatch.setattr(cinema.settings, "cinema_mcp_enabled", True)
+
+    async def say(db, text):
+        reply = await webhook._events_route(db, "111", text)
+        if reply is None:
+            restaurant, _, reply = await webhook._resolve(db, "111", text)
+            assert restaurant is None, f"{text!r} went to {restaurant.name}"
+        return reply
+
+    async with Session() as db:
+        await _catalog(db)
+        step1 = await say(db, "Estoy buscando dónde comer en Cumaná. Solo quiero información, no hagas pedidos ni reservas.")
+        assert step1.startswith("En Cumaná no tengo locales verificados.")
+        assert "NACIONAL" not in step1
+        step2 = await say(db, "¿Y pizza?")
+        assert step2.startswith("En Cumaná no tengo locales de pizza verificados.")
+        step3 = await say(db, "Mejor en Lechería.")
+        assert step3.startswith("En Lechería no tengo locales de pizza verificados.")
+        assert "*NACIONAL Restaurante*" in step3 and "$" not in step3
+        step4 = await say(db, "Ahora quiero ver qué hay en el cine allí. Solo consulta, no compres entradas.")
+        assert step4 == "No logré verificar la cartelera de cine en Lechería. No tengo horarios confirmados para mostrarte."
+        assert "Ciudad explícita para esta consulta: Lechería." in queries[0]
+
+
+@pytest.mark.parametrize("text,rejects", [
+    ("No quiero comida, mejor cine", True), ("ni cine ni nada", True), ("cine no", True),
+    ("Solo quiero información, no hagas pedidos ni reservas de comida", False),
+    ("Quiero ir al cine, no compres entradas", False),
+])
+def test_no_about_something_else_is_not_turning_a_topic_down(text, rejects):
+    assert concierge.rejects_domain(text) is rejects
