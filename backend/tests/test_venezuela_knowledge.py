@@ -718,3 +718,10 @@ async def test_outside_this_city_is_not_this_city(Session, sent):
         await _lecheria_food(db)
         reply = await webhook._events_route(db, "111", "¿Qué restaurantes hay fuera de esta ciudad?")
         assert not (reply or "").startswith("En Lechería")
+
+
+async def test_a_genre_exclusion_keeps_the_cinema_city(Session, sent):
+    async with Session() as db:
+        await _lecheria_food(db)
+        reply = await webhook._events_route(db, "111", "¿Qué películas hay en el cine en esta ciudad que no sea de terror?")
+        assert "Lechería" in reply
