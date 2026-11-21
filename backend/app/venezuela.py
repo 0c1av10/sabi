@@ -105,7 +105,7 @@ _SEATS = {
         "Ocumare de la Costa", "Palo Negro", "San Casimiro", "San Sebastián de los Reyes",
         "Santa Cruz de Aragua", "Santa Rita", "Villa de Cura"),
     "Barinas": ("Barinitas", "Barrancas", "Ciudad Bolivia", "Ciudad de Nutrias", "El Cantón", "Obispos",
-        "Sabaneta", "Santa Bárbara", "Socopó"),
+        "Sabaneta", "Santa Bárbara de Barinas", "Socopó"),
     "Bolívar": ("Caicara del Orinoco", "Ciudad Piar", "El Callao", "El Palmar", "Guasipati", "Maripa",
         "Santa Elena de Uairén"),
     "Carabobo": ("Bejuma", "Güigüe", "Los Guayos", "Mariara", "Montalbán", "Morón", "San Joaquín",
@@ -149,8 +149,10 @@ _SEATS = {
         "Tía Juana"),
 }
 _SEAT_ALIASES = {"Santa Elena de Uairén": ("santa elena",), "Casigua El Cubo": ("casigua",),
-                 "San Rafael del Moján": ("el mojan",), "Santa Bárbara": ("santa barbara del zulia",),
+                 "San Rafael del Moján": ("el mojan",),
                  "Puerto Cumarebo": ("pto cumarebo",), "Ocumare del Tuy": ("ocumare",)}
+# Two different towns share "Santa Bárbara"; only the full names are recognized.
+CITIES += (City("Santa Bárbara del Zulia", "Zulia", ("santa barbara de zulia",)),)
 CITIES += tuple(City(n, s, _SEAT_ALIASES.get(n, ())) for s, names in _SEATS.items() for n in names)
 
 
