@@ -137,6 +137,9 @@ async def test_bare_city_answer_is_canonical(Session, sent):
         assert focus.declared_city("Estoy en plc") == "Puerto La Cruz"
         assert concierge.recommendation_city("En ccs que me recomiendas") == "Caracas"
         assert concierge.recommendation_city("En Valencia que me recomiendas") == "Valencia"
+        assert concierge.recommendation_city("Quiero comida en puerto la cruz") == "Puerto La Cruz"
+        assert focus.declared_city("Estoy en Puerto La Cruz") == "Puerto La Cruz"
+        assert focus.declared_city("Estoy en la casa") == ""
 
 
 # The example order line Sabi suggests after listing local options must reach the business.

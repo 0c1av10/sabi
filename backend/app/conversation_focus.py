@@ -74,9 +74,11 @@ def declared_city(body):
     if not match:return ''
     value=match[1].strip()
     from .concierge import _plain
+    from .venezuela import canonical, find_city
+    # A known city ("Puerto La Cruz") is a city even when it contains a stop word.
+    if find_city(value):return canonical(value)
     if len(value.split())>4 or re.search(r'\b(mensajes?|partes?|lineas?|palabras?|tabla|lista|resumen|detalle|ingles|espanol|pizzas?|restaurante|local|delivery|pedido|mi|la|el|casa|trabajo|oficina|tres|dos|mejor)\b',_plain(value)):return ''
-    from .venezuela import canonical
-    return canonical(value)
+    return value
 
 _BARE_ANSWER=re.compile(r"^[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,30}(?:\s+[A-Za-zÁÉÍÓÚÑÜáéíóúñü]{2,30}){0,2}$")
 _BARE_NOT_CITY={'nada','no se','nose','buscala','buscalo','busca','ninguna','ninguno','da igual',
