@@ -94,9 +94,7 @@ async def handle_inbound_message(db: AsyncSession, restaurant: Restaurant,
         # A customer acknowledgement must never precede the durable write.
         # Saving locally and a transport acknowledgement are not merchant receipt.
         await db.commit()
-        reply = (f"Registré tu solicitud #{order.id} en Sabi, pendiente de revisión. "
-                 "Aún no tengo confirmación de recepción ni aceptación del restaurante. "
-                 "Elegir un método no confirma el pago; no pagues basándote en este mensaje.")
+        reply = f"Recibí tu pedido #{order.id}. Te aviso por aquí apenas {restaurant.name} lo confirme."
         try:
             await notify_owner_new_order(db, restaurant, order)
         except Exception:
@@ -190,7 +188,7 @@ async def approve_order(db: AsyncSession, restaurant: Restaurant, order: Order,
     items = ", ".join(f"{i.quantity}x {i.name}" for i in order.items)
     extra = f" (con ajustes: {order.edit_summary})" if edited and order.edit_summary else ""
     phone = await get_customer_phone(db, order)
-    msg = (f"✅ ¡Pedido confirmado por {restaurant.name}!{extra}\n"
+    msg = (f"✅ Tu orden fue confirmada por {restaurant.name}.{extra}\n"
            f"{items}\nTotal: {fmt_money(order.total, *rates_of(restaurant))}\n¡Gracias!")
     db.add(Message(conversation_id=order.conversation_id, direction="outbound", body=msg))
     if phone:
