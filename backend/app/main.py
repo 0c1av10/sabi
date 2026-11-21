@@ -63,7 +63,8 @@ KNOWN_BUSINESSES = [{
         "Delivery a toda Caracas, Barquisimeto y Lechería. "
         "El sitio no publica tarifas de delivery; el costo debe confirmarse con el restaurante. "
         "Contacto: 0412-6035277. Precios referenciales expresados en dólares ($) "
-        "al tipo de cambio oficial (BCV)."),
+        "al tipo de cambio oficial (BCV). "
+        "Reservaciones en línea: https://www.beijingrestaurante.com/reservaciones"),
     "menu": BEIJING_MENU,
 }]
 
