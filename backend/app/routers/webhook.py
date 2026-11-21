@@ -162,7 +162,8 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         # Sabi just asked "¿Cómo te llamas?": a bare short reply is the name.
         said=memory.extract_name('Me llamo '+body) if len(body.split())<=3 else ''
         if said and (concierge.is_greeting(body) or concierge.wants_food(body) or any(concierge.cuisine_request(body))
-                     or venezuela.find_city(body) or await restaurant_by_mention(db,body)):said=''
+                     or venezuela.find_city(body) or await restaurant_by_mention(db,body)
+                     or explicit_cinema(body) or await gym_whatsapp.wants_gym(db,phone,body)):said=''
         # Only the reply right after the question can be a bare name.
         await memory.set_topic(db,phone,'general')
         if said:

@@ -236,3 +236,12 @@ async def test_location_follow_up_keeps_unresolved_place(Session, sent):
         assert venezuela.location_subject("¿Dónde queda exactamente?") == ""
         await webhook._events_route(db, "111", "¿Dónde queda exactamente?")
         assert (await focus.get(db, "111")).entity == "Pizzería Roma"
+
+
+@pytest.mark.parametrize("answer", ["Boxeo", "cine"])
+async def test_service_request_after_name_prompt_is_not_a_name(Session, sent, answer):
+    from app import memory
+    async with Session() as db:
+        await webhook._events_route(db, "111", "Como me llamo")
+        await webhook._events_route(db, "111", answer)
+        assert not (await memory.get(db, "111")).name
