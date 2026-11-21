@@ -99,6 +99,18 @@ async def _silent_business_switch(db,phone,body,restaurant):
     return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous.name}?'
 
 
+def _ruled_out(body,restaurant):
+    """True when the reply negates the business it names ("nada de NACIONAL", "en Bizza no")."""
+    words=[w for w in venezuela.plain(restaurant.name).split() if len(w)>2]
+    if not words:return False
+    for clause in re.split(r'[,.;:!?¿¡]',body or ''):
+        text=f' {venezuela.plain(clause)} '
+        if f' {words[0]} ' in text:
+            before,_,after=text.partition(f' {words[0]} ')
+            return bool({'no','sin','ni','nada'}&set(before.split()[-3:])) or after.split()[-1:]==['no']
+    return False
+
+
 async def _switch_answer(db,phone,body):
     """(restaurant, body) chosen by the reply to the switch question; (None, body) otherwise."""
     contact=await memory.get(db,phone)
@@ -107,6 +119,13 @@ async def _switch_answer(db,phone,body):
     offered,previous,asked=await db.get(Restaurant,int(m[1])),await db.get(Restaurant,int(m[2])),m[3]
     # A reply that names a business ("Sí, pero en Bizza", a [sabi:...] link) goes where it says.
     named=await restaurant_by_mention(db,body)
+    if named and _ruled_out(body,named):
+        # "Sí, nada de NACIONAL" rules a business out: never send the message there.
+        other=offered if previous and named.id==previous.id else previous if offered and named.id==offered.id else None
+        if other:
+            await memory.set_topic(db,phone,f'tu pedido en {other.name}')
+            return other,body
+        named=None
     if re.search(r'\[sabi:',body,re.I) or (named and named.id!=(offered.id if offered else None)):
         await memory.set_topic(db,phone,f'tu pedido en {previous.name}' if previous else '')
         return None,body
