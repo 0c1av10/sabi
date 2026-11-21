@@ -152,3 +152,11 @@ async def test_suggested_order_line_routes_to_business(Session, sent):
         restaurant, _, text = await webhook._resolve(db, "111", "quiero pedir en NACIONAL Restaurante")
         assert restaurant and restaurant.slug == "nacional" and text is None
         assert (await focus.get(db, "111")).city == "Lechería"
+
+
+async def test_city_written_in_the_order_is_kept(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.city_reply(db, "111", "Estoy en Lechería")
+        restaurant, _, _ = await webhook._resolve(db, "111", "quiero pedir en NACIONAL Restaurante en plc")
+        assert restaurant and (await focus.get(db, "111")).city == "Puerto La Cruz"

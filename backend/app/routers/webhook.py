@@ -110,7 +110,12 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
             topic=f"{topic} ({previous})"
         await memory.set_topic(db, phone, topic)
         previous=await focus.get(db,phone)
-        city=previous.city if previous and previous.domain=='restaurant' and previous.entity==restaurant.name else ''
+        named=named_business_query(body)
+        said=named[1] if named else ''
+        # A city written in this order, where the business registered delivery, is the task city.
+        city=venezuela.canonical(said) if said and await venezuela.covers(db,restaurant,said) else ''
+        if not city and previous and previous.domain=='restaurant' and previous.entity==restaurant.name:
+            city=previous.city
         # A city asked for just before, where this business registered delivery, stays the task city.
         if not city and previous and previous.city and (previous.domain=='general' or (previous.domain=='place' and not previous.entity)) and await venezuela.covers(db,restaurant,previous.city):
             city=previous.city
