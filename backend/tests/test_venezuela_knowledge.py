@@ -280,3 +280,10 @@ async def test_gym_signup_keeps_its_own_name_step(Session, sent):
         await gym_whatsapp.reply_for(db, "222", "Quiero una clase de boxeo")
         await webhook._events_route(db, "222", "Ana")
         assert (await gym_whatsapp._state(db, "222"))[1].get("step") != "name"
+
+
+@pytest.mark.parametrize("reply", ["Juan Griego", "San Juan de los Morros"])
+def test_city_starting_with_a_first_name_is_not_a_name(reply):
+    from app import memory
+    assert memory.bare_name(reply) == ""
+    assert memory.bare_name("Juan Pérez") == "Juan Pérez"
