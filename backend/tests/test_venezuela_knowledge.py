@@ -275,3 +275,12 @@ def test_name_question_variants_are_answered():
     contact = memory.Contact(phone="111", name="Octavio")
     assert memory.name_reply(contact, "¿Sabes cuál es mi nombre?") == "Te llamas Octavio. ¿En qué te ayudo?"
     assert memory.name_reply(contact, "¿Recuerdas cómo me llamo?") == "Te llamas Octavio. ¿En qué te ayudo?"
+
+
+async def test_surname_matching_a_gym_keyword_is_still_a_name(Session, sent):
+    from app import memory
+    async with Session() as db:
+        await webhook._events_route(db, "111", "Como me llamo")
+        assert await webhook._events_route(db, "111", "Ana Rondón") == \
+            "¡Mucho gusto, Ana! Ya me quedo con tu nombre. ¿En qué te ayudo?"
+        assert (await memory.get(db, "111")).name == "Ana Rondón"
