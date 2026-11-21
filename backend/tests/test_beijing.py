@@ -86,7 +86,7 @@ async def test_seed_and_public_menu_keep_full_descriptions(Session, client):
         assert "Los Naranjos" in r.opening_hours
         items = (await db.execute(select(MenuItem).where(MenuItem.restaurant_id == r.id))).scalars().all()
         assert {(i.name, i.price, i.category, i.description) for i in items} == set(BEIJING_MENU)
-        text = menu_text(items, (100, 110), descriptions=True)
+        text = menu_text(items, (100, 110), details=True)
         assert "ELIGE 1 PROTEÍNA Y 2 ACOMPAÑANTES" in text
         assert "POLLO CRISPY (150 GRS)" in text
         items[0].description = "Edición del local"
@@ -110,7 +110,7 @@ def test_menu_text_compact_full_description_and_unavailable():
     desc = "ELIGE 1 PROTEÍNA\n Y 2 ACOMPAÑANTES. " + "opciones " * 40 + "REFRESCO 12 OZ"
     items = [MenuItem(name="Combo", price=12, category="Promos", description=desc, available=True),
              MenuItem(name="Agotado", price=1, category="Promos", description="Oculto", available=False)]
-    text = menu_text(items, (100, 110), descriptions=True)
+    text = menu_text(items, (100, 110), details=True)
     assert text == "- Combo (Promos): $12,00 · Bs 1.200,00 — " + " ".join(desc.split())
     assert len(text.splitlines()) == 1
 

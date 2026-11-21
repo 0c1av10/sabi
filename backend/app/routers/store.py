@@ -67,16 +67,25 @@ def _color(value: str) -> str:
     return value if re.fullmatch(r"#[0-9a-fA-F]{6}", value or "") else ""
 
 
-async def _apply_import(db: AsyncSession, restaurant: Restaurant, data: dict) -> int:
-    """Upserts imported dishes by name; keeps the owner's existing dishes. Returns dishes added or updated."""
+async def _apply_import(db: AsyncSession, restaurant: Restaurant, data: dict,
+                        changes: list | None = None) -> int:
+    """Upserts imported dishes by name; keeps the owner's existing dishes. Returns dishes added or updated.
+    An existing dish takes the website's price; its description and photo are only filled when empty."""
+    changes = [] if changes is None else changes
     existing = {m.name.lower(): m for m in (await db.execute(select(MenuItem).where(
         MenuItem.restaurant_id == restaurant.id))).scalars().all()}
     for it in data["items"]:
         mi = existing.get(it["name"].lower())
         if mi:
+            if mi.price != it["price"]:
+                changes.append({"dish": mi.name, "field": "price", "from": mi.price, "to": it["price"]})
             mi.price = it["price"]
+            if not mi.description and it["description"]:
+                changes.append({"dish": mi.name, "field": "description", "from": "", "to": it["description"]})
+                mi.description = it["description"]
             mi.image_url = mi.image_url or it["image_url"]
         else:
+            changes.append({"dish": it["name"], "field": "added", "from": None, "to": it["price"]})
             db.add(MenuItem(restaurant_id=restaurant.id, name=it["name"], price=it["price"],
                             category=it["category"], description=it["description"],
                             image_url=it["image_url"]))
@@ -85,10 +94,13 @@ async def _apply_import(db: AsyncSession, restaurant: Restaurant, data: dict) ->
     restaurant.tagline = restaurant.tagline or data["tagline"]
     # Delivery price read from the site; never overwrite what the owner already set.
     if restaurant.delivery_fee is None and data.get("delivery_fee") is not None:
+        changes.append({"dish": None, "field": "delivery_fee", "from": None, "to": data["delivery_fee"]})
         restaurant.delivery_fee = data["delivery_fee"]
     if not restaurant.delivery_zones and data.get("delivery_zones"):
+        changes.append({"dish": None, "field": "delivery_zones", "from": [], "to": data["delivery_zones"]})
         restaurant.delivery_zones = delivery.dump_zones(data["delivery_zones"])
     if not restaurant.delivery_info and data.get("delivery_info"):
+        changes.append({"dish": None, "field": "delivery_info", "from": "", "to": data["delivery_info"]})
         restaurant.delivery_info = data["delivery_info"]
     return len(data["items"])
 
@@ -192,16 +204,44 @@ async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends
     return {"order_id": order.id, "status": "pending", "total": order.total}
 
 
+async def _fill_descriptions(db: AsyncSession, restaurant: Restaurant, data: dict) -> list[dict]:
+    """Only fills empty descriptions of dishes the business already has; nothing else changes."""
+    from collections import Counter
+    menu = (await db.execute(select(MenuItem).where(MenuItem.restaurant_id == restaurant.id))).scalars().all()
+    # A name used by two dishes (here or on the site) is ambiguous: its description is not copied.
+    repeated = {n for c in (Counter(m.name.lower() for m in menu), Counter(it["name"].lower() for it in data["items"]))
+                for n, k in c.items() if k > 1}
+    site = {it["name"].lower(): it["description"] for it in data["items"]
+            if it["description"] and it["name"].lower() not in repeated}
+    changes = []
+    for mi in menu:
+        if not mi.description and site.get(mi.name.lower()):
+            mi.description = site[mi.name.lower()]
+            changes.append({"dish": mi.name, "field": "description", "from": "", "to": mi.description})
+    return changes
+
+
 @router.post("/store/import")
 async def reimport(restaurant: Restaurant = Depends(current_restaurant),
-                   db: AsyncSession = Depends(get_db), website: Optional[str] = None):
+                   db: AsyncSession = Depends(get_db), website: Optional[str] = None,
+                   mode: Literal["full", "descriptions"] = "full", dry_run: bool = False):
+    """Reads the business's website again. mode=descriptions only fills empty dish descriptions;
+    dry_run=true lists the changes without saving them."""
     url = normalize_url(website or restaurant.website)
     if not url:
         raise HTTPException(400, "Agrega la página web del local")
     data = await import_site(url)
     if not data:
         raise HTTPException(502, "No pudimos abrir esa página web")
-    restaurant.website = url
-    count = await _apply_import(db, restaurant, data)
-    await db.commit()
-    return {"imported": count, "website": url}
+    changes: list[dict] = []
+    if mode == "descriptions":
+        changes = await _fill_descriptions(db, restaurant, data)
+        count = len(changes)
+    else:
+        restaurant.website = url
+        count = await _apply_import(db, restaurant, data, changes)
+    if dry_run:
+        await db.rollback()
+    else:
+        await db.commit()
+    return {"imported": count, "website": url, "dry_run": dry_run, "changes": changes}

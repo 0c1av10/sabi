@@ -18,7 +18,7 @@ from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, se
 from ..service import handle_inbound_message, recent_inbound_count
 from ..cinema_whatsapp import explicit_cinema, wants_cinema, handle_cinema_whatsapp
 from ..event_whatsapp import handle_event_whatsapp, wants_events
-from .. import concierge, gym_whatsapp, memory, pilot_yummy, shopping_inquiry, place_source, conversation_focus as focus
+from .. import concierge, gym_whatsapp, memory, pilot_yummy, shopping_inquiry, place_source, venezuela, conversation_focus as focus
 
 router = APIRouter(tags=["whatsapp"])
 
@@ -66,7 +66,8 @@ async def _unresolved_place_reply(db,phone,body):
     if not city and previous and previous.domain=='place' and (not previous.entity or concierge._plain(previous.entity)==concierge._plain(entity)):
         city=previous.city
     known=await restaurant_by_mention(db,entity)
-    if known and not city:
+    # A catalog business that registered delivery to the city is not an unresolved place.
+    if known and (not city or await venezuela.covers(db,known,city)):
         return None
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
@@ -137,7 +138,15 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
             topic=f"{topic} ({previous})"
         await memory.set_topic(db, phone, topic)
         previous=await focus.get(db,phone)
-        city=previous.city if previous and previous.domain=='restaurant' and previous.entity==restaurant.name else ''
+        named=named_business_query(body)
+        said=named[1] if named else ''
+        # A city written in this order, where the business registered delivery, is the task city.
+        city=venezuela.canonical(said) if said and await venezuela.covers(db,restaurant,said) else ''
+        if not city and previous and previous.domain=='restaurant' and previous.entity==restaurant.name:
+            city=previous.city
+        # A city asked for just before, where this business registered delivery, stays the task city.
+        if not city and previous and previous.city and (previous.domain=='general' or (previous.domain=='place' and not previous.entity)) and await venezuela.covers(db,restaurant,previous.city):
+            city=previous.city
         await focus.save(db,phone,domain='restaurant',entity=restaurant.name,city=city)
         return restaurant, routed_body, None
     active=await focus.get(db,phone)
@@ -176,7 +185,26 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         reply = ('Listo, dejé atrás la tarea anterior. Conservé tu nombre.' if reset_context else 'Listo, borré tu nombre guardado y la tarea activa. El historial de mensajes no se ha eliminado.')
         await send_whatsapp_message(phone, reply)
         return reply
-    await memory.note(db, phone, body, profile_name)
+    contact=await memory.note(db, phone, body, profile_name)
+    # During a gym signup the booking flow owns the name question and its answer.
+    _,gym_state=await gym_whatsapp._state(db,phone)
+    gym_step=bool(gym_state.get('step'))
+    said=''
+    if memory.name_pending(contact) and not gym_step:
+        # Only the reply right after "¿Cómo te llamas?" can be a bare name, and only a known first name.
+        await memory.end_name_prompt(db,phone,contact)
+        # "Soy Ana, ¿hay boxeo?" saves the name (memory.note) but is answered by the routes below.
+        said=memory.bare_name(body) or (memory.extract_name(body) if len(body.split())<=4 and not re.search(r'[,;?]',body) else '')
+        if said:await memory.set_name(db,phone,said)
+    if said:
+        reply=f'¡Mucho gusto, {memory.display_name(said)}! Ya me quedo con tu nombre. ¿En qué te ayudo?'
+        await send_whatsapp_message(phone,reply)
+        return reply
+    name_reply='' if gym_step else memory.name_reply(contact,body)
+    if name_reply:
+        if name_reply.endswith(memory.ASK_NAME):await memory.ask_name(db,phone)
+        await send_whatsapp_message(phone,name_reply)
+        return name_reply
     # A new explicit domain outranks both unresolved-place and sticky sessions.
     text=concierge._plain(body).strip(' ¿?!.')
     active=await focus.get(db,phone)
@@ -193,6 +221,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         reply='Seguimos con cine'+(f' en {active.city}.' if active.city else '. ¿En qué ciudad te gustaría ver la cartelera?')
         await send_whatsapp_message(phone,reply)
         return reply
+    location_reply=await focus.location_reply(db,phone,body)
+    if location_reply:
+        await send_whatsapp_message(phone,location_reply)
+        return location_reply
     recommendation_city=concierge.recommendation_city(body)
     domain=concierge.explicit_recommendation_domain(body)
     negated=bool(re.search(r'\b(?:no|ni)\b',text))
@@ -211,7 +243,7 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
             reply=f'Seguimos con cine en {target_city}. No tengo una cartelera verificada disponible ahora.'
         elif domain=='food':
             await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
-            reply=f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
+            reply=await venezuela.local_options(db,target_city,phone) or f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
         else:
             await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
             reply=f'¿Buscas comida o un plan de cine en {target_city}?'

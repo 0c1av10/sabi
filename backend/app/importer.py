@@ -90,10 +90,15 @@ def _clean(name: str) -> str:
 
 
 def _add(items: dict, name: str, price, category: str = "", desc: str = "", image: str = "") -> None:
-    name = _clean(name)
+    name, desc = _clean(name or ""), desc or ""  # JSON-LD may carry "description": null
     try:
         price = float(str(price).replace(",", "."))
     except ValueError:
+        return
+    known = items.get(name.lower())
+    if known:
+        # JSON-LD may list the dish without the description a menu object on the page has.
+        known["description"] = known["description"] or _clean(desc)[:200]
         return
     if not (2 < len(name) <= 70) or not (0 < price < 1000) or len(items) >= MAX_ITEMS:
         return
