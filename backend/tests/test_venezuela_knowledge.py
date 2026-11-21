@@ -440,3 +440,14 @@ async def test_question_saved_as_city_is_ignored(Session, sent):
     async with Session() as db:
         await focus.save(db, "111", domain="place", entity="", city="qué ciudad es esto")
         assert await focus.get(db, "111") is None
+
+
+@pytest.mark.asyncio
+async def test_product_price_question_is_not_a_delivery_fee(Session, sent):
+    async with Session() as db:
+        await _catalog(db)
+        await focus.save(db, "111", domain="restaurant", entity="NACIONAL Restaurante")
+        assert await focus.fee_reply(db, "111", "¿Cuánto cuesta una pizza en Barcelona?") is None
+        assert await focus.fee_reply(db, "111", "¿Cuánto cuesta el delivery a Barcelona?") == (
+            "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        )
