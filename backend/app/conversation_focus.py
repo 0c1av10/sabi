@@ -164,12 +164,17 @@ async def fee_reply(db,phone,body):
     if not m or re.search(r'\b(?:viaje|carrera|taxi|ride|yummy|entradas?|boletos?|pasaje)\b',text):return None
     rest=text[m.end():]
     city=biz=None
-    # The last city named is the destination: "de NACIONAL en Lechería a Barcelona" is to Barcelona.
-    for p in _FEE_PREP.finditer(rest):
+    # The destination is the first city after "a/para/hasta/hacia"; "en <city>" only when none
+    # ("de NACIONAL en Lechería a Barcelona" and "a Barcelona si está en Lechería" are to Barcelona).
+    for p in sorted(_FEE_PREP.finditer(rest),key=lambda p:p[0].split()[0]=='en'):
         words=rest[p.end():].split()
         c=next((c for n in range(len(words),0,-1) if (c:=find_city(' '.join(words[:n])))),None)
-        if c:city,biz=c,(f"{m['biz']} {rest[:p.start()]}".strip() if m['biz'] else None)
+        if c:
+            city,biz=c,(f"{m['biz']} {rest[:p.start()]}".strip() if m['biz'] else None)
+            break
     if not city:return None
+    # "delivery de Lechería a Barcelona" names an origin city, not a business.
+    if biz and find_city(biz):biz=None
     active=await get(db,phone)
     if active and active.domain in ('shopping','cinema','gym','events'):return None
     named=await restaurant_by_mention(db,biz or body)
