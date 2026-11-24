@@ -48,6 +48,8 @@ def menu_text(items: list[MenuItem], rates: tuple[float, float], details: bool =
     for it in items:
         if it.available:
             description = " ".join((it.description or "").split()) if details else ""
+            if len(description) > 2000:
+                description = description[:2000] + "…"
             lines.append(f"- {it.name} ({it.category}): {fmt_money(it.price, *rates)}"
                          + (f" — {description}" if description else ""))
     return "\n".join(lines)
