@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import restaurant_for_message, restaurant_by_mention, named_business_query
+from ..auth import restaurant_for_message, restaurant_by_mention, named_business_query, restaurants_by_product
 from ..config import settings
 from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
@@ -124,6 +124,9 @@ async def _silent_business_switch(db,phone,body,restaurant):
                  key=lambda r:len(r.name),default=None)
     if not previous:return ''
     if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
+    # The business the customer just named themselves is not a silent switch.
+    active=await focus.get(db,phone)
+    if active and active.domain=='restaurant' and active.entity==restaurant.name and not await restaurants_by_product(db,body):return ''
     # Both businesses are kept so the answer can pick one, and the request too when it fits whole:
     # a cut request (missing a time or an instruction) is never forwarded, the customer says it again.
     pending=f'{_SWITCH}{restaurant.id}>{previous.id}|'

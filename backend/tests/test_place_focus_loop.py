@@ -97,3 +97,40 @@ async def test_full_catalog_ask_is_not_sent_to_the_focused_business(Session):
         await focus.save(db, '111', domain='place', entity='Bizza también queda', city='lechería')
         restaurant, _, reply = await webhook._resolve(db, '111', 'Dame todos los restaurantes que tengas')
         assert restaurant is None and reply and 'NACIONAL' in reply
+
+
+async def test_first_stated_city_keeps_the_order_address(Session):
+    import json
+    async with Session() as db:
+        n, _ = await _seed(db)
+        conv = await _open_order(db, n, {'stage': 'payment', 'draft': {
+            'items': [{'name': 'Cachapa', 'quantity': 1}], 'order_type': 'delivery',
+            'address': 'Av. Principal, Lechería', 'delivery_zone': 'Lechería'}})
+        await focus.save(db, '111', domain='restaurant', entity='NACIONAL Restaurante')
+        await webhook._events_route(db, '111', 'Es en Lechería')
+        await db.refresh(conv)
+        state = json.loads(conv.state_json)
+        assert state['stage'] == 'payment' and state['draft']['address']
+
+
+async def test_product_only_one_business_sells_ignores_an_earlier_query(Session):
+    async with Session() as db:
+        n, b = await _seed(db)
+        await _open_order(db, b, {})
+        await focus.save(db, '111', domain='restaurant', entity='NACIONAL Restaurante')
+        restaurant, _, _ = await webhook._resolve(db, '111', 'Quiero una Pizza Margarita')
+        assert restaurant and restaurant.id == b.id
+        await focus.save(db, '112', domain='restaurant', entity='NACIONAL Restaurante')
+        restaurant, _, _ = await webhook._resolve(db, '112', 'Quiero una Pizza Margarita')
+        assert restaurant and restaurant.id == b.id
+
+
+async def test_menu_of_the_business_just_named_needs_no_switch_confirmation(Session):
+    from app import memory
+    async with Session() as db:
+        n, b = await _seed(db)
+        await _open_order(db, b, {})
+        await memory.set_topic(db, '111', 'tu pedido en Bizza')
+        await webhook._resolve(db, '111', 'NACIONAL Restaurante en Cumaná')
+        restaurant, _, reply = await webhook._resolve(db, '111', 'Muéstrame el menú')
+        assert restaurant and restaurant.id == n.id and not reply
