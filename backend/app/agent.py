@@ -183,6 +183,32 @@ def grounded_retry(restaurant: Restaurant) -> str:
             "Puedo mostrarte el menú o recomendarte algo.")
 
 
+_MENU_ASK = re.compile(r"\b(?:men[uú]|carta)\b", re.I)
+_MENU_MAX_CHARS = 4000
+
+
+def menu_reply(restaurant: Restaurant, items: list[MenuItem]) -> str:
+    """The whole menu by category, for a customer who asked to see it. Dollar prices only, so a
+    long menu still fits in one WhatsApp message."""
+    groups: dict[str, list[MenuItem]] = {}
+    for it in items:
+        if it.available:
+            groups.setdefault(it.category or "Otros", []).append(it)
+    if not groups:
+        return f"Ahorita no tengo platos disponibles registrados de {restaurant.name}."
+    body = "\n\n".join(f"*{cat}*\n" + "\n".join(f"• {i.name} — ${_num(i.price)}" for i in its)
+                       for cat, its in groups.items())
+    link = f"{settings.frontend_base_url.rstrip('/')}/tienda/{restaurant.slug}" if restaurant.slug else ""
+    link_line = f"También lo puedes ver con fotos aquí: {link}\n\n" if link else ""
+    full = f"Este es el menú de {restaurant.name}:\n\n{body}\n\n" + link_line + "¿Qué se te antoja?"
+    if len(full) <= _MENU_MAX_CHARS:
+        return full
+    # WhatsApp rejects a message over 4096 characters: list the sections instead.
+    cats = "\n".join(f"• {cat} ({len(its)})" for cat, its in groups.items())
+    return (f"El menú de {restaurant.name} tiene estas secciones:\n\n{cats}\n\n" + link_line
+            + "¿Cuál quieres ver?")
+
+
 def guard_representation(result: AgentResult,restaurant: Restaurant) -> AgentResult:
     """No verified human escalation destination exists in this chat path."""
     result.reply=re.sub(r'(?i)soy Sabi de\s+'+re.escape(restaurant.name), 'Soy Sabi',result.reply)
@@ -264,7 +290,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     try:
         resp = await client.messages.create(
             model=settings.anthropic_model,
-            max_tokens=1000,
+            max_tokens=2000,
             system=SYSTEM_PROMPT + context,
             messages=_llm_messages(history, incoming),
             tools=[RESPONDER_TOOL],
@@ -290,6 +316,17 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     action = data.get("action") if data.get("action") in (
         "continue", "ask_confirm", "submit_order", "handoff") else "continue"
     reply = str(data.get("reply") or "")
+    if getattr(resp, "stop_reason", None) == "max_tokens":
+        # A cut-off answer (usually the model writing out a long menu) has no usable reply.
+        logger.warning("LLM cortado por max_tokens")
+        reply, data = "", {}
+        action = "continue"
+    listed_menu = False
+    if not reply:
+        asked_before = any(d == "outbound" and b == grounded_retry(restaurant) for d, b in history[-4:])
+        if _MENU_ASK.search(incoming) or asked_before:
+            reply = menu_reply(restaurant, items)
+            listed_menu = True
     order, rejected = clean_order(data.get("order"), available)
     if order is None:
         order = state.get("draft")
@@ -321,7 +358,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     new_state = {**state, "draft": order}
     offered = [i for i in available.values()
                if i.category in _UPSELL_CATEGORIES and i.name.lower() in reply.lower()]
-    if order and order["items"] and offered:
+    if order and order["items"] and offered and not listed_menu:
         new_state["upsell_offered"] = True
     return AgentResult(reply=reply or grounded_retry(restaurant), action=action,
                        order=order, state=new_state)
