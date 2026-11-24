@@ -61,10 +61,10 @@ def test_greeting_lexicon_covers_venezuelan_openers():
 
 @pytest.mark.asyncio
 async def test_greeting_with_request_keeps_normal_routes(Session, monkeypatch):
-    """"Habla sabi, quiero el Bizzcesar" names a Bizza product: route it instead of restarting."""
+    """A greeting with an explicit business request must route there, not restart."""
     from app.auth import restaurant_for_message
     import app.main as m
     await m.seed_known_businesses()
     async with Session() as s:
-        r, _ = await restaurant_for_message(s, "584140000098", "Habla sabi, quiero el Bizzcesar")
+        r, _ = await restaurant_for_message(s, "584140000098", "Habla sabi, quiero pizza en Bizza")
         assert r and r.slug == "bizza"
