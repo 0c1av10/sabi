@@ -211,6 +211,22 @@ async def city_reply(db,phone,body):
     if active and active.domain in ('place','restaurant'):
         from .concierge import _plain
         same=_plain(active.city)==_plain(city)
+        from .auth import restaurant_by_mention
+        known=await restaurant_by_mention(db,active.entity) if active.entity else None
+        if known and not same:
+            # A catalog business is never "unknown" in a new city: its own zones say whether it
+            # delivers there, and with no zones at all the local confirms it with the order.
+            from .delivery import zones_of
+            from .venezuela import covers, where_reply
+            if await covers(db,known,city):
+                await save(db,phone,domain='restaurant',entity=known.name,city=city)
+                return f'Listo, seguimos con {known.name} en {city}. ¿Qué te provoca?'
+            if not zones_of(known):
+                await save(db,phone,domain='restaurant',entity=known.name,city=city)
+                return (f'Listo, seguimos con {known.name} en {city}. El local confirma si llega a {city} '
+                        'y el costo del delivery al aprobar el pedido. ¿Qué te provoca?')
+            await save(db,phone,domain='restaurant',entity=known.name)
+            return f'{known.name} no hace delivery a {city}. '+where_reply(known)+' ¿Pedimos para alguna de esas zonas o buscamos otro local?'
         # A new city invalidates old local catalog scope; it never selects a tenant.
         domain=active.domain if same else 'place'
         await save(db,phone,domain=domain,entity=active.entity,city=city)

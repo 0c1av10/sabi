@@ -91,11 +91,15 @@ async def _unresolved_place_reply(db,phone,body):
         from ..delivery import zones_of
         if not zones_of(known):
             return None
-    if not known:
-        # Demand signal for businesses outside the catalog: name and stated city only,
-        # so the team can review and onboard them (docs/REQUESTED_BUSINESSES.md).
-        from .. import requested
-        await requested.record(db,entity,city)
+    if known:
+        # A catalog business whose own zones leave this city out is identified, not unknown:
+        # say where it does deliver and keep talking about it, never ask for its link.
+        await focus.save(db,phone,domain='restaurant',entity=known.name)
+        return f'{known.name} no tiene delivery registrado en {city}. '+venezuela.where_reply(known)+' ¿Quieres pedir para alguna de esas zonas o buscamos otro local?'
+    # Demand signal for businesses outside the catalog: name and stated city only,
+    # so the team can review and onboard them (docs/REQUESTED_BUSINESSES.md).
+    from .. import requested
+    await requested.record(db,entity,city)
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
@@ -195,7 +199,14 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     unresolved=await _unresolved_place_reply(db,phone,body)
     if unresolved:return None,body,unresolved
     active=await focus.get(db,phone)
-    if active and active.domain=='place' and active.city:
+    # A focus naming a catalog business ("Bizza también queda") is not an unknown place:
+    # its follow-ups go to that business instead of looping on "¿Tienes un enlace oficial?".
+    known=await restaurant_by_mention(db,active.entity) if active and active.domain=='place' and active.entity else None
+    if known and not await restaurant_by_mention(db,body):
+        await focus.save(db,phone,domain='restaurant',entity=known.name,
+                         city=active.city if active.city and await venezuela.covers(db,known,active.city) else '')
+        return known,body,None
+    if active and active.domain=='place' and active.city and not known:
         mentioned=await restaurant_by_mention(db,body)
         if not mentioned or concierge._plain(mentioned.name)==concierge._plain(active.entity):
             return None,body,f'Mantengo tu consulta de {active.entity or "locales"} en {active.city}. No tengo opciones ni una sede verificadas allí; no usaré resultados de otra ciudad. ¿Tienes un enlace oficial de esa sede?'
