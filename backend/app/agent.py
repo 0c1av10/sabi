@@ -184,7 +184,7 @@ def grounded_retry(restaurant: Restaurant) -> str:
 
 
 _MENU_ASK = re.compile(r"\b(?:men[uú]|carta)\b", re.I)
-_MENU_MAX_CHARS = 3500
+_MENU_MAX_CHARS = 4000
 
 
 def menu_reply(restaurant: Restaurant, items: list[MenuItem]) -> str:
@@ -200,12 +200,13 @@ def menu_reply(restaurant: Restaurant, items: list[MenuItem]) -> str:
                        for cat, its in groups.items())
     link = f"{settings.frontend_base_url.rstrip('/')}/tienda/{restaurant.slug}" if restaurant.slug else ""
     link_line = f"También lo puedes ver con fotos aquí: {link}\n\n" if link else ""
-    if len(body) > _MENU_MAX_CHARS:
-        # WhatsApp rejects a message over 4096 characters: list the sections instead.
-        cats = "\n".join(f"• {cat} ({len(its)})" for cat, its in groups.items())
-        return (f"El menú de {restaurant.name} tiene estas secciones:\n\n{cats}\n\n" + link_line
-                + "¿Cuál quieres ver?")
-    return f"Este es el menú de {restaurant.name}:\n\n{body}\n\n" + link_line + "¿Qué se te antoja?"
+    full = f"Este es el menú de {restaurant.name}:\n\n{body}\n\n" + link_line + "¿Qué se te antoja?"
+    if len(full) <= _MENU_MAX_CHARS:
+        return full
+    # WhatsApp rejects a message over 4096 characters: list the sections instead.
+    cats = "\n".join(f"• {cat} ({len(its)})" for cat, its in groups.items())
+    return (f"El menú de {restaurant.name} tiene estas secciones:\n\n{cats}\n\n" + link_line
+            + "¿Cuál quieres ver?")
 
 
 def guard_representation(result: AgentResult,restaurant: Restaurant) -> AgentResult:

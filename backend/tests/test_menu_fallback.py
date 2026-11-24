@@ -94,3 +94,13 @@ async def test_menu_fallback_does_not_count_as_the_upsell_offer(Session, monkeyp
         result = await agent.run_agent(db, r, conv, [], "Muéstrame el menú")
     assert "Refresco" in result.reply
     assert not result.state.get("upsell_offered")
+
+
+def test_menu_that_fits_in_one_message_keeps_its_dishes():
+    from app.agent import menu_reply
+    r = Restaurant(name="Mediano", slug="mediano", owner_phone="", pin="unused")
+    items = [MenuItem(name=f"Plato número {n:03d} de la casa", price=10, category=f"Sección {n % 4}",
+                      available=True) for n in range(90)]
+    reply = menu_reply(r, items)
+    assert 3500 < len(reply) <= 4000
+    assert reply.startswith("Este es el menú de Mediano:") and "Plato número 089" in reply
