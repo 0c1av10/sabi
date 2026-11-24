@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # Panel auth
     rate_limit_per_phone_hour: int = 20
     simulate_limit_hour: int = 300
+    # Secret for POST /webhook/simulate (header X-Simulate-Secret). Required on Vercel or with
+    # real WhatsApp sends; empty there = endpoint off. Local mock runs and tests stay open.
+    simulate_secret: str = ""
     max_message_chars: int = 1000
 
     session_secret: str = "change-me-in-production"
