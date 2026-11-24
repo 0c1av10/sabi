@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
-from app import conversation_focus, delivery, venezuela, whatsapp
-from app.agent import delivery_context, fmt_money, menu_reply, menu_text, rates_of, run_llm_agent, run_mock_agent, summarize_order
+from app import conversation_focus, delivery, service, venezuela, whatsapp
+from app.agent import AgentResult, delivery_context, fmt_money, menu_reply, menu_text, rates_of, run_llm_agent, run_mock_agent, summarize_order
 from app.main import apply_business_pins, seed_known_businesses
 from app.models import Conversation, MenuItem, Message, Restaurant
 from app.oura_menu import OURA_MENU
@@ -29,6 +29,15 @@ def test_oura_customer_menu_fallback_uses_euros(loaded_oura_menu):
     restaurant, items = loaded_oura_menu
     trio = next(item for item in items if item.name == "Trío de Ceviches")
     assert "Trío de Ceviches — €15,99" in menu_reply(restaurant, [trio])
+
+
+def test_oura_mock_long_menu_offers_categories_in_euros(loaded_oura_menu):
+    restaurant, items = loaded_oura_menu
+    conv = Conversation(state_json="{}")
+    menu = run_mock_agent(restaurant, items, conv, "menú").reply
+    assert len(menu) < 4096 and "134 platos" in menu and "Pizzas" in menu
+    pizzas = run_mock_agent(restaurant, items, conv, "Pizzas").reply
+    assert pizzas.startswith("Pizzas:") and "Margarita (Pizzas): €7,99" in pizzas
 
 
 @pytest.mark.parametrize("coffee", ["Americano", "Espresso", "Café con Leche"])
@@ -96,8 +105,11 @@ async def test_whatsapp_sends_complete_oura_menu_in_bounded_messages(Session, mo
     monkeypatch.setattr(whatsapp, "sent_log", [])
     await seed_known_businesses()
     async with Session() as session:
-        restaurant, _ = await get_catalog(session, "oura")
+        restaurant, items = await get_catalog(session, "oura")
         restaurant.bcv_auto = False
+        async def long_reply(*_args, **_kwargs):
+            return AgentResult(reply=menu_text(list(items.values()), rates_of(restaurant)), state={})
+        monkeypatch.setattr(service, "run_agent", long_reply)
         reply = await handle_inbound_message(session, restaurant, "584120000000", "menú")
         history = (await session.scalars(select(Message.body).where(Message.direction == "outbound"))).all()
 

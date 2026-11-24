@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .db import init_db
-from .known_menus import BIZZA_MENU
+from .known_menus import BEIJING_MENU, BIZZA_MENU
 from .oura_menu import OURA_MENU
 from .routers import events, events_admin, panel, pilot_yummy, store, webhook
 
@@ -68,6 +68,23 @@ KNOWN_BUSINESSES = [{
         {"name": "Puerto La Cruz", "fee": 4.00},
     ],
     "menu": OURA_MENU,
+}, {
+    "name": "Beijing Restaurante", "slug": "beijing",
+    "tagline": "Cocina china y japonesa · Restaurante & Bar y Express. Contacto público: 0412-6035277.",
+    "website": "https://www.beijingrestaurante.com",
+    "opening_hours": (
+        "Varían según sede. La Tahona, Altamira, La Boyera y Lechería: domingo a jueves "
+        "12:00 PM–11:00 PM; viernes y sábados 12:00 PM–12:00 AM. "
+        "Los Naranjos: lunes a domingo 12:00 PM–10:00 PM. "
+        "San Bernardino (solo delivery y pick-up): domingo a jueves 12:00 PM–11:00 PM; "
+        "viernes y sábados 12:00 PM–12:00 AM. Consultar las demás sedes con el restaurante."),
+    "delivery_info": (
+        "Delivery a toda Caracas, Barquisimeto y Lechería. "
+        "El sitio no publica tarifas de delivery; el costo debe confirmarse con el restaurante. "
+        "Contacto: 0412-6035277. Precios referenciales expresados en dólares ($) "
+        "al tipo de cambio oficial (BCV). "
+        "Reservaciones en línea: https://www.beijingrestaurante.com/reservaciones"),
+    "menu": BEIJING_MENU,
 }]
 
 

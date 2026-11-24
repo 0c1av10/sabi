@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth import restaurant_for_message, restaurant_by_mention, named_business_query
 from ..config import settings
 from ..db import get_db
-from ..models import Conversation, Customer, Restaurant
+from ..models import Conversation, Customer, MenuItem, Restaurant
 from ..reactions import reaction_for
 from ..inbound_receipts import claim_inbound
 from ..whatsapp import incoming_reply_context, digits, remove_whatsapp_reaction, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
@@ -99,6 +99,32 @@ async def _unresolved_place_reply(db,phone,body):
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
+
+
+async def _active_menu_reference(db: AsyncSession, phone: str, body: str) -> bool:
+    restaurant_id = (await db.execute(
+        select(Customer.restaurant_id)
+        .join(Conversation, Conversation.customer_id == Customer.id)
+        .where(Customer.phone == phone, Conversation.status == "open")
+        .order_by(Conversation.updated_at.desc())
+    )).scalars().first()
+    if restaurant_id is None:
+        return False
+    def normalized(text):
+        return " ".join(re.findall(r"\w+", concierge._plain(text)))
+    text = f" {normalized(body)} "
+    items = (await db.execute(select(MenuItem.name, MenuItem.category).where(
+        MenuItem.restaurant_id == restaurant_id))).all()
+    matched = {label for item in items for value in item
+               if (label := normalized(value or "")) and f" {label} " in text}
+    if not matched:
+        return False
+    def cuisines(phrase):
+        return {name for name, patterns in concierge.CUISINES.items()
+                if any(re.search(r"\b" + pattern + r"\b", concierge._plain(phrase)) for pattern in patterns)}
+    requested = cuisines(body)
+    matched_cuisines = set().union(*(cuisines(label) for label in matched))
+    return requested <= matched_cuisines
 
 
 _SWITCH='cambio de local: '
@@ -201,9 +227,11 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
             return None,body,f'Mantengo tu consulta de {active.entity or "locales"} en {active.city}. No tengo opciones ni una sede verificadas allí; no usaré resultados de otra ciudad. ¿Tienes un enlace oficial de esa sede?'
     requested,unknown=concierge.cuisine_request(body)
     if (requested or unknown) and not await restaurant_by_mention(db,body):
-        await memory.set_topic(db,phone,'comida')
-        text,_=await concierge.reply(db,body,phone)
-        return None,body,text
+        menu_reference = (not active or active.domain in ('restaurant', 'general')) and await _active_menu_reference(db, phone, body)
+        if not menu_reference:
+            await memory.set_topic(db,phone,'comida')
+            text,_=await concierge.reply(db,body,phone)
+            return None,body,text
     # A full-catalog ask ("dame todos los restaurantes que tengas") is a concierge question,
     # never a message for the business of the open conversation.
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):

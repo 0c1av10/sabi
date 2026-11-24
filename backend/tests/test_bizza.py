@@ -43,9 +43,8 @@ async def test_seed_is_idempotent_and_keeps_edits(Session, monkeypatch):
     await _seed(Session, monkeypatch)
     async with Session() as s:
         assert (await s.execute(select(func.count()).select_from(Restaurant).where(Restaurant.slug == "bizza"))).scalar_one() == 1
-        assert (await s.execute(select(func.count()).select_from(MenuItem).join(Restaurant).where(
-            Restaurant.slug.in_(("bizza", "mc-racuchos"))))).scalar_one() == 74 + 12  # + MC Racuchos
         r = (await s.execute(select(Restaurant).where(Restaurant.slug == "bizza"))).scalar_one()
+        assert (await s.execute(select(func.count()).select_from(MenuItem).where(MenuItem.restaurant_id == r.id))).scalar_one() == 74
         assert r.owner_phone == "+0000"
         assert 99.0 in [i.price for i in (await s.execute(select(MenuItem).where(MenuItem.restaurant_id == r.id))).scalars()]
 
