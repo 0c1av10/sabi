@@ -200,6 +200,22 @@ async def fee_reply(db,phone,body):
     return '\n'.join(lines)
 
 
+async def _forget_delivery_address(db,phone,restaurant):
+    """A new city voids the address already given for an open order with this business:
+    it must be asked again, never submitted with the old one."""
+    import json
+    from .models import Conversation,Customer
+    convs=(await db.execute(select(Conversation).join(Customer,Conversation.customer_id==Customer.id)
+        .where(Customer.phone==phone,Customer.restaurant_id==restaurant.id,Conversation.status=='open'))).scalars().all()
+    for conv in convs:
+        state=json.loads(conv.state_json or '{}')
+        draft=state.get('draft')
+        if isinstance(draft,dict) and (draft.get('address') or draft.get('delivery_zone')):
+            draft['address']='';draft['delivery_zone']=''
+            if state.get('stage') in ('confirming','payment'):state['stage']='chat'
+            conv.state_json=json.dumps(state,ensure_ascii=False)
+
+
 async def city_reply(db,phone,body):
     city=declared_city(body) or await pending_city_answer(db,phone,body)
     if not city:return None
@@ -218,6 +234,7 @@ async def city_reply(db,phone,body):
             # delivers there, and with no zones at all the local confirms it with the order.
             from .delivery import zones_of
             from .venezuela import covers, where_reply
+            await _forget_delivery_address(db,phone,known)
             if await covers(db,known,city):
                 await save(db,phone,domain='restaurant',entity=known.name,city=city)
                 return f'Listo, seguimos con {known.name} en {city}. ¿Qué te provoca?'
