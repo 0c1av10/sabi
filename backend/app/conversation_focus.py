@@ -203,6 +203,28 @@ async def fee_reply(db,phone,body):
     return '\n'.join(lines)
 
 
+async def _forget_delivery_address(db,phone,restaurant,city,previous=''):
+    """A new city voids the address already given for an open order with this business:
+    it must be asked again, never submitted with the old one."""
+    import json
+    from .models import Conversation,Customer
+    convs=(await db.execute(select(Conversation).join(Customer,Conversation.customer_id==Customer.id)
+        .where(Customer.phone==phone,Customer.restaurant_id==restaurant.id,Conversation.status=='open'))).scalars().all()
+    for conv in convs:
+        state=json.loads(conv.state_json or '{}')
+        draft=state.get('draft')
+        if not isinstance(draft,dict) or not (draft.get('address') or draft.get('delivery_zone')):continue
+        # The address's own city decides; one that names none is only voided by a real city change.
+        from .venezuela import cities_in,plain
+        # The last city an address names is where it is ("Av. Barcelona, Lechería" is in Lechería).
+        named=cities_in(draft.get('address') or '') or cities_in(draft.get('delivery_zone') or '')
+        moved=plain(city)!=plain(named[-1].name) if named else bool(previous) and plain(previous)!=plain(city)
+        if not moved:continue
+        draft['address']='';draft['delivery_zone']=''
+        if state.get('stage') in ('confirming','payment'):state['stage']='chat'
+        conv.state_json=json.dumps(state,ensure_ascii=False)
+
+
 async def city_reply(db,phone,body):
     city=declared_city(body) or await pending_city_answer(db,phone,body)
     if not city:return None
@@ -214,6 +236,23 @@ async def city_reply(db,phone,body):
     if active and active.domain in ('place','restaurant'):
         from .concierge import _plain
         same=_plain(active.city)==_plain(city)
+        from .auth import restaurant_by_mention
+        known=await restaurant_by_mention(db,active.entity) if active.entity else None
+        if known and not same:
+            # A catalog business is never "unknown" in a new city: its own zones say whether it
+            # delivers there, and with no zones at all the local confirms it with the order.
+            from .delivery import zones_of
+            from .venezuela import covers, where_reply
+            await _forget_delivery_address(db,phone,known,city,active.city)
+            if await covers(db,known,city):
+                await save(db,phone,domain='restaurant',entity=known.name,city=city)
+                return f'Listo, seguimos con {known.name} en {city}. ¿Qué te provoca?'
+            if not zones_of(known):
+                await save(db,phone,domain='restaurant',entity=known.name,city=city)
+                return (f'Listo, seguimos con {known.name} en {city}. El local confirma si llega a {city} '
+                        'y el costo del delivery al aprobar el pedido. ¿Qué te provoca?')
+            await save(db,phone,domain='restaurant',entity=known.name)
+            return f'{known.name} no hace delivery a {city}. '+where_reply(known)+' ¿Pedimos para alguna de esas zonas o buscamos otro local?'
         # A new city invalidates old local catalog scope; it never selects a tenant.
         domain=active.domain if same else 'place'
         await save(db,phone,domain=domain,entity=active.entity,city=city)

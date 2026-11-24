@@ -41,12 +41,11 @@ async def test_city_change_keeps_entity_but_rejects_old_catalog(Session,monkeypa
         db.add(Conversation(restaurant_id=r.id,customer_id=c.id,status='open'));await db.commit()
         await focus.save(db,'111',domain='restaurant',entity='Bizza',city='Lechería')
         text=await webhook._events_route(db,'111','Mejor en Valencia')
-        assert 'Valencia' in text and 'No tengo opciones' in text
-        a=await focus.get(db,'111');assert (a.domain,a.entity,a.city)==('place','Bizza','Valencia')
+        # Bizza registered no zones: coverage is confirmed by the local, never asked as a link (docs/CITY_LISTING.md).
+        assert 'Valencia' in text and 'confirma si llega a Valencia' in text and 'enlace' not in text
+        a=await focus.get(db,'111');assert (a.domain,a.entity,a.city)==('restaurant','Bizza','Valencia')
         rest,_,reply=await webhook._resolve(db,'111','Y cuál es la mejor')
-        assert rest is None and 'Valencia' in reply
-        rest,_,reply=await webhook._resolve(db,'111','De Bizza')
-        assert rest is None and 'Valencia' in reply
+        assert rest and rest.name=='Bizza' and reply is None
         assert await focus.get(db,'222') is None
 
 async def test_explicit_city_first_then_place_preserves_declared_query_city(Session):

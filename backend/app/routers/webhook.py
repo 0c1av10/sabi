@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth import restaurant_for_message, restaurant_by_mention, named_business_query
+from ..auth import restaurant_for_message, restaurant_by_mention, named_business_query, restaurants_by_product
 from ..config import settings
 from ..db import get_db
 from ..models import Conversation, Customer, MenuItem, Restaurant
@@ -91,11 +91,15 @@ async def _unresolved_place_reply(db,phone,body):
         from ..delivery import zones_of
         if not zones_of(known):
             return None
-    if not known:
-        # Demand signal for businesses outside the catalog: name and stated city only,
-        # so the team can review and onboard them (docs/REQUESTED_BUSINESSES.md).
-        from .. import requested
-        await requested.record(db,entity,city)
+    if known:
+        # A catalog business whose own zones leave this city out is identified, not unknown:
+        # say where it does deliver and keep talking about it, never ask for its link.
+        await focus.save(db,phone,domain='restaurant',entity=known.name)
+        return f'{known.name} no tiene delivery registrado en {city}. '+venezuela.where_reply(known)+' ¿Quieres pedir para alguna de esas zonas o buscamos otro local?'
+    # Demand signal for businesses outside the catalog: name and stated city only,
+    # so the team can review and onboard them (docs/REQUESTED_BUSINESSES.md).
+    from .. import requested
+    await requested.record(db,entity,city)
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
@@ -146,6 +150,9 @@ async def _silent_business_switch(db,phone,body,restaurant):
                  key=lambda r:len(r.name),default=None)
     if not previous:return ''
     if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
+    # The business the customer just named themselves is not a silent switch.
+    active=await focus.get(db,phone)
+    if active and active.domain=='restaurant' and active.entity==restaurant.name and not await restaurants_by_product(db,body):return ''
     # Both businesses are kept so the answer can pick one, and the request too when it fits whole:
     # a cut request (missing a time or an instruction) is never forwarded, the customer says it again.
     pending=f'{_SWITCH}{restaurant.id}>{previous.id}|'
@@ -216,12 +223,15 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.is_greeting(body):
         # A bare "hola" starts over: it must not stay inside the last business's open conversation.
         await _close_open_conversations(db, phone)
+        active=await focus.get(db,phone)
+        if active and active.domain=='restaurant':await focus.forget(db,phone)
         text, _ = await concierge.reply(db, body, phone)
         return None, body, text
     unresolved=await _unresolved_place_reply(db,phone,body)
     if unresolved:return None,body,unresolved
     active=await focus.get(db,phone)
-    if active and active.domain=='place' and active.city:
+    known=await restaurant_by_mention(db,active.entity) if active and active.domain=='place' and active.entity else None
+    if active and active.domain=='place' and active.city and not known:
         mentioned=await restaurant_by_mention(db,body)
         if not mentioned or concierge._plain(mentioned.name)==concierge._plain(active.entity):
             return None,body,f'Mantengo tu consulta de {active.entity or "locales"} en {active.city}. No tengo opciones ni una sede verificadas allí; no usaré resultados de otra ciudad. ¿Tienes un enlace oficial de esa sede?'
@@ -237,6 +247,12 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
+    # A focus naming a catalog business ("Bizza también queda") is not an unknown place:
+    # its follow-ups go to that business instead of looping on "¿Tienes un enlace oficial?".
+    if known and not await restaurant_by_mention(db,body):
+        await focus.save(db,phone,domain='restaurant',entity=known.name,
+                         city=active.city if active.city and await venezuela.covers(db,known,active.city) else '')
+        return known,body,None
     picked,picked_body,again=await _switch_answer(db,phone,body)
     if again:return None,body,again
     restaurant, routed_body = (picked,picked_body) if picked else await restaurant_for_message(db, phone, body)
