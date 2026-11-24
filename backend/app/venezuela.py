@@ -244,19 +244,43 @@ def _fee(usd: float) -> str:
 
 
 async def local_options(db, city: str, phone: str = "", fees: bool = False, only=None) -> str:
-    """Businesses that registered delivery to `city`, or '' when none did. The offered names are
-    remembered as the current topic so "Y nacional?" right after is read in context.
+    """Businesses that registered delivery to `city`. Visible businesses with NO zones registered
+    at all are listed too, marked as coverage to confirm: unknown data must not read as absent,
+    and the local confirms coverage and cost when approving the order (docs/CITY_LISTING.md).
+    A business with zones registered for other cities stays out: its own data says where it delivers.
+    The offered names are remembered as the current topic so "Y nacional?" right after is read in context.
     The delivery fee is shown only when asked (`fees`); otherwise it comes up while building the order."""
     hits = await covering(db, city)
     if only is not None:
         hits = [(r, z) for r, z in hits if r in only]
-    if not hits:
+    target = find_city(city)
+    if not target:
+        return ""  # A city outside the knowledge base keeps the no-verified-filter reply.
+    from .delivery import zones_of
+    from .models import Restaurant
+    from .visibility import public_condition
+    pool = only if only is not None else (await db.execute(
+        select(Restaurant).where(public_condition()).order_by(Restaurant.id))).scalars().all()
+    unconfirmed = [r for r in pool
+                   if all(r.id != h.id for h, _ in hits) and not zones_of(r)]
+    if not hits and not unconfirmed:
         return ""
-    name = find_city(city).name
+    name = target.name
     if phone:
         from . import memory
-        await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r, _ in hits))
+        offered = [r for r, _ in hits] + unconfirmed
+        await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r in offered))
     lines = "\n".join(f"• *{r.name}*" + (f" — delivery a {z['name']} ({_fee(z['fee'])})" if fees else "")
                       for r, z in hits)
-    return (f"En {name} te puedo atender con estos locales:\n"
-            f"{lines}\n\n¿En cuál quieres pedir? Dime, por ejemplo, «quiero pedir en {hits[0][0].name}».")
+    unsure = "\n".join(f"• *{r.name}*" for r in unconfirmed)
+    if hits:
+        text = f"En {name} te puedo atender con estos locales:\n{lines}"
+        if unconfirmed:
+            text += (f"\n\nTambién están en el catálogo, sin delivery a {name} confirmado todavía "
+                     f"(el local confirma cobertura y costo al aprobar el pedido):\n{unsure}")
+    else:
+        text = (f"En {name} no tengo locales con delivery confirmado. Estos están en el catálogo "
+                f"sin delivery a {name} confirmado todavía (el local confirma cobertura y costo "
+                f"al aprobar el pedido):\n{unsure}")
+    example = hits[0][0].name if hits else unconfirmed[0].name
+    return text + f"\n\n¿En cuál quieres pedir? Dime, por ejemplo, «quiero pedir en {example}»."
