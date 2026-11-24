@@ -166,7 +166,7 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "", phone
     # Cuisine requests must match verified available menu evidence, never random cuisine.
     if re.search(r'\bitalian[ao]s?\b',_plain(body)):
         menus=(await db.execute(select(MenuItem).where(MenuItem.available.is_(True)))).scalars().all()
-        italian_ids={m.restaurant_id for m in menus if (re.fullmatch(r'(pizzas?|pastas?|risottos?|ravioli|lasagna|lasana|gnocchi|panini)',_plain(m.category or '').strip()) or re.match(r'^(pizza|pasta|risotto|ravioli|lasagna|lasana|gnocchi|panini)\b',_plain(m.name).strip()))}
+        italian_ids={m.restaurant_id for m in menus if (re.fullmatch(r'(pizzas?|pastas?|risottos?|ravioli|lasagna|lasana|gnocchi|panini)',_plain(m.category or '').strip()) or (re.match(r'^(pizza|pasta|risotto|ravioli|lasagna|lasana|gnocchi|panini)\b',_plain(m.name).strip()) and 'sushi' not in _plain(m.name)))}
         rows=[r for r in rows if r.id in italian_ids]
         if not rows:return 'No tengo un menú italiano verificado en el catálogo actual. No te voy a recomendar otro tipo de comida como si fuera italiana.'
     requested,unknown=cuisine_request(body)
