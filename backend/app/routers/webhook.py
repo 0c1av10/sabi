@@ -197,6 +197,8 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.is_greeting(body):
         # A bare "hola" starts over: it must not stay inside the last business's open conversation.
         await _close_open_conversations(db, phone)
+        active=await focus.get(db,phone)
+        if active and active.domain=='restaurant':await focus.forget(db,phone)
         text, _ = await concierge.reply(db, body, phone)
         return None, body, text
     unresolved=await _unresolved_place_reply(db,phone,body)
