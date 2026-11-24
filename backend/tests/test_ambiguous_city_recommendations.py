@@ -18,7 +18,7 @@ async def test_ambiguous_city_after_greeting_asks_domain_without_catalog(Session
         assert reply=='¿Buscas comida o un plan de cine en Lechería?'
         assert (await focus.get(db,'111')).city=='Lechería'
         reply=await webhook._events_route(db,'111','comida')
-        assert 'filtro geográfico' in reply and 'Lechería' in reply
+        assert 'no tengo locales verificados' in reply and 'Lechería' in reply
         assert '¿Buscas comida' not in reply
         assert await focus.get(db,'222') is None
 
@@ -93,7 +93,7 @@ async def test_explicit_food_switch_cannot_use_stale_city(Session,monkeypatch):
     async with Session() as db:
         await focus.save(db,'111',domain='cinema',city='Lechería')
         reply=await webhook._events_route(db,'111','Quiero comida en Valencia')
-        assert 'Valencia' in reply and 'filtro geográfico' in reply and 'Lechería' not in reply
+        assert 'Valencia' in reply and 'no tengo locales verificados' in reply and 'Lechería' not in reply
         assert (await focus.get(db,'111')).city=='Valencia'
 
 async def test_localized_food_direct_catalog_never_randomizes_city(Session,monkeypatch):
@@ -101,7 +101,7 @@ async def test_localized_food_direct_catalog_never_randomizes_city(Session,monke
     async with Session() as db:
         db.add(Restaurant(name='Local simulado ajeno',slug='fake',pin='test',tagline='Restaurante en Caracas'));await db.commit()
         text=await concierge.recommendations(db,body='Quiero comida en Valencia')
-        assert 'Valencia' in text and 'filtro geográfico' in text and 'ajeno' not in text and 'Caracas' not in text
+        assert 'Valencia' in text and 'no tengo locales verificados' in text and 'ajeno' not in text and 'Caracas' not in text
         generic=await concierge.recommendations(db,body='Quiero comida')
         assert 'sin confirmar su ubicación' in generic and 'Restaurante en Caracas' not in generic
 
