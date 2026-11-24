@@ -69,6 +69,13 @@ async def _unresolved_place_reply(db,phone,body):
     # A catalog business that registered delivery to the city is not an unresolved place.
     if known and (not city or await venezuela.covers(db,known,city)):
         return None
+    # A catalog business with no zones registered at all IS identified; its coverage is
+    # unknown, not absent. Route to it normally: the order confirms coverage and cost with
+    # the local. Asking for its official link again would read as not knowing it (docs/CITY_LISTING.md).
+    if known:
+        from ..delivery import zones_of
+        if not zones_of(known):
+            return None
     if not known:
         # Demand signal for businesses outside the catalog: name and stated city only,
         # so the team can review and onboard them (docs/REQUESTED_BUSINESSES.md).
@@ -206,7 +213,9 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         said=named[1] if named else ''
         # A city written in this order, where the business registered delivery, is the task city.
         city=venezuela.canonical(said) if said and await venezuela.covers(db,restaurant,said) else ''
-        if not city and previous and previous.domain=='restaurant' and previous.entity==restaurant.name:
+        # A stated new city is never replaced by the old task city; inheritance is only
+        # for follow-ups that name no city at all (docs/CITY_LISTING.md).
+        if not city and not said and previous and previous.domain=='restaurant' and previous.entity==restaurant.name:
             city=previous.city
         # A city asked for just before, where this business registered delivery, stays the task city.
         if not city and previous and previous.city and (previous.domain=='general' or (previous.domain=='place' and not previous.entity)) and await venezuela.covers(db,restaurant,previous.city):

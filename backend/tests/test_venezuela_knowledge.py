@@ -124,7 +124,10 @@ async def test_city_without_coverage_is_not_given_to_business(Session, sent):
     async with Session() as db:
         await _catalog(db)
         reply = await focus.city_reply(db, "111", "Estoy en Valencia")
-        assert "fuente verificada" in reply and "NACIONAL" not in reply
+        # No confirmed coverage: NACIONAL registers zones for other cities and stays out; the
+        # zone-less MC Racuchos is listed with coverage to confirm, never promised (docs/CITY_LISTING.md).
+        assert "te puedo atender" not in reply and "NACIONAL" not in reply
+        assert "MC Racuchos" in reply and "sin delivery a Valencia confirmado" in reply
         restaurant, _, _ = await webhook._resolve(db, "111", "Y nacional ?")
         # NACIONAL does not deliver to Valencia, so the order does not inherit that city.
         assert restaurant and (await focus.get(db, "111")).city == ""
@@ -317,7 +320,9 @@ async def test_city_options_show_the_fee_only_when_asked(Session, sent):
         await _catalog(db)
         reply = await venezuela.local_options(db, "Lechería")
         assert reply.startswith("En Lechería te puedo atender con estos locales:\n• *NACIONAL Restaurante*\n")
-        assert "$" not in reply and "delivery" not in reply
+        assert "$" not in reply
+        # Zone-less businesses appear with coverage to confirm: no fee, no promise.
+        assert "MC Racuchos" in reply and "sin delivery a Lechería confirmado" in reply
         assert "registr" not in reply and "zonas" not in reply
         reply = await focus.fee_reply(db, "222", "¿Cuánto sale el delivery a Lechería?")
         assert "• *NACIONAL Restaurante* — delivery a Lechería ($2,00)" in reply
@@ -434,9 +439,12 @@ async def test_owner_chat_city_question_and_fee_after_city_list(Session, sent):
         reply = await webhook._events_route(db, "111", "En qué ciudad es esto")
         assert reply.startswith("NACIONAL Restaurante hace delivery") and "Barcelona" in reply
         reply = await webhook._events_route(db, "111", "Y cuánto sale a Barcelona ?")
-        assert reply == "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00."
+        assert "El delivery de NACIONAL Restaurante a Barcelona cuesta $3,00." in reply
+        # The zone-less listed business never gets an invented fee: the local confirms.
+        assert "MC Racuchos a Barcelona lo confirma el local" in reply
         reply = await webhook._events_route(db, "111", "¿Cuánto cuesta el delivery a Caracas?")
-        assert reply == "NACIONAL Restaurante no hace delivery a Caracas."
+        assert "NACIONAL Restaurante no hace delivery a Caracas." in reply
+        assert "MC Racuchos a Caracas lo confirma el local" in reply
 
 
 async def test_question_saved_as_city_is_ignored(Session, sent):
