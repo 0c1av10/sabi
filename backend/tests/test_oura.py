@@ -4,8 +4,8 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import select
 
-from app import delivery, whatsapp
-from app.agent import delivery_context, fmt_money, menu_text, rates_of, run_llm_agent, run_mock_agent, summarize_order
+from app import conversation_focus, delivery, venezuela, whatsapp
+from app.agent import delivery_context, fmt_money, menu_reply, menu_text, rates_of, run_llm_agent, run_mock_agent, summarize_order
 from app.main import apply_business_pins, seed_known_businesses
 from app.models import Conversation, MenuItem, Message, Restaurant
 from app.oura_menu import OURA_MENU
@@ -22,6 +22,13 @@ CEVICHES = "Cubos de pescado marinados en leche de tigre de ají, coco y parchit
 CROQUETAS = "Croquetas fluidas de cordero, morcilla y pescado."
 PARRILLA = "Cecina de res, muslo de pollo, baby back ribs, chorizo de ajo y morcilla."
 ZONE_QUOTES = ("Lechería · Zona 1: €2,50", "Lechería · Zona 2: €3,50", "Barcelona: €4,00", "Puerto La Cruz: €4,00")
+PROMPT_ZONE_QUOTES = (*ZONE_QUOTES[:2], "Barcelona (Anzoátegui): €4,00", "Puerto La Cruz (Anzoátegui): €4,00")
+
+
+def test_oura_customer_menu_fallback_uses_euros(loaded_oura_menu):
+    restaurant, items = loaded_oura_menu
+    trio = next(item for item in items if item.name == "Trío de Ceviches")
+    assert "Trío de Ceviches — €15,99" in menu_reply(restaurant, [trio])
 
 
 @pytest.mark.parametrize("coffee", ["Americano", "Espresso", "Café con Leche"])
@@ -236,6 +243,18 @@ async def test_oura_mock_delivery_question_mentioning_items_keeps_state(Session,
 
 
 @pytest.mark.asyncio
+async def test_oura_city_delivery_questions_keep_euros_and_published_subzones(Session):
+    await seed_known_businesses()
+    async with Session() as session:
+        barcelona = await conversation_focus.fee_reply(session, "111", "¿Cuánto sale el delivery de OURA a Barcelona?")
+        assert barcelona == "El delivery de OURA a Barcelona cuesta €4,00."
+        lecheria = await conversation_focus.fee_reply(session, "111", "¿Cuánto sale el delivery de OURA a Lechería?")
+        assert "depende de la dirección" in lecheria and all(zone in lecheria for zone in ZONE_QUOTES[:2])
+        listing = await venezuela.local_options(session, "Lechería", fees=True)
+        assert "• *OURA* — delivery a Lechería · Zona 1 (€2,50); delivery a Lechería · Zona 2 (€3,50)" in listing
+
+
+@pytest.mark.asyncio
 async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkeypatch):
     import anthropic
 
@@ -251,8 +270,8 @@ async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkey
     assert result.action == "continue" and result.order is None and result.state == {}
     assert f"€15,99 — {CEVICHES}" in menu_text(available, rates, details=True)
     assert "$15,99 · Bs " in fmt_money(15.99, *rates_of(bizza))
-    for zone, amount in zip(ZONES, ("€2,50", "€3,50", "€4,00", "€4,00"), strict=True):
-        assert f"{zone['name']}: {amount}" in delivery_context(restaurant, rates)
+    for zone, quote in zip(ZONES, PROMPT_ZONE_QUOTES, strict=True):
+        assert quote in delivery_context(restaurant, rates)
         assert delivery.fee_for(restaurant, "delivery", zone["name"]) == zone["fee"]
 
     summary, total = summarize_order({
@@ -267,7 +286,7 @@ async def test_oura_mock_and_llm_know_contents_and_native_prices(Session, monkey
         prompt = kwargs["system"]
         assert CEVICHES in prompt and PARRILLA in prompt
         assert "No afirmes que un ítem trae algo que su descripción no dice." in prompt
-        assert all(zone in prompt for zone in ZONE_QUOTES)
+        assert all(zone in prompt for zone in PROMPT_ZONE_QUOTES)
         assert "Expresa los precios en euros" in prompt and "Nunca muestres euros" not in prompt
         return SimpleNamespace(content=[SimpleNamespace(type="tool_use", input={"reply": "\n".join(ZONE_QUOTES)})])
 

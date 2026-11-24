@@ -73,6 +73,29 @@ def find_zone(zones: list[dict], text: str) -> Optional[dict]:
     return None
 
 
+def zone_for_order(zones: list[dict], zone_name: str, address: str) -> Optional[dict]:
+    """The zone an order goes to. The chosen zone stays while the address agrees with its city (or
+    names none), so "Av. Barcelona, Lechería" keeps Lechería and "Calle 5, Lechería" keeps "Centro de
+    Lechería". When the address is in another city it decides: a Puerto La Cruz address is never
+    billed as Barcelona, and a Cumaná address matches no Anzoátegui zone (None)."""
+    from .venezuela import cities_in
+    chosen = find_zone(zones, zone_name or "")
+    in_address = {c.name for c in cities_in(address or "")}
+    from_address = find_zone(zones, address or "")
+    if chosen:
+        chosen_cities = {c.name for c in cities_in(chosen["name"])}
+        if not in_address or chosen_cities & in_address:
+            return chosen
+        # A zone without a city ("Centro") gives way only to another zone the address names
+        # when the address does not name it too ("Centro, Av. Barcelona, Lechería" stays Centro),
+        # or to a longer zone containing it ("Centro de Barcelona").
+        inside = from_address is not None and from_address is not chosen \
+            and plain(chosen["name"]) in plain(from_address["name"])
+        if not chosen_cities and (not from_address or (find_zone([chosen], address or "") and not inside)):
+            return chosen
+    return from_address
+
+
 def fee_for(restaurant, order_type: Optional[str], zone_name: str = "") -> float:
     """Delivery fee to add to an order. 0 for pickup, for an unknown fee, or while no zone is chosen."""
     if order_type != "delivery":
@@ -84,14 +107,22 @@ def fee_for(restaurant, order_type: Optional[str], zone_name: str = "") -> float
     return restaurant.delivery_fee or 0.0
 
 
+def _where(name: str) -> str:
+    """"Lechería (Anzoátegui)": the state keeps the model from mixing up cities."""
+    from .venezuela import find_city
+    city = find_city(name)
+    return f"{name} ({city.state})" if city else name
+
+
 def describe(restaurant, fmt) -> str:
     """Text for the agent's context, with prices rendered by `fmt`."""
     zones = zones_of(restaurant)
     if zones:
-        listing = "; ".join(f"{z['name']}: " + ("gratis" if z["fee"] == 0 else fmt(z["fee"])) for z in zones)
+        listing = "; ".join(f"{_where(z['name'])}: " + ("gratis" if z["fee"] == 0 else fmt(z["fee"])) for z in zones)
         head = (f"Delivery por zona ({listing}). Si el pedido es delivery, pregunta la zona, usa solo estas "
                 "zonas (delivery_zone con el nombre exacto) y el costo se suma al total. Si está fuera de estas zonas, "
-                "dilo y ofrece pasar con el dueño.")
+                "dilo y ofrece pasar con el dueño. Cada ciudad es distinta aunque sea vecina (Lechería, Barcelona y "
+                "Puerto La Cruz no son la misma): nunca cobres una por otra.")
     elif restaurant.delivery_fee is None:
         head = "Costo de delivery: no definido; di que el local lo confirma al aprobar el pedido, no inventes un monto."
     elif restaurant.delivery_fee == 0:

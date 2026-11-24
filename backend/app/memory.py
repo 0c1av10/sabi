@@ -12,7 +12,7 @@ from sqlalchemy import DateTime, String, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .models import Base, utcnow
+from .models import Base, Restaurant, utcnow
 from .whatsapp import digits
 
 
@@ -156,6 +156,20 @@ def name_reply(contact: "Contact | None", body: str) -> str:
     if _ASKS_WHICH.search(text):
         return f"Te llamas {name}. ¿En qué te ayudo?"
     return f"Claro, {name}. ¿En qué te ayudo?"
+
+
+async def usable_name(db, name: str | None) -> str:
+    """display_name plus one more guard: a stored name equal to a catalog business ("Tastio",
+    "Bizza") is never used to address the person. The record itself is left unchanged, so
+    correcting it in chat ("me llamo Octavio") or "olvídame" still works."""
+    clean = display_name(name)
+    if not clean:
+        return ""
+    target = _plain(clean)
+    names = (await db.execute(select(Restaurant.name, Restaurant.slug))).all()
+    if any(_plain(rname) == target or _plain(slug or "") == target for rname, slug in names):
+        return ""
+    return clean
 
 
 def first_name(name: str | None) -> str:

@@ -84,4 +84,7 @@ async def test_known_name_with_new_city_never_uses_old_catalog(Session):
         r=Restaurant(name='Bizza',slug='bizza',pin='test');db.add(r);await db.commit()
         await focus.save(db,'111',domain='restaurant',entity='Bizza',city='Lechería')
         rest,_,reply=await webhook._resolve(db,'111','De Bizza en Valencia')
-        assert rest is None and 'Valencia' in reply
+        # Bizza has no zones registered: it is identified and routes (no official-link ask),
+        # but the stated new city is never replaced by the old task city (docs/CITY_LISTING.md).
+        assert rest is not None and rest.slug=='bizza' and reply is None
+        assert (await focus.get(db,'111')).city==''
