@@ -14,7 +14,7 @@ from ..db import get_db
 from ..models import Conversation, Customer, Restaurant
 from ..reactions import reaction_for
 from ..inbound_receipts import claim_inbound
-from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
+from ..whatsapp import incoming_reply_context, digits, remove_whatsapp_reaction, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..cinema_whatsapp import explicit_cinema, wants_cinema, handle_cinema_whatsapp
 from ..event_whatsapp import handle_event_whatsapp, wants_events
@@ -39,12 +39,27 @@ async def _pilot_route(db: AsyncSession, phone: str, body: str) -> bool:
         return True
     return False
 
-async def _react(phone: str, message_id: str | None, body: str) -> None:
-    """Best-effort emoji reaction chosen by message type; must never break the reply."""
+LOOKING = "👀"
+
+
+async def _react(phone: str, message_id: str | None, body: str) -> str | None:
+    """Best-effort emoji reaction chosen by message type; must never break the reply.
+    Returns the emoji sent, if any."""
     emoji = reaction_for(body)
     if emoji and message_id:
         try:
             await send_whatsapp_reaction(phone, message_id, emoji)
+            return emoji
+        except Exception:  # noqa: BLE001
+            pass
+    return None
+
+
+async def _clear_looking(phone: str, message_id: str | None, emoji: str | None) -> None:
+    """👀 means "looking into it": once Sabi has answered it must not stay on the message."""
+    if emoji == LOOKING and message_id:
+        try:
+            await remove_whatsapp_reaction(phone, message_id)
         except Exception:  # noqa: BLE001
             pass
 
@@ -496,15 +511,17 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
     # Claim occurs before reaction, quote context or any route side effect.
     # Use only the WhatsApp platform ID for quote replies, not Zernio's internal id.
     with incoming_reply_context(phone, msg.get("platformMessageId") or ""):
-        if settings.zernio_native_reactions:
-            await _react(phone, external_id, body)
-        if phone and body and await _pilot_route(db, phone, body):
+        emoji = await _react(phone, external_id, body) if settings.zernio_native_reactions else None
+        try:
+            if phone and body and await _pilot_route(db, phone, body):
+                return {"status": "ok"}
+            if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
+                return {"status": "ok"}
+            restaurant, body = await _route_or_explain(db, phone, body)
+            if not (restaurant and phone and body):
+                return {"status": "ignored"}
+            await handle_inbound_message(db, restaurant, phone, body, sender.get("name") or "",
+                                         external_id=msg.get("platformMessageId") or msg.get("id"))
             return {"status": "ok"}
-        if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
-            return {"status": "ok"}
-        restaurant, body = await _route_or_explain(db, phone, body)
-        if not (restaurant and phone and body):
-            return {"status": "ignored"}
-        await handle_inbound_message(db, restaurant, phone, body, sender.get("name") or "",
-                                     external_id=msg.get("platformMessageId") or msg.get("id"))
-        return {"status": "ok"}
+        finally:
+            await _clear_looking(phone, external_id, emoji)
