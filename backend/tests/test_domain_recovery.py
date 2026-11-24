@@ -76,7 +76,7 @@ async def test_approved_returning_greeting_omits_invalid_name_without_mutation(S
     async with Session() as db:
         db.add(memory.Contact(phone='111',name='Entonces',name_source='user',last_topic='cine'));await db.commit()
         text,_=await concierge.reply(db,'hola','111')
-        assert text=='Hola de nuevo. ¿Cómo te puedo ayudar hoy? ¿Quieres comer o se te antoja ir al cine?'
+        assert text=='Hola de nuevo. '+memory.ASK_NAME
         assert (await memory.get(db,'111')).name=='Entonces'
         assert 'Ana' in await concierge._hello(db,'Ana',True)
 

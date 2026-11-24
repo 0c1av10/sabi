@@ -92,6 +92,69 @@ CITIES = (
     City("Ciudad Ojeda", "Zulia"),
 )
 
+# Every other municipality seat (Wikipedia, "Anexo:Municipios de Venezuela"), so any town a customer
+# names is recognized. Seats that are also everyday words, first names or surnames ("Libertad",
+# "Soledad", "Cordero", "Colón") are left out so they are never read as a city.
+_SEATS = {
+    "Amazonas": ("Isla Ratón", "La Esmeralda", "Maroa", "San Carlos de Río Negro",
+        "San Fernando de Atabapo", "San Juan de Manapiare"),
+    "Anzoátegui": ("Aragua de Barcelona", "Boca de Uchire", "Cantaura", "Clarines", "El Chaparro", "Mapire",
+        "Onoto", "Pariaguán", "Píritu", "San José de Guanipa", "San Mateo", "Santa Ana", "Valle de Guanape"),
+    "Apure": ("Achaguas", "Biruaca", "Elorza", "Guasdualito", "San Juan de Payara"),
+    "Aragua": ("Barbacoas", "Camatagua", "Colonia Tovar", "El Consejo", "El Limón", "Las Tejerías",
+        "Ocumare de la Costa", "Palo Negro", "San Casimiro", "San Sebastián de los Reyes",
+        "Santa Cruz de Aragua", "Santa Rita", "Villa de Cura"),
+    "Barinas": ("Barinitas", "Barrancas", "Ciudad Bolivia", "Ciudad de Nutrias", "El Cantón", "Obispos",
+        "Sabaneta", "Santa Bárbara de Barinas", "Socopó"),
+    "Bolívar": ("Caicara del Orinoco", "Ciudad Piar", "El Callao", "El Palmar", "Guasipati", "Maripa",
+        "Santa Elena de Uairén"),
+    "Carabobo": ("Bejuma", "Güigüe", "Los Guayos", "Mariara", "Montalbán", "Morón", "San Joaquín",
+        "Tocuyito"),
+    "Cojedes": ("El Baúl", "El Pao", "Las Vegas", "Macapo", "Tinaco", "Tinaquillo"),
+    "Delta Amacuro": ("Curiapo", "Pedernales", "Sierra Imataca"),
+    "Falcón": ("Cabure", "Capatárida", "Chichiriviche", "Churuguara", "Dabajuro", "Jacura",
+        "La Cruz de Taratara", "La Vela de Coro", "Mene de Mauroa", "Mirimire", "Palmasola", "Pedregal",
+        "Pueblo Nuevo", "Puerto Cumarebo", "San Juan de los Cayos", "San Luis", "Santa Cruz de Bucaral",
+        "Santa Cruz de Los Taques", "Tocópero", "Urumaco", "Yaracal"),
+    "Guárico": ("Altagracia de Orituco", "Camaguán", "Chaguaramas", "El Socorro", "El Sombrero", "Guayabal",
+        "Las Mercedes", "San José de Guaribe", "Santa María de Ipire", "Tucupido", "Zaraza"),
+    "Lara": ("Duaca", "El Tocuyo", "Quíbor", "Sanare", "Sarare", "Siquisique"),
+    "Miranda": ("Baruta", "Carrizal", "Caucagua", "Chacao", "Cúa", "Cúpira", "El Hatillo", "Mamporal",
+        "Ocumare del Tuy", "Petare", "Río Chico", "San Antonio de los Altos", "San Francisco de Yare",
+        "San José de Barlovento", "Santa Lucía", "Santa Teresa del Tuy"),
+    "Monagas": ("Aguasay", "Aragua de Maturín", "Barrancas del Orinoco", "Caicara de Maturín", "Caripe",
+        "Caripito", "Punta de Mata", "Quiriquire", "San Antonio de Capayacuar", "Temblador", "Uracoa"),
+    "Mérida": ("Arapuey", "Aricagua", "Bailadores", "Canaguá", "Ejido", "Guaraque", "La Azulita",
+        "Lagunillas", "Mucuchíes", "Nueva Bolivia", "Pueblo Llano", "Santa Cruz de Mora",
+        "Santa Elena de Arenales", "Santa María de Caparo", "Santo Domingo", "Tabay", "Timotes", "Torondoy",
+        "Tucaní"),
+    "Nueva Esparta": ("Boca de Río", "El Valle", "La Plaza de Paraguachí", "Punta de Piedras",
+        "San Juan Bautista", "San Pedro de Coche"),
+    "Portuguesa": ("Agua Blanca", "Biscucuy", "Boconoíto", "Chabasquén", "El Playón", "Guanarito", "Ospino",
+        "Papelón", "San Rafael de Onoto", "Villa Bruzual"),
+    "Sucre": ("Araya", "Cariaco", "Casanay", "Cumanacoa", "El Pilar", "Güiria", "Irapa", "Marigüitar",
+        "Río Caribe", "San Antonio del Golfo", "San José de Areocuar", "Tunapuy", "Yaguaraparo"),
+    "Trujillo": ("Betijoque", "Boconó", "Campo Elías", "Carache", "Chejendé", "El Dividive", "El Paradero",
+        "Escuque", "La Quebrada", "Monte Carmelo", "Motatán", "Pampanito", "Pampán", "Sabana Grande",
+        "Sabana de Mendoza", "Santa Apolonia", "Santa Isabel"),
+    "Táchira": ("Abejales", "Capacho Nuevo", "Capacho Viejo", "Coloncito", "El Cobre", "La Fría",
+        "La Grita", "La Tendida", "Las Mesas", "Lobatera", "Michelena", "Pregonero", "Queniquea", "Rubio",
+        "San Josecito", "San José de Bolívar", "San Rafael del Piñal", "San Simón", "Santa Ana de Táchira",
+        "Seboruco", "Táriba", "Umuquena", "Ureña"),
+    "Yaracuy": ("Aroa", "Boraure", "Chivacoa", "Cocorote", "Farriar", "Guama", "Nirgua", "Sabana de Parra",
+        "San Pablo", "Urachiche", "Yaritagua", "Yumare"),
+    "Zulia": ("Bachaquero", "Bobures", "Casigua El Cubo", "El Chivo", "El Toro", "Encontrados",
+        "La Concepción", "La Villa del Rosario", "Los Puertos de Altagracia", "Machiques",
+        "San Carlos del Zulia", "San Francisco", "San Rafael del Moján", "San Timoteo", "Sinamaica",
+        "Tía Juana"),
+}
+_SEAT_ALIASES = {"Santa Elena de Uairén": ("santa elena",), "Casigua El Cubo": ("casigua",),
+                 "San Rafael del Moján": ("el mojan",),
+                 "Puerto Cumarebo": ("pto cumarebo",), "Ocumare del Tuy": ("ocumare",)}
+# Two different towns share "Santa Bárbara"; only the full names are recognized.
+CITIES += (City("Santa Bárbara del Zulia", "Zulia", ("santa barbara de zulia",)),)
+CITIES += tuple(City(n, s, _SEAT_ALIASES.get(n, ())) for s, names in _SEATS.items() for n in names)
+
 
 def plain(text: str) -> str:
     nfkd = unicodedata.normalize("NFKD", text or "")
@@ -127,8 +190,8 @@ def canonical(value: str) -> str:
     return city.name if city else value
 
 
-_WHERE = re.compile(r"\b(?:en\s+)?(?:qu[eé]|cu[aá]l)\s+ciudad\s+(?:queda|est[aá])n?\b|\bd[oó]nde\s+(?:queda|est[aá]|se\s+ubica)n?\b", re.I)
-_SUBJECT_FILLER = {"el", "la", "los", "las", "de", "del", "y", "ese", "esa", "este", "esta", "local", "restaurante", "sede",
+_WHERE = re.compile(r"\b(?:en\s+)?(?:qu[eé]|cu[aá]l)\s+ciudad\s+(?:queda|est[aá]|es|son|se\s+encuentra)n?\b|\bd[oó]nde\s+(?:queda|est[aá]|se\s+ubica|se\s+encuentra)n?\b", re.I)
+_SUBJECT_FILLER = {"el", "la", "los", "las", "de", "del", "y", "ese", "esa", "eso", "esos", "esas", "este", "esta", "esto", "estos", "estas", "local", "restaurante", "sede",
                    "exactamente", "ahora", "entonces", "eso", "me", "sabes", "oye", "por", "favor", "mismo", "dime"}
 
 
@@ -148,10 +211,9 @@ def where_reply(restaurant) -> str:
     from .delivery import zones_of
     names = [z["name"] for z in zones_of(restaurant)]
     if not names:
-        return f"No tengo registrada la ciudad de {restaurant.name} y no voy a adivinarla."
+        return f"No tengo la ubicación de {restaurant.name}."
     where = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " y " + names[-1]
-    return (f"{restaurant.name} hace delivery en {where}, según las zonas que registró. "
-            "No tengo su dirección exacta verificada.")
+    return f"{restaurant.name} hace delivery a {where}. No tengo su dirección exacta."
 
 
 async def covering(db, city: str) -> list[tuple]:
@@ -162,7 +224,8 @@ async def covering(db, city: str) -> list[tuple]:
     target = find_city(city)
     if not target:
         return []
-    rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
+    from .visibility import public_condition
+    rows = (await db.execute(select(Restaurant).where(public_condition())
                              .order_by(Restaurant.id))).scalars().all()
     out = []
     for r in rows:
@@ -180,16 +243,44 @@ def _fee(usd: float) -> str:
     return "sin costo" if not usd else "$" + f"{usd:.2f}".replace(".", ",")
 
 
-async def local_options(db, city: str, phone: str = "") -> str:
-    """Businesses that registered delivery to `city`, or '' when none did. The offered names are
-    remembered as the current topic so "Y nacional?" right after is read in context."""
+async def local_options(db, city: str, phone: str = "", fees: bool = False, only=None) -> str:
+    """Businesses that registered delivery to `city`. Visible businesses with NO zones registered
+    at all are listed too, marked as coverage to confirm: unknown data must not read as absent,
+    and the local confirms coverage and cost when approving the order (docs/CITY_LISTING.md).
+    A business with zones registered for other cities stays out: its own data says where it delivers.
+    The offered names are remembered as the current topic so "Y nacional?" right after is read in context.
+    The delivery fee is shown only when asked (`fees`); otherwise it comes up while building the order."""
     hits = await covering(db, city)
-    if not hits:
+    if only is not None:
+        hits = [(r, z) for r, z in hits if r in only]
+    target = find_city(city)
+    if not target:
+        return ""  # A city outside the knowledge base keeps the no-verified-filter reply.
+    from .delivery import zones_of
+    from .models import Restaurant
+    from .visibility import public_condition
+    pool = only if only is not None else (await db.execute(
+        select(Restaurant).where(public_condition()).order_by(Restaurant.id))).scalars().all()
+    unconfirmed = [r for r in pool
+                   if all(r.id != h.id for h, _ in hits) and not zones_of(r)]
+    if not hits and not unconfirmed:
         return ""
-    name = find_city(city).name
+    name = target.name
     if phone:
         from . import memory
-        await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r, _ in hits))
-    lines = "\n".join(f"• *{r.name}* — delivery a {z['name']} ({_fee(z['fee'])})" for r, z in hits)
-    return (f"En {name} te puedo atender con estos locales, según las zonas de delivery que cada uno registró:\n"
-            f"{lines}\n\n¿En cuál quieres pedir? Dime, por ejemplo, «quiero pedir en {hits[0][0].name}».")
+        offered = [r for r, _ in hits] + unconfirmed
+        await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r in offered))
+    lines = "\n".join(f"• *{r.name}*" + (f" — delivery a {z['name']} ({_fee(z['fee'])})" if fees else "")
+                      for r, z in hits)
+    unsure = "\n".join(f"• *{r.name}*" for r in unconfirmed)
+    if hits:
+        text = f"En {name} te puedo atender con estos locales:\n{lines}"
+        if unconfirmed:
+            text += (f"\n\nTambién están en el catálogo, sin delivery a {name} confirmado todavía "
+                     f"(el local confirma cobertura y costo al aprobar el pedido):\n{unsure}")
+    else:
+        text = (f"En {name} no tengo locales con delivery confirmado. Estos están en el catálogo "
+                f"sin delivery a {name} confirmado todavía (el local confirma cobertura y costo "
+                f"al aprobar el pedido):\n{unsure}")
+    example = hits[0][0].name if hits else unconfirmed[0].name
+    return text + f"\n\n¿En cuál quieres pedir? Dime, por ejemplo, «quiero pedir en {example}»."

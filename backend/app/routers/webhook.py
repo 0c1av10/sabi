@@ -14,7 +14,7 @@ from ..db import get_db
 from ..models import Conversation, Customer, MenuItem, Restaurant
 from ..reactions import reaction_for
 from ..inbound_receipts import claim_inbound
-from ..whatsapp import incoming_reply_context, digits, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
+from ..whatsapp import incoming_reply_context, digits, remove_whatsapp_reaction, send_whatsapp_message, send_whatsapp_reaction, send_whatsapp_typing, zernio_conversations
 from ..service import handle_inbound_message, recent_inbound_count
 from ..cinema_whatsapp import explicit_cinema, wants_cinema, handle_cinema_whatsapp
 from ..event_whatsapp import handle_event_whatsapp, wants_events
@@ -39,12 +39,27 @@ async def _pilot_route(db: AsyncSession, phone: str, body: str) -> bool:
         return True
     return False
 
-async def _react(phone: str, message_id: str | None, body: str) -> None:
-    """Best-effort emoji reaction chosen by message type; must never break the reply."""
+LOOKING = "👀"
+
+
+async def _react(phone: str, message_id: str | None, body: str) -> str | None:
+    """Best-effort emoji reaction chosen by message type; must never break the reply.
+    Returns the emoji sent, if any."""
     emoji = reaction_for(body)
     if emoji and message_id:
         try:
             await send_whatsapp_reaction(phone, message_id, emoji)
+            return emoji
+        except Exception:  # noqa: BLE001
+            pass
+    return None
+
+
+async def _clear_looking(phone: str, message_id: str | None, emoji: str | None) -> None:
+    """👀 means "looking into it": once Sabi has answered it must not stay on the message."""
+    if emoji == LOOKING and message_id:
+        try:
+            await remove_whatsapp_reaction(phone, message_id)
         except Exception:  # noqa: BLE001
             pass
 
@@ -69,6 +84,18 @@ async def _unresolved_place_reply(db,phone,body):
     # A catalog business that registered delivery to the city is not an unresolved place.
     if known and (not city or await venezuela.covers(db,known,city)):
         return None
+    # A catalog business with no zones registered at all IS identified; its coverage is
+    # unknown, not absent. Route to it normally: the order confirms coverage and cost with
+    # the local. Asking for its official link again would read as not knowing it (docs/CITY_LISTING.md).
+    if known:
+        from ..delivery import zones_of
+        if not zones_of(known):
+            return None
+    if not known:
+        # Demand signal for businesses outside the catalog: name and stated city only,
+        # so the team can review and onboard them (docs/REQUESTED_BUSINESSES.md).
+        from .. import requested
+        await requested.record(db,entity,city)
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
@@ -100,6 +127,89 @@ async def _active_menu_reference(db: AsyncSession, phone: str, body: str) -> boo
     return requested <= matched_cuisines
 
 
+_SWITCH='cambio de local: '
+_YES=re.compile(r'^\s*(?:s[ií]|dale|ok|claro|listo|de una|perfecto)\b',re.I)
+_NO=re.compile(r'^\s*(?:no\b|seguimos|sigo|mejor no|me quedo)',re.I)
+
+
+async def _silent_business_switch(db,phone,body,restaurant):
+    """A product match ("Tiene refresco") must not silently move someone who was ordering from one
+    business to another: Sabi says which business has it and asks once."""
+    contact=await memory.get(db,phone)
+    topic=(contact.last_topic if contact else '') or ''
+    if not topic.startswith('tu pedido en '):return ''
+    same=f'tu pedido en {restaurant.name}'
+    if topic==same or topic.startswith(same+' ('):return ''
+    from ..visibility import public_condition
+    known=(await db.execute(select(Restaurant).where(public_condition()))).scalars().all()
+    previous=max((r for r in known if topic==f'tu pedido en {r.name}' or topic.startswith(f'tu pedido en {r.name} (')),
+                 key=lambda r:len(r.name),default=None)
+    if not previous:return ''
+    if re.search(r'\[sabi:',body,re.I) or await restaurant_by_mention(db,body):return ''
+    # Both businesses are kept so the answer can pick one, and the request too when it fits whole:
+    # a cut request (missing a time or an instruction) is never forwarded, the customer says it again.
+    pending=f'{_SWITCH}{restaurant.id}>{previous.id}|'
+    await memory.set_topic(db,phone,pending+(body if len(pending+body)<=80 else ''))
+    return f'Eso lo encontré en *{restaurant.name}*. ¿Quieres pedirlo allí o seguimos con {previous.name}?'
+
+
+def _leading_business(body,restaurants):
+    """The business a reply opens with ("Bizza, sin cebolla", "En NACIONAL"). None when what follows
+    takes it back ("Bizza, mejor no", "Bizza o NACIONAL?") or names another business."""
+    plain=lambda t:venezuela.plain(re.sub(r'[^\w\s]',' ',t or '')).split()
+    words=plain(body)
+    while words and words[0] in ('en','de','con','mejor'):words=words[1:]
+    names=[(r,plain(r.name)) for r in restaurants]
+    best=None
+    for r,name in names:
+        n=0
+        while n<len(name) and n<len(words) and words[n]==name[n]:n+=1
+        if n and (len(name[0])>2 or n>1) and (not best or n>best[1]):best=(r,n)
+    if not best:return None
+    r,n=best;rest=words[n:]
+    if rest[:1] in (['no'],['o'],['ni'],['tampoco'],['nunca']) or rest[:2]==['mejor','no']:return None
+    text=' '+' '.join(rest)+' '
+    if any(o.id!=r.id and name and len(name[0])>2 and f' {name[0]} ' in text for o,name in names):return None
+    return r
+
+
+async def _switch_answer(db,phone,body):
+    """(restaurant, body, reply) chosen by the reply to the switch question; restaurant and reply None
+    when there is no pending question. Only a clear answer is acted on: a bare yes or no, or a reply that
+    opens with a business name. Any other reply that names a business gets the question again, so a
+    message never goes to a business the customer may have ruled out ("No quiero NACIONAL")."""
+    contact=await memory.get(db,phone)
+    m=re.match(r'^cambio de local: (\d+)>(\d+)\|(.*)$',(contact.last_topic if contact else '') or '',re.S)
+    if not m:return None,body,None
+    offered,previous,asked=await db.get(Restaurant,int(m[1])),await db.get(Restaurant,int(m[2])),m[3]
+    restore=f'tu pedido en {previous.name}' if previous else ''
+    if re.search(r'\[sabi:',body,re.I):
+        # A store link is the customer's explicit choice: normal routing reads it first.
+        await memory.set_topic(db,phone,restore)
+        return None,body,None
+    yes,no=_YES.match(body),_NO.match(body)
+    rest=body[(yes or no).end():] if (yes or no) else body
+    from ..visibility import public_condition
+    restaurants=(await db.execute(select(Restaurant).where(public_condition()))).scalars().all()
+    lead=_leading_business(body,restaurants)
+    if lead:
+        if offered and lead.id==offered.id:return offered,body,None
+        await memory.set_topic(db,phone,restore)
+        return None,body,None
+    words=f" {venezuela.plain(re.sub(r'[^\w\s]',' ',body))} "
+    named=[r for r in restaurants if (w:=venezuela.plain(re.sub(r'[^\w\s]',' ',r.name)).split()) and len(w[0])>2 and f' {w[0]} ' in words]
+    if named or await restaurant_by_mention(db,body):
+        return None,body,(f'¿Lo pedimos en *{offered.name}* o seguimos con *{previous.name}*? '
+                          'Respóndeme solo con el nombre del local.') if offered and previous else None
+    if offered and yes:
+        # A bare "Sí" carries the original request ("Tiene refresco") to the business offered.
+        return offered,(body if not asked or re.search(r'\w{3,}',rest) else asked),None
+    if previous:
+        await memory.set_topic(db,phone,restore)
+        if no:return previous,body,None
+    return None,body,None
+
+
 async def _resolve(db: AsyncSession, phone: str, body: str):
     """(restaurant, body, reply). `reply` is Sabi's concierge text when no business is named
     (None when a plain welcome was already sent recently)."""
@@ -127,8 +237,12 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
-    restaurant, routed_body = await restaurant_for_message(db, phone, body)
+    picked,picked_body,again=await _switch_answer(db,phone,body)
+    if again:return None,body,again
+    restaurant, routed_body = (picked,picked_body) if picked else await restaurant_for_message(db, phone, body)
     if restaurant:
+        switched=await _silent_business_switch(db,phone,body,restaurant)
+        if switched:return None,body,switched
         # Keep what Sabi had just offered in the general chat: the business agent reads
         # the topic as context, so "Y nacional?" after a recommendation is not read in a void.
         contact=await memory.get(db,phone)
@@ -142,7 +256,9 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
         said=named[1] if named else ''
         # A city written in this order, where the business registered delivery, is the task city.
         city=venezuela.canonical(said) if said and await venezuela.covers(db,restaurant,said) else ''
-        if not city and previous and previous.domain=='restaurant' and previous.entity==restaurant.name:
+        # A stated new city is never replaced by the old task city; inheritance is only
+        # for follow-ups that name no city at all (docs/CITY_LISTING.md).
+        if not city and not said and previous and previous.domain=='restaurant' and previous.entity==restaurant.name:
             city=previous.city
         # A city asked for just before, where this business registered delivery, stays the task city.
         if not city and previous and previous.city and (previous.domain=='general' or (previous.domain=='place' and not previous.entity)) and await venezuela.covers(db,restaurant,previous.city):
@@ -225,13 +341,31 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
     if location_reply:
         await send_whatsapp_message(phone,location_reply)
         return location_reply
+    fee_reply=await focus.fee_reply(db,phone,body)
+    if fee_reply:
+        await send_whatsapp_message(phone,fee_reply)
+        return fee_reply
     recommendation_city=concierge.recommendation_city(body)
     domain=concierge.explicit_recommendation_domain(body)
-    negated=bool(re.search(r'\b(?:no|ni)\b',text))
-    if negated and re.search(r'\b(cine|cines|comida|comer|peliculas?)\b',text):
+    if concierge.rejects_domain(body):
         reply='¿Quieres seguir con cine, buscar comida o hacer otra consulta?'
         await send_whatsapp_message(phone,reply)
         return reply
+    food=active and active.domain=='general' and active.entity.partition(':')[0]=='food'
+    # "Mejor en Lechería" moves the food task; named_business_query would read "Mejor" as a place.
+    named_city=recommendation_city or focus.declared_city(body)
+    # "allí", "en esa ciudad": the city the customer was just asking about, whatever the topic was.
+    here=bool(active and active.city and re.search(r'\b(?:alli|ahi|alla|aca|aqui|esa ciudad|esta ciudad)\b',text)
+              and not re.search(r'\b(?:fuera|afuera|lejos|aparte)\s+de\s+(?:alli|ahi|alla|aca|aqui|esa ciudad|esta ciudad)\b',text))
+    # A city Sabi doesn't know ("Pizza en Miami") is still a different city: never answer it with the old one.
+    if (food and domain!='cinema' and not explicit_cinema(body) and (not named_city or venezuela.find_city(named_city))
+            and (focus.declared_city(body) or not named_business_query(body)) and not await restaurant_by_mention(db,body)):
+        new_city=venezuela.canonical(named_city) if named_city else ''
+        kind=concierge.food_kind(body)
+        if (new_city and new_city!=active.city) or kind or (here and concierge.wants_food(body)):
+            reply=await concierge.food_in_city(db,phone,new_city or active.city,kind or active.entity.partition(':')[2])
+            await send_whatsapp_message(phone,reply)
+            return reply
     recommendation=concierge.ambiguous_recommendation(body)
     pending=active and active.domain=='general' and active.entity=='pending_recommendation_domain'
     target_city=recommendation_city or (active.city if pending else '')
@@ -242,8 +376,10 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
                 return await handle_cinema_whatsapp(db,phone,body,external_id)
             reply=f'Seguimos con cine en {target_city}. No tengo una cartelera verificada disponible ahora.'
         elif domain=='food':
-            await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
-            reply=await venezuela.local_options(db,target_city,phone) or f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
+            if venezuela.find_city(target_city):reply=await concierge.food_in_city(db,phone,target_city,concierge.food_kind(body))
+            else:
+              await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
+              reply=await venezuela.local_options(db,target_city,phone) or f'Buscas comida en {target_city}. Aún no tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
         else:
             await focus.save(db,phone,domain='general',entity='pending_recommendation_domain',city=target_city)
             reply=f'¿Buscas comida o un plan de cine en {target_city}?'
@@ -255,12 +391,13 @@ async def _events_route(db: AsyncSession, phone: str, body: str, external_id: st
         await send_whatsapp_message(phone,reply)
         return reply
     if explicit_cinema(body) or city_clarification:
-        city='Puerto La Cruz' if city_clarification else (active.city if active and active.domain=='cinema' else '')
+        inherited=active.city if active and (active.domain=='cinema' or here) else ''
+        city='Puerto La Cruz' if city_clarification else (venezuela.canonical(named_city) if venezuela.find_city(named_city) else '' if named_city else inherited)
         await focus.save(db,phone,domain='cinema',city=city)
         cinema_body=body if not city_clarification else 'Cine en Puerto La Cruz'
         if await wants_cinema(db,phone,cinema_body):
             return await handle_cinema_whatsapp(db,phone,cinema_body,external_id)
-        reply='La consulta ahora es de cine. No tengo una cartelera verificada disponible en este momento.'
+        reply='La consulta ahora es de cine'+(f' en {city}' if city else '')+'. No tengo una cartelera verificada disponible en este momento.'
         await send_whatsapp_message(phone,reply)
         return reply
     city_reply=await focus.city_reply(db,phone,body)
@@ -416,15 +553,17 @@ async def receive_zernio(request: Request, db: AsyncSession = Depends(get_db)):
     # Claim occurs before reaction, quote context or any route side effect.
     # Use only the WhatsApp platform ID for quote replies, not Zernio's internal id.
     with incoming_reply_context(phone, msg.get("platformMessageId") or ""):
-        if settings.zernio_native_reactions:
-            await _react(phone, external_id, body)
-        if phone and body and await _pilot_route(db, phone, body):
+        emoji = await _react(phone, external_id, body) if settings.zernio_native_reactions else None
+        try:
+            if phone and body and await _pilot_route(db, phone, body):
+                return {"status": "ok"}
+            if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
+                return {"status": "ok"}
+            restaurant, body = await _route_or_explain(db, phone, body)
+            if not (restaurant and phone and body):
+                return {"status": "ignored"}
+            await handle_inbound_message(db, restaurant, phone, body, sender.get("name") or "",
+                                         external_id=msg.get("platformMessageId") or msg.get("id"))
             return {"status": "ok"}
-        if phone and body and await _events_route(db, phone, body, external_id, sender.get("name") or "") is not None:
-            return {"status": "ok"}
-        restaurant, body = await _route_or_explain(db, phone, body)
-        if not (restaurant and phone and body):
-            return {"status": "ignored"}
-        await handle_inbound_message(db, restaurant, phone, body, sender.get("name") or "",
-                                     external_id=msg.get("platformMessageId") or msg.get("id"))
-        return {"status": "ok"}
+        finally:
+            await _clear_looking(phone, external_id, emoji)

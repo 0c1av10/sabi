@@ -78,6 +78,20 @@ class Customer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class RequestedBusiness(Base):
+    __tablename__ = "requested_businesses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # The business name as the customer wrote it; name_key is its normalized dedupe form.
+    name: Mapped[str] = mapped_column(String(200))
+    name_key: Mapped[str] = mapped_column(String(150), unique=True, index=True)
+    # City only when the customer stated it. Never a phone or other personal data.
+    city: Mapped[str] = mapped_column(String(100), default="")
+    requests: Mapped[int] = mapped_column(default=1)
+    first_requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_requested_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
 

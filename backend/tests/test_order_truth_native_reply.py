@@ -36,9 +36,9 @@ async def test_save_before_ack_method_not_payment(Session, monkeypatch, referenc
         monkeypatch.setattr(service, 'send_whatsapp_message', send)
         reply = await service.handle_inbound_message(db, r, '000-test', 'Pago móvil')
         assert len(sent) == 1 and reply == sent[0]
-        assert 'Registré tu solicitud #' in reply
-        assert 'Aún no tengo confirmación' in reply
-        assert 'no pagues basándote' in reply
+        saved = (await db.execute(select(Order))).scalar_one()
+        assert reply == f'Recibí tu pedido #{saved.id}. Te aviso por aquí apenas Fixture Only lo confirme.'
+        assert 'confirmad' not in reply and 'pag' not in reply
         assert 'WRONG' not in reply and 'enseguida' not in reply
 
 

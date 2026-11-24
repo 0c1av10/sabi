@@ -141,7 +141,8 @@ async def onboarding(data: OnboardingIn, db: AsyncSession = Depends(get_db)):
 @router.get("/store/{slug}")
 async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
     r = (await db.execute(select(Restaurant).where(Restaurant.slug == slug))).scalar_one_or_none()
-    if not r:
+    from ..visibility import is_hidden
+    if not r or is_hidden(r):
         raise HTTPException(404, "Tienda no encontrada")
     if await refresh_rates(r):
         await db.commit()
@@ -163,7 +164,8 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
 @router.post("/store/{slug}/orders")
 async def store_checkout(slug: str, data: CheckoutIn, db: AsyncSession = Depends(get_db)):
     r = (await db.execute(select(Restaurant).where(Restaurant.slug == slug))).scalar_one_or_none()
-    if not r:
+    from ..visibility import is_hidden
+    if not r or is_hidden(r):
         raise HTTPException(404, "Tienda no encontrada")
     if data.order_type == "delivery" and not data.address.strip():
         raise HTTPException(422, "Falta la dirección de entrega")
