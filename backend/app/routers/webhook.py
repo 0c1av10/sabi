@@ -87,7 +87,8 @@ async def _silent_business_switch(db,phone,body,restaurant):
     if not topic.startswith('tu pedido en '):return ''
     same=f'tu pedido en {restaurant.name}'
     if topic==same or topic.startswith(same+' ('):return ''
-    known=(await db.execute(select(Restaurant))).scalars().all()
+    from ..visibility import public_condition
+    known=(await db.execute(select(Restaurant).where(public_condition()))).scalars().all()
     previous=max((r for r in known if topic==f'tu pedido en {r.name}' or topic.startswith(f'tu pedido en {r.name} (')),
                  key=lambda r:len(r.name),default=None)
     if not previous:return ''
@@ -135,7 +136,8 @@ async def _switch_answer(db,phone,body):
         return None,body,None
     yes,no=_YES.match(body),_NO.match(body)
     rest=body[(yes or no).end():] if (yes or no) else body
-    restaurants=(await db.execute(select(Restaurant))).scalars().all()
+    from ..visibility import public_condition
+    restaurants=(await db.execute(select(Restaurant).where(public_condition()))).scalars().all()
     lead=_leading_business(body,restaurants)
     if lead:
         if offered and lead.id==offered.id:return offered,body,None
