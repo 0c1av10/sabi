@@ -202,6 +202,10 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
     # closes: follow-ups like "Si dame ese pero pídelo mañana" or "Sera delivery" must
     # never fall back to the welcome while an order is still open. Only an active
     # unresolved-place task or another live domain (cinema, shopping, events) outranks it.
+    # The business Sabi is talking about now outranks an older open order with another one.
+    focused=await restaurant_by_mention(db,active.entity) if active and active.domain=='restaurant' and active.entity else None
+    if focused and (not restaurant or focused.id!=restaurant.id):
+        return focused, body
     if restaurant:
         if active and active.domain=='place':return None,body
         if not active or active.domain in ('restaurant','general'):
