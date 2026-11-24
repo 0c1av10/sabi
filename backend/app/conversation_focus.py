@@ -213,8 +213,9 @@ async def _forget_delivery_address(db,phone,restaurant,city,previous=''):
         if not isinstance(draft,dict) or not (draft.get('address') or draft.get('delivery_zone')):continue
         # The address's own city decides; one that names none is only voided by a real city change.
         from .venezuela import cities_in,plain
-        named={plain(c.name) for c in cities_in(f"{draft.get('address') or ''} {draft.get('delivery_zone') or ''}")}
-        moved=plain(city) not in named if named else bool(previous) and plain(previous)!=plain(city)
+        # The last city an address names is where it is ("Av. Barcelona, Lechería" is in Lechería).
+        named=cities_in(draft.get('address') or '') or cities_in(draft.get('delivery_zone') or '')
+        moved=plain(city)!=plain(named[-1].name) if named else bool(previous) and plain(previous)!=plain(city)
         if not moved:continue
         draft['address']='';draft['delivery_zone']=''
         if state.get('stage') in ('confirming','payment'):state['stage']='chat'
