@@ -60,7 +60,8 @@ async def restaurant_by_mention(db: AsyncSession, body: str) -> Restaurant | Non
     if not words:
         return None
     best: list[tuple[int, Restaurant]] = []
-    for r in (await db.execute(select(Restaurant))).scalars().all():
+    from .visibility import public_condition
+    for r in (await db.execute(select(Restaurant).where(public_condition()))).scalars().all():
         for candidate in (_norm(r.name), _norm(r.slug)):
             core = [w for w in candidate if w not in _GENERIC]
             if core and (all(w in words for w in core) or (len(core) > 1 and "".join(core) in words)):
@@ -142,8 +143,10 @@ async def restaurants_by_product(db: AsyncSession, body: str) -> list[Restaurant
     if not wanted:
         return []
     best: dict[int, tuple[int, Restaurant]] = {}
+    from .visibility import public_condition
     rows = (await db.execute(select(MenuItem, Restaurant).join(
-        Restaurant, MenuItem.restaurant_id == Restaurant.id).where(MenuItem.available.is_(True)))).all()
+        Restaurant, MenuItem.restaurant_id == Restaurant.id).where(
+        MenuItem.available.is_(True), public_condition()))).all()
     for item, rest in rows:
         category = {_stem(w) for w in _norm(item.category or "") if len(w) >= 4 and w not in _PRODUCT_STOP}
         name_words = [_stem(w) for w in _norm(item.name or "") if len(w) >= 4 and w not in _PRODUCT_STOP]
@@ -175,7 +178,8 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
         restaurant = (await db.execute(
             select(Restaurant).where(Restaurant.slug == match.group(1))
         )).scalar_one_or_none()
-        if restaurant:
+        from .visibility import is_hidden
+        if restaurant and not is_hidden(restaurant):
             return restaurant, re.sub(r"\s*\[sabi:[a-z0-9-]+\]\s*", " ", body, flags=re.I).strip()
 
     named=named_business_query(body)

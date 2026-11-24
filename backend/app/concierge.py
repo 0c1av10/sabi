@@ -155,7 +155,8 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "", phone
         local=await venezuela.local_options(db,city,phone)
         if local:return local
         return f'Buscas comida en {city}. No tengo un filtro geográfico verificado para recomendarte locales allí. ¿Tienes un local o enlace oficial que quieras revisar?'
-    rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
+    from .visibility import public_condition
+    rows = (await db.execute(select(Restaurant).where(public_condition())
                              .order_by(Restaurant.id))).scalars().all()
     if not rows:
         requested,unknown=cuisine_request(body)

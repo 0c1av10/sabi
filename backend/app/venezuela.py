@@ -224,7 +224,8 @@ async def covering(db, city: str) -> list[tuple]:
     target = find_city(city)
     if not target:
         return []
-    rows = (await db.execute(select(Restaurant).where(~Restaurant.name.ilike("prueba%"))
+    from .visibility import public_condition
+    rows = (await db.execute(select(Restaurant).where(public_condition())
                              .order_by(Restaurant.id))).scalars().all()
     out = []
     for r in rows:
