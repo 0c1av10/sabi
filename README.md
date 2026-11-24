@@ -69,6 +69,8 @@ cliente queda registrada en el log de WhatsApp y en la conversación.
 
 El endpoint `POST /webhook/simulate` (`{"phone","text","name"}`) corre el mismo
 pipeline que el webhook real, para probar conversaciones desde curl o el panel.
+En producción (Vercel o `WHATSAPP_MOCK_MODE=false`) responde 403 salvo que la petición traiga
+el header `X-Simulate-Secret` igual a `SIMULATE_SECRET`; sin ese secreto configurado queda apagado.
 
 ## WhatsApp Cloud API (producción)
 

@@ -1,10 +1,11 @@
 import hashlib
 import hmac
 import json
+import os
 import re
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -508,8 +509,20 @@ async def receive_kapso(request: Request, db: AsyncSession = Depends(get_db)):
 
 
 # Local simulator: same pipeline without Meta's payload envelope.
+def _simulate_allowed(request: Request) -> bool:
+    """The simulator speaks as any phone, so it can change or submit that customer's open order.
+    In production (Vercel or real WhatsApp sends) only a caller with the secret may use it."""
+    secret = settings.simulate_secret
+    sent = request.headers.get("x-simulate-secret", "")
+    if secret:
+        return hmac.compare_digest(sent, secret)
+    return settings.whatsapp_mock_mode and not os.environ.get("VERCEL")
+
+
 @router.post("/webhook/simulate")
-async def simulate_message(body_in: dict, db: AsyncSession = Depends(get_db)):
+async def simulate_message(body_in: dict, request: Request, db: AsyncSession = Depends(get_db)):
+    if not _simulate_allowed(request):
+        raise HTTPException(403, "No autorizado")
     if await recent_inbound_count(db) >= settings.simulate_limit_hour:
         return {"reply": "La demo recibió muchos mensajes en la última hora. Prueba de nuevo más tarde."}
     phone = body_in.get("phone", "59912345678")
