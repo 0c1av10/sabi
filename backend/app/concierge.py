@@ -186,13 +186,21 @@ async def recommendations(db: AsyncSession, pick: int = 2, body: str = "", phone
 
 
 GREETING = re.compile(
-    r"^\W*(?:hola+|holi+|buenas|buen\s?dia|buenos\s?dias|buenas\s?(?:tardes|noches)|hey|hi|saludos|inicio|"
+    r"^\W*(?:hola+|holi+|olis+|ola|hello|hey+|hi|"
+    r"buenas(?:\s+buenas)?|buen\s?dia|buenos\s?dias|buenas\s?(?:tardes|noches)|saludos?|inicio|"
+    # Venezuelan openers: "habla", "habla sabi", "epa", "épale", "aló", "oye", "qué tal". A bare
+    # "sabi" greets too.
+    r"habla|epa|epale|alo+|oye|oe|que\s+tal|que\s+hay|sabi|"
     r"menu|opciones|ayuda|que\s+(?:tienes|tienen|hay|ofreces|ofrecen)|en\s+que\s+me\s+ayudas)"
-    r"(?:\s+(?:sabi|a\s+todos|amigo|amiga))?\W*$")
+    r"(?:[\s,]+(?:sabi|a\s+todos|amigo|amiga|hermano|hermana|chamo|chama))?"
+    # Greeting-only small talk ("hola, ¿cómo estás?") still restarts; a request after the greeting
+    # ("habla sabi, quiero pizza") is not a bare greeting and keeps the normal routes.
+    r"(?:[\s,]+[¿¡]?\s*(?:como\s+estas?|que\s+tal|como\s+te\s+va|todo\s+bien|como\s+va))?\W*$")
 
 
 def is_greeting(body: str) -> bool:
-    """A bare "hola" / "buenas" / "menú": it restarts the conversation with Sabi's options."""
+    """A bare "hola" / "habla sabi" / "buenas" / "menú": it restarts the conversation with
+    Sabi's options, so it never continues an old order inside an open conversation."""
     return bool(GREETING.match(_plain(body).strip()))
 
 
@@ -202,7 +210,7 @@ async def _hello(db: AsyncSession, name: str, returning: bool) -> str:
     reliable=memory.extract_name("Me llamo "+name) if name else ""
     who = f", {reliable}" if reliable else ""
     if returning:
-        return f"Hola de nuevo{who}. ¿Cómo te puedo ayudar hoy? ¿Quieres comer o se te antoja ir al cine?"
+        return f"Hola de nuevo{who}. ¿Qué te provoca hoy: comer algo, salir o tienes otro plan?"
     return f"¡Hola{who}! 👋 Soy Sabi. ¿En qué te echo una mano hoy?"
 
 
@@ -210,7 +218,7 @@ async def reply(db: AsyncSession, body: str, phone: str = "") -> tuple[str, bool
     """(text, is_plain_welcome). The welcome is rate-limited by the caller; recommendations are not."""
     if _plain(body).strip(' ¡!¿?.,')=='sabi':return 'Aquí estoy. ¿En qué te ayudo?',False
     contact = await memory.get(db, phone) if phone else None
-    candidate=memory.display_name(contact.name if contact else None)
+    candidate=await memory.usable_name(db, contact.name if contact else None)
     name=memory.extract_name("Me llamo "+candidate) if candidate else ""
     said = memory.extract_name(body)
     if said and len(body.split()) <= 6:
