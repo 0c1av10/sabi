@@ -203,9 +203,11 @@ async def restaurant_for_message(db: AsyncSession, phone: str, body: str) -> tup
     # never fall back to the welcome while an order is still open. Only an active
     # unresolved-place task or another live domain (cinema, shopping, events) outranks it.
     # The business Sabi is talking about now outranks an older open order with another one.
-    focused=await restaurant_by_mention(db,active.entity) if active and active.domain=='restaurant' and active.entity else None
-    if focused and (not restaurant or focused.id!=restaurant.id):
-        return focused, body
+    # A product only the open order's business sells still goes to that order.
+    focused=await restaurant_by_mention(db,active.entity) if restaurant and active and active.domain=='restaurant' and active.entity else None
+    if focused and focused.id!=restaurant.id:
+        sellers=await restaurants_by_product(db,body)
+        return (restaurant if len(sellers)==1 and sellers[0].id==restaurant.id else focused), body
     if restaurant:
         if active and active.domain=='place':return None,body
         if not active or active.domain in ('restaurant','general'):
