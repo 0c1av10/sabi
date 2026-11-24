@@ -200,7 +200,7 @@ async def fee_reply(db,phone,body):
     return '\n'.join(lines)
 
 
-async def _forget_delivery_address(db,phone,restaurant):
+async def _forget_delivery_address(db,phone,restaurant,city,previous=''):
     """A new city voids the address already given for an open order with this business:
     it must be asked again, never submitted with the old one."""
     import json
@@ -210,10 +210,15 @@ async def _forget_delivery_address(db,phone,restaurant):
     for conv in convs:
         state=json.loads(conv.state_json or '{}')
         draft=state.get('draft')
-        if isinstance(draft,dict) and (draft.get('address') or draft.get('delivery_zone')):
-            draft['address']='';draft['delivery_zone']=''
-            if state.get('stage') in ('confirming','payment'):state['stage']='chat'
-            conv.state_json=json.dumps(state,ensure_ascii=False)
+        if not isinstance(draft,dict) or not (draft.get('address') or draft.get('delivery_zone')):continue
+        # The address's own city decides; one that names none is only voided by a real city change.
+        from .venezuela import cities_in,plain
+        named={plain(c.name) for c in cities_in(f"{draft.get('address') or ''} {draft.get('delivery_zone') or ''}")}
+        moved=plain(city) not in named if named else bool(previous) and plain(previous)!=plain(city)
+        if not moved:continue
+        draft['address']='';draft['delivery_zone']=''
+        if state.get('stage') in ('confirming','payment'):state['stage']='chat'
+        conv.state_json=json.dumps(state,ensure_ascii=False)
 
 
 async def city_reply(db,phone,body):
@@ -234,8 +239,7 @@ async def city_reply(db,phone,body):
             # delivers there, and with no zones at all the local confirms it with the order.
             from .delivery import zones_of
             from .venezuela import covers, where_reply
-            # Only a real change voids the address: a first stated city may just confirm it.
-            if active.city:await _forget_delivery_address(db,phone,known)
+            await _forget_delivery_address(db,phone,known,city,active.city)
             if await covers(db,known,city):
                 await save(db,phone,domain='restaurant',entity=known.name,city=city)
                 return f'Listo, seguimos con {known.name} en {city}. ¿Qué te provoca?'
