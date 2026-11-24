@@ -199,13 +199,7 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     unresolved=await _unresolved_place_reply(db,phone,body)
     if unresolved:return None,body,unresolved
     active=await focus.get(db,phone)
-    # A focus naming a catalog business ("Bizza también queda") is not an unknown place:
-    # its follow-ups go to that business instead of looping on "¿Tienes un enlace oficial?".
     known=await restaurant_by_mention(db,active.entity) if active and active.domain=='place' and active.entity else None
-    if known and not await restaurant_by_mention(db,body):
-        await focus.save(db,phone,domain='restaurant',entity=known.name,
-                         city=active.city if active.city and await venezuela.covers(db,known,active.city) else '')
-        return known,body,None
     if active and active.domain=='place' and active.city and not known:
         mentioned=await restaurant_by_mention(db,body)
         if not mentioned or concierge._plain(mentioned.name)==concierge._plain(active.entity):
@@ -220,6 +214,12 @@ async def _resolve(db: AsyncSession, phone: str, body: str):
     if concierge.wants_full_catalog(body) and not await restaurant_by_mention(db,body):
         text,_=await concierge.reply(db,body,phone)
         return None,body,text
+    # A focus naming a catalog business ("Bizza también queda") is not an unknown place:
+    # its follow-ups go to that business instead of looping on "¿Tienes un enlace oficial?".
+    if known and not await restaurant_by_mention(db,body):
+        await focus.save(db,phone,domain='restaurant',entity=known.name,
+                         city=active.city if active.city and await venezuela.covers(db,known,active.city) else '')
+        return known,body,None
     picked,picked_body,again=await _switch_answer(db,phone,body)
     if again:return None,body,again
     restaurant, routed_body = (picked,picked_body) if picked else await restaurant_for_message(db, phone, body)

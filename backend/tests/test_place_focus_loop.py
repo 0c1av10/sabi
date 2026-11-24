@@ -56,3 +56,44 @@ async def test_city_change_with_catalog_business_states_its_coverage(Session):
         await focus.save(db, '111', domain='restaurant', entity='Bizza', city='Lechería')
         text = await webhook._events_route(db, '111', 'Mejor en Cumaná')
         assert 'confirma si llega a Cumaná' in text and LOOP not in text
+
+
+async def _open_order(db, restaurant, state):
+    import json
+    from app.models import Customer, Conversation
+    c = Customer(restaurant_id=restaurant.id, phone='111'); db.add(c); await db.flush()
+    conv = Conversation(restaurant_id=restaurant.id, customer_id=c.id, state_json=json.dumps(state))
+    db.add(conv); await db.commit()
+    return conv
+
+
+async def test_city_change_drops_the_old_address_of_an_open_order(Session):
+    import json
+    async with Session() as db:
+        n, _ = await _seed(db)
+        conv = await _open_order(db, n, {'stage': 'payment', 'draft': {
+            'items': [{'name': 'Cachapa', 'quantity': 1}], 'order_type': 'delivery',
+            'address': 'Av. Principal, Lechería', 'delivery_zone': 'Lechería'}})
+        await focus.save(db, '111', domain='restaurant', entity='NACIONAL Restaurante', city='Lechería')
+        text = await webhook._events_route(db, '111', 'Mejor en Barcelona')
+        assert 'Barcelona' in text
+        await db.refresh(conv)
+        state = json.loads(conv.state_json)
+        assert state['stage'] == 'chat' and not state['draft']['address'] and state['draft']['items']
+
+
+async def test_menu_after_naming_another_business_is_from_that_business(Session):
+    async with Session() as db:
+        n, b = await _seed(db)
+        await _open_order(db, b, {})
+        await webhook._resolve(db, '111', 'NACIONAL Restaurante en Cumaná')
+        restaurant, _, _ = await webhook._resolve(db, '111', 'Muéstrame el menú')
+        assert restaurant and restaurant.id == n.id
+
+
+async def test_full_catalog_ask_is_not_sent_to_the_focused_business(Session):
+    async with Session() as db:
+        await _seed(db)
+        await focus.save(db, '111', domain='place', entity='Bizza también queda', city='lechería')
+        restaurant, _, reply = await webhook._resolve(db, '111', 'Dame todos los restaurantes que tengas')
+        assert restaurant is None and reply and 'NACIONAL' in reply
