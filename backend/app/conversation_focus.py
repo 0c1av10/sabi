@@ -234,7 +234,8 @@ async def city_reply(db,phone,body):
             # delivers there, and with no zones at all the local confirms it with the order.
             from .delivery import zones_of
             from .venezuela import covers, where_reply
-            await _forget_delivery_address(db,phone,known)
+            # Only a real change voids the address: a first stated city may just confirm it.
+            if active.city:await _forget_delivery_address(db,phone,known)
             if await covers(db,known,city):
                 await save(db,phone,domain='restaurant',entity=known.name,city=city)
                 return f'Listo, seguimos con {known.name} en {city}. ¿Qué te provoca?'
