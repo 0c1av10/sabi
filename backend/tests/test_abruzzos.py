@@ -105,10 +105,15 @@ def test_bizza_customer_menu_keeps_compact_lines_under_whatsapp_limit():
              for n, p, c, d in BIZZA_MENU]
     r = Restaurant(name="Bizza", exchange_rate=875.65, eur_rate=980.61)
     result = agent.run_mock_agent(r, items, Conversation(state_json="{}"), "menú", [])
-    expected = "Este es nuestro menú:\n" + "\n".join(
+    expected = "\n".join(
         f"- {i.name} ({i.category}): {agent.fmt_money(i.price, 875.65, 980.61)}" for i in items)
-    assert result.reply == expected
+    assert agent.menu_text(items, (875.65, 980.61)) == expected
+    assert "Tenemos 74 platos" in result.reply and "Pizzas" in result.reply
     assert len(result.reply) <= 4096
+    category_reply = agent.run_mock_agent(r, items, Conversation(state_json="{}"), "Entradas", []).reply
+    assert category_reply == "Entradas:\n" + "\n".join(
+        line for line, item in zip(expected.splitlines(), items) if item.category == "Entradas")
+    assert len(category_reply) <= 4096
 
 
 @pytest.mark.asyncio

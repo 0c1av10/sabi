@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from . import delivery
 from .bcv import refresh_rates
 from .config import settings
 from .agent import delivery_fee_for, fmt_money, rates_of, run_agent, summarize_order
@@ -188,8 +189,13 @@ async def approve_order(db: AsyncSession, restaurant: Restaurant, order: Order,
     items = ", ".join(f"{i.quantity}x {i.name}" for i in order.items)
     extra = f" (con ajustes: {order.edit_summary})" if edited and order.edit_summary else ""
     phone = await get_customer_phone(db, order)
+    pending = (order.order_type == "delivery" and restaurant.delivery_fee is None
+               and not delivery.zones_of(restaurant))
+    total_line = (f"Subtotal (sin delivery): {fmt_money(order.total, *rates_of(restaurant))}\n"
+                  "Delivery: costo por confirmar con el restaurante" if pending
+                  else f"Total: {fmt_money(order.total, *rates_of(restaurant))}")
     msg = (f"✅ Tu orden fue confirmada por {restaurant.name}.{extra}\n"
-           f"{items}\nTotal: {fmt_money(order.total, *rates_of(restaurant))}\n¡Gracias!")
+           f"{items}\n{total_line}\n¡Gracias!")
     db.add(Message(conversation_id=order.conversation_id, direction="outbound", body=msg))
     if phone:
         await send_whatsapp_message(phone, msg)

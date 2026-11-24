@@ -55,12 +55,13 @@ async def test_cuisine_matches_menu_without_closed_catalog(Session):
         db.add(MenuItem(restaurant_id=rows[1].id,name='Margherita',category='Pizzas',price=12,available=True))
         db.add(MenuItem(restaurant_id=rows[0].id,name='Pollo asado',category='Criollo',price=10,available=True))
         db.add(MenuItem(restaurant_id=rows[4].id,name='Pastelito de Pizza',category='Pastelitos',price=2,available=True))
+        db.add(MenuItem(restaurant_id=rows[3].id,name='PIZZA DE SUSHI SALMÓN',category='Maki Sushi',price=14,available=True))
         await db.commit()
         text=await concierge.recommendations(db,pick=20)
         # La Esquina is a hidden demo business (docs/VISIBLE_RESTAURANTS.md): stored, not listed.
         assert all(n in text for n in ['NACIONAL','Bizza','Oura','Beijing']) and 'La Esquina' not in text
         text=await concierge.recommendations(db,body='Me interesa comida italiana')
-        assert 'Bizza' in text and 'NACIONAL' not in text and 'La Esquina' not in text and 'pollo' not in text.lower()
+        assert 'Bizza' in text and 'NACIONAL' not in text and 'Beijing' not in text and 'La Esquina' not in text and 'pollo' not in text.lower()
         assert await db.scalar(select(func.count()).select_from(Restaurant))==5
 
 @pytest.mark.asyncio

@@ -40,6 +40,9 @@ def fmt_money(usd: float, rate: float, _eur_rate: float) -> str:
     return f"${_num(usd)} · Bs {_num(bs)}"
 
 
+MAX_MENU_REPLY = 3500  # WhatsApp text messages cap at 4096 characters.
+
+
 def menu_text(items: list[MenuItem], rates: tuple[float, float], details: bool = False) -> str:
     lines = []
     for it in items:
@@ -61,7 +64,7 @@ def delivery_fee_for(restaurant: Restaurant, order: dict) -> float:
 
 
 def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float],
-                    delivery_fee: float = 0.0) -> tuple[str, float]:
+                    delivery_fee: float = 0.0, delivery_pending: bool = False) -> tuple[str, float]:
     total = 0.0
     lines = []
     for oi in order.get("items", []):
@@ -80,7 +83,11 @@ def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tupl
     if delivery_fee and order.get("order_type") == "delivery":
         total += delivery_fee
         fee_line = f"\n• Delivery{zone} — {fmt_money(delivery_fee, *rates)}"
-    return "\n".join(lines) + fee_line + f"\n{tipo}{notes}\nTotal: {fmt_money(total, *rates)}", total
+    pending = delivery_pending and order.get("order_type") == "delivery"
+    if pending:
+        fee_line = "\n• Delivery — costo por confirmar con el restaurante (no incluido)"
+    label = "Subtotal (sin delivery)" if pending else "Total"
+    return "\n".join(lines) + fee_line + f"\n{tipo}{notes}\n{label}: {fmt_money(total, *rates)}", total
 
 
 def clean_order(order: dict | None, available: dict[str, MenuItem]) -> tuple[dict | None, list[str]]:
@@ -131,6 +138,7 @@ Reglas:
 - Mantén los precios compactos en una sola línea: "$X · Bs Y".
 - Si no sabes algo, di qué dato falta. Nunca ofrezcas ni afirmes pasar la conversación al dueño: no hay un canal humano verificado. No uses action=handoff.
 - Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
+- Si el costo de delivery no está definido, di que lo confirma el restaurante; nunca lo presentes como cero o gratis. El importe de los platos es un subtotal sin delivery, no el total final.
 - Nunca confirmes un pedido por tu cuenta: el dueño lo aprueba. No afirmes que se envió o recibió ni prometas una aprobación o un plazo. Elegir método de pago no prueba pago. Una referencia es una declaración no verificada.
 - Cuando el pedido esté completo (ítems, cantidades, tipo delivery/retiro, dirección si delivery), repite el resumen y pide validación: action=ask_confirm.
 - Si el cliente valida el resumen (sí, ok, confirmo), action=submit_order.
@@ -354,7 +362,8 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
             else:
                 reply = "Tu solicitud está pendiente de registro. Aún no hay confirmación del restaurante ni del pago."
         else:
-            summary, _ = summarize_order(order, available, rates, delivery_fee_for(restaurant, order))
+            summary, _ = summarize_order(order, available, rates, delivery_fee_for(restaurant, order),
+                                         restaurant.delivery_fee is None and not delivery.zones_of(restaurant))
             reply = f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante."
 
     new_state = {**state, "draft": order}
@@ -411,19 +420,22 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
 
     def matched_items() -> list[dict]:
         found = []
-        for name, mi in items_by_name.items():
-            if name in text:
+        remaining = text
+        for name, mi in sorted(items_by_name.items(), key=lambda kv: -len(kv[0])):
+            if name in remaining:
+                scope, remaining = remaining, remaining.replace(name, " | ")
                 qty = 1
-                m = re.search(r"(\d+)\s*(?:x|de)?\s*" + re.escape(name), text)
+                m = re.search(r"(\d+)\s*(?:x|de)?\s*" + re.escape(name), scope)
                 if m:
                     qty = int(m.group(1))
                 else:
                     for w, n in _NUM.items():
-                        if re.search(rf"\b{w}\b\s+(?:de\s+)?{re.escape(name)}", text):
+                        if re.search(rf"\b{w}\b\s+(?:de\s+)?{re.escape(name)}", scope):
                             qty = n
                             break
                 found.append({"name": mi.name, "quantity": qty, "extras": "", "notes": ""})
-        return found
+        order = list(items_by_name)
+        return sorted(found, key=lambda f: order.index(f["name"].lower()))
 
     # stage: awaiting confirmation of the draft
     if state.get("stage") == "confirming":
@@ -460,9 +472,19 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     if re.search(r"\b(hola|buenas|buenos d[ií]as|buenas tardes|buenas noches)\b", text) and not draft["items"]:
         return AgentResult(reply=restaurant.welcome_message, state={**state, "draft": draft})
 
+    asked_category = next((c for c in sorted({i.category for i in available if i.category}, key=len, reverse=True)
+                           if c.lower() in text), None)
+    if asked_category and not draft["items"] and not any(n in text for n in items_by_name):
+        listing = menu_text([i for i in available if i.category == asked_category], rates)
+        return AgentResult(reply=f"{asked_category}:\n{listing[:MAX_MENU_REPLY]}", state={**state, "draft": draft})
+
     if re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
-        return AgentResult(reply="Este es nuestro menú:\n" + menu_text(available, rates_of(restaurant)),
-                           state={**state, "draft": draft})
+        menu = menu_text(available, rates_of(restaurant))
+        if len(menu) > MAX_MENU_REPLY:
+            categories = ", ".join(dict.fromkeys(i.category for i in available if i.category))
+            menu = (f"Tenemos {len(available)} platos en estas categorías: {categories}. "
+                    "Dime qué categoría o plato te interesa y te paso los precios.")
+        return AgentResult(reply="Este es nuestro menú:\n" + menu, state={**state, "draft": draft})
 
     if re.search(r"\b(horarios?|abierto|atienden|abren|cierran)\b", text):
         return AgentResult(reply=f"Nuestro horario es: {restaurant.opening_hours}",
@@ -563,7 +585,8 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
             return AgentResult(reply=f"Anoté: {got}.{upsell} ¿O lo dejamos así?",
                                state={**state, "draft": draft})
         summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, rates_of(restaurant),
-                                     delivery_fee_for(restaurant, draft))
+                                     delivery_fee_for(restaurant, draft),
+                                     restaurant.delivery_fee is None and not delivery.zones_of(restaurant))
         return AgentResult(
             reply=f"Este es tu pedido:\n{summary}\n\n¿Está correcto? Responde 'sí' para enviarlo al restaurante.",
             action="ask_confirm", order=draft, state={**state, "stage": "confirming", "draft": draft})
