@@ -110,12 +110,15 @@ async def test_hola_is_short_and_food_intent_lists_businesses(Session, client, m
 
 
 @pytest.mark.asyncio
-async def test_product_routing_pizza_needs_choice_pastelitos_to_mc(Session, monkeypatch):
-    from app.auth import restaurant_for_message
+async def test_product_routing_shared_pizza_stays_ambiguous_and_pastelitos_go_to_mc(Session, monkeypatch):
+    from app.auth import restaurant_for_message, restaurants_by_product
     await _seed(Session, monkeypatch)
     async with Session() as s:
+        assert {r.slug for r in await restaurants_by_product(s, "quiero pizza")} == {"abruzzos", "bizza", "oura"}
         r, _ = await restaurant_for_message(s, "584140000002", "quiero pizza")
-        assert r is None  # Both Bizza and Abruzzo's sell pizza.
+        assert r is None
+        r, _ = await restaurant_for_message(s, "584140000002", "quiero pizza en Bizza")
+        assert r and r.slug == "bizza"
         r, _ = await restaurant_for_message(s, "584140000002", "quiero unos pastelitos")
         assert r and r.slug == "mc-racuchos"
         r, _ = await restaurant_for_message(s, "584140000002", "quiero pedir en mcracuchos")

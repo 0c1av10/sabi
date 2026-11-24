@@ -1,4 +1,4 @@
-"""Delivery pricing by zone (USD, like menu prices).
+"""Delivery pricing by zone in the restaurant's currency.
 
 A restaurant stores `delivery_zones` as JSON text: [{"name": "Lechería", "fee": 2.0}, ...].
 With zones, a delivery order must pick one and pays that zone's fee. Without zones the flat
@@ -115,7 +115,7 @@ def _where(name: str) -> str:
 
 
 def describe(restaurant, fmt) -> str:
-    """Text for the agent's context. `fmt(usd)` renders a price."""
+    """Text for the agent's context, with prices rendered by `fmt`."""
     zones = zones_of(restaurant)
     if zones:
         listing = "; ".join(f"{_where(z['name'])}: " + ("gratis" if z["fee"] == 0 else fmt(z["fee"])) for z in zones)

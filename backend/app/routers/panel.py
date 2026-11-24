@@ -64,16 +64,17 @@ async def update_settings(data: RestaurantSettingsIn,
         v = getattr(data, f)
         if v is not None:
             setattr(restaurant, f, v)
+    unit = "euros" if restaurant.currency == "EUR" else "dólares"
     if data.delivery_zones is not None:
         zones = delivery.clean_zones([z.model_dump() for z in data.delivery_zones])
         if len(zones) != len(data.delivery_zones):
-            raise HTTPException(422, "Revisa las zonas: nombre sin repetir y costo entre 0 y 99 dólares")
+            raise HTTPException(422, f"Revisa las zonas: nombre sin repetir y costo entre 0 y 99 {unit}")
         restaurant.delivery_zones = delivery.dump_zones(zones) if zones else ""
     if data.clear_delivery_fee:
         restaurant.delivery_fee = None
     elif data.delivery_fee is not None:
         if not (0 <= data.delivery_fee <= 99):
-            raise HTTPException(422, "El costo de delivery debe estar entre 0 y 99 dólares")
+            raise HTTPException(422, f"El costo de delivery debe estar entre 0 y 99 {unit}")
         restaurant.delivery_fee = round(data.delivery_fee, 2)
     if restaurant.bcv_auto:
         await refresh_rates(restaurant, force=True)

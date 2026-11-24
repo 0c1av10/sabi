@@ -31,19 +31,21 @@ def _num(value: float) -> str:
     return f"{value:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
 
 
-def rates_of(restaurant: Restaurant) -> tuple[float, float]:
-    return restaurant.exchange_rate, restaurant.eur_rate
+def rates_of(restaurant: Restaurant) -> tuple[float, float, str]:
+    return restaurant.exchange_rate, restaurant.eur_rate, restaurant.currency
 
 
-def fmt_money(usd: float, rate: float, _eur_rate: float) -> str:
-    bs = usd * rate
-    return f"${_num(usd)} · Bs {_num(bs)}"
+def fmt_money(amount: float, rate: float, _eur_rate: float, currency: str = "USD") -> str:
+    if currency == "EUR":
+        return f"€{_num(amount)}"
+    return f"${_num(amount)} · Bs {_num(amount * rate)}"
 
 
 MAX_MENU_REPLY = 3500  # WhatsApp text messages cap at 4096 characters.
 
 
-def menu_text(items: list[MenuItem], rates: tuple[float, float], details: bool = False) -> str:
+def menu_text(items: list[MenuItem], rates: tuple[float, float] | tuple[float, float, str],
+              details: bool = False) -> str:
     lines = []
     for it in items:
         if it.available:
@@ -55,7 +57,7 @@ def menu_text(items: list[MenuItem], rates: tuple[float, float], details: bool =
     return "\n".join(lines)
 
 
-def delivery_context(restaurant: Restaurant, rates: tuple[float, float]) -> str:
+def delivery_context(restaurant: Restaurant, rates: tuple[float, float] | tuple[float, float, str]) -> str:
     return delivery.describe(restaurant, lambda v: fmt_money(v, *rates))
 
 
@@ -63,7 +65,7 @@ def delivery_fee_for(restaurant: Restaurant, order: dict) -> float:
     return delivery.fee_for(restaurant, order.get("order_type"), order.get("delivery_zone") or "")
 
 
-def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float],
+def summarize_order(order: dict, items_by_name: dict[str, MenuItem], rates: tuple[float, float] | tuple[float, float, str],
                     delivery_fee: float = 0.0, delivery_pending: bool = False) -> tuple[str, float]:
     total = 0.0
     lines = []
@@ -134,8 +136,7 @@ Reglas:
 - Nunca presiones, ni inventes promociones o descuentos.
 - Solo vendes ítems del menú provisto. Nunca inventes productos ni precios.
 - Lo que trae cada ítem está en su descripción del menú: si preguntan por algo (un refresco, un acompañante) que no se vende solo pero viene en un combo, di qué combo lo incluye. No afirmes que un ítem trae algo que su descripción no dice.
-- Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
-- Mantén los precios compactos en una sola línea: "$X · Bs Y".
+{price_rules}
 - Si no sabes algo, di qué dato falta. Nunca ofrezcas ni afirmes pasar la conversación al dueño: no hay un canal humano verificado. No uses action=handoff.
 - Si el pedido es delivery, pregunta la zona cuando hay zonas, e informa el costo de delivery del contexto antes de pedir la confirmación. Nunca inventes montos ni zonas distintas a las del contexto.
 - Si el costo de delivery no está definido, di que lo confirma el restaurante; nunca lo presentes como cero o gratis. El importe de los platos es un subtotal sin delivery, no el total final.
@@ -149,6 +150,10 @@ Reglas:
 - Si pide una fecha u hora de entrega («pídelo mañana a las 9 am»), guárdala textual en order.notes y confírmala en tu resumen.
 - Responde siempre usando la herramienta "responder".
 """
+
+USD_PRICE_RULES = """- Los precios se expresan solo en dólares y bolívares a las tasas del día. Nunca muestres euros en WhatsApp.
+- Mantén los precios compactos en una sola línea: "$X · Bs Y"."""
+EUR_PRICE_RULES = "- Expresa los precios en euros tal como aparecen en el contexto: €X. No los conviertas a dólares ni bolívares."
 
 RESPONDER_TOOL = {
     "name": "responder",
@@ -198,7 +203,7 @@ _MENU_MAX_CHARS = 4000
 
 
 def menu_reply(restaurant: Restaurant, items: list[MenuItem]) -> str:
-    """The whole menu by category, for a customer who asked to see it. Dollar prices only, so a
+    """The whole menu by category, for a customer who asked to see it. Native prices only, so a
     long menu still fits in one WhatsApp message."""
     groups: dict[str, list[MenuItem]] = {}
     for it in items:
@@ -206,7 +211,8 @@ def menu_reply(restaurant: Restaurant, items: list[MenuItem]) -> str:
             groups.setdefault(it.category or "Otros", []).append(it)
     if not groups:
         return f"Ahorita no tengo platos disponibles registrados de {restaurant.name}."
-    body = "\n\n".join(f"*{cat}*\n" + "\n".join(f"• {i.name} — ${_num(i.price)}" for i in its)
+    symbol = "€" if restaurant.currency == "EUR" else "$"
+    body = "\n\n".join(f"*{cat}*\n" + "\n".join(f"• {i.name} — {symbol}{_num(i.price)}" for i in its)
                        for cat, its in groups.items())
     link = f"{settings.frontend_base_url.rstrip('/')}/tienda/{restaurant.slug}" if restaurant.slug else ""
     link_line = f"También lo puedes ver con fotos aquí: {link}\n\n" if link else ""
@@ -301,7 +307,8 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
         resp = await client.messages.create(
             model=settings.anthropic_model,
             max_tokens=2000,
-            system=SYSTEM_PROMPT + context,
+            system=SYSTEM_PROMPT.format(price_rules=EUR_PRICE_RULES if restaurant.currency == "EUR" else USD_PRICE_RULES)
+            + context,
             messages=_llm_messages(history, incoming),
             tools=[RESPONDER_TOOL],
             tool_choice={"type": "auto"},
@@ -417,25 +424,59 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     items_by_name = {i.name.lower(): i for i in items if i.available}
     available = [i for i in items if i.available]
     rates = rates_of(restaurant)
+    zones = delivery.zones_of(restaurant)
 
     def matched_items() -> list[dict]:
-        found = []
-        remaining = text
-        for name, mi in sorted(items_by_name.items(), key=lambda kv: -len(kv[0])):
-            if name in remaining:
-                scope, remaining = remaining, remaining.replace(name, " | ")
-                qty = 1
-                m = re.search(r"(\d+)\s*(?:x|de)?\s*" + re.escape(name), scope)
-                if m:
-                    qty = int(m.group(1))
-                else:
-                    for w, n in _NUM.items():
-                        if re.search(rf"\b{w}\b\s+(?:de\s+)?{re.escape(name)}", scope):
-                            qty = n
-                            break
-                found.append({"name": mi.name, "quantity": qty, "extras": "", "notes": ""})
-        order = list(items_by_name)
-        return sorted(found, key=lambda f: order.index(f["name"].lower()))
+        words = "|".join(_NUM)
+        quantity = rf"(?:(?P<number>\d+)\s*(?:x|de)?\s*|(?P<word>{words})\s+(?:de\s+)?)?"
+        matches = []
+        for name, item in items_by_name.items():
+            plural = r"(?:es|s)?" if name[-1:].isalpha() else ""
+            pattern = rf"(?<!\w){quantity}(?P<item>{re.escape(name)}{plural})(?!\w)"
+            for match in re.finditer(pattern, text):
+                qty = int(match["number"]) if match["number"] else _NUM.get(match["word"], 1)
+                matches.append((*match.span("item"), item.name, qty))
+
+        selected: list[tuple[int, int, str, int]] = []
+        for start, end, name, qty in sorted(matches, key=lambda hit: (-len(hit[2]), hit[0])):
+            if not any(start < stop and end > begin for begin, stop, _, _ in selected):
+                selected.append((start, end, name, qty))
+
+        quantities: dict[str, int] = {}
+        for _, _, name, qty in sorted(selected):
+            quantities[name] = quantities.get(name, 0) + qty
+        return [{"name": name, "quantity": qty, "extras": "", "notes": ""} for name, qty in quantities.items()]
+
+    asks_delivery_fee = (
+        bool(zones) and re.search(r"\b(?:delivery|domicilio|env[ií]o)\b", text) is not None
+        and re.search(r"\b(?:cu[aá]nto|cuesta|costo|precio|tarifa)\b", text) is not None
+    )
+    requested = None
+    if asks_delivery_fee:
+        order_intent = re.search(
+            r"(?<!\bno )\b(?:(?:quiero|quisiera)(?!\s+(?:saber|conocer|consultar|preguntar)\b)|"
+            r"dame|p[ií]de|p[ií]deme|agrega|agr[eé]game|a[nñ]ade|a[nñ][aá]deme|"
+            r"m[aá]ndame|env[ií]ame|ponme|anota|an[oó]tame|tr[aá]eme)\b", text,
+        )
+        requested = matched_items() if order_intent else []
+    if asks_delivery_fee and not requested:
+        fees = "\n".join(
+            f"• {zone['name']}: " + (fmt_money(zone["fee"], *rates) if zone["fee"] else "gratis")
+            for zone in zones
+        )
+        return AgentResult(reply=f"El costo del delivery depende de la zona:\n{fees}", state=state)
+
+    if re.search(r"\bqu[eé]\s+(?:(?:es\s+lo\s+que)\s+)?(?:incluye|trae|lleva|contiene)\b", text):
+        question = delivery.plain(text)
+        match = max(
+            (i for i in available if re.search(rf"(?<!\w){re.escape(delivery.plain(i.name))}(?!\w)", question)),
+            key=lambda i: len(i.name),
+            default=None,
+        )
+        if match:
+            return AgentResult(reply=(f"*{match.name}* — {fmt_money(match.price, *rates)}. {match.description}"
+                                      if match.description else f"No tengo los ingredientes de {match.name} registrados."),
+                               state=state)
 
     # stage: awaiting confirmation of the draft
     if state.get("stage") == "confirming":
@@ -474,12 +515,12 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
 
     asked_category = next((c for c in sorted({i.category for i in available if i.category}, key=len, reverse=True)
                            if c.lower() in text), None)
-    if asked_category and not draft["items"] and not any(n in text for n in items_by_name):
+    if not asks_delivery_fee and asked_category and not draft["items"] and not any(n in text for n in items_by_name):
         listing = menu_text([i for i in available if i.category == asked_category], rates)
         return AgentResult(reply=f"{asked_category}:\n{listing[:MAX_MENU_REPLY]}", state={**state, "draft": draft})
 
-    if re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
-        menu = menu_text(available, rates_of(restaurant))
+    if not asks_delivery_fee and re.search(r"\b(men[uú]|carta|qu[eé] tienen|precios?)\b", text):
+        menu = menu_text(available, rates)
         if len(menu) > MAX_MENU_REPLY:
             categories = ", ".join(dict.fromkeys(i.category for i in available if i.category))
             menu = (f"Tenemos {len(available)} platos en estas categorías: {categories}. "
@@ -496,7 +537,8 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     if sched and sched.group(0) not in (draft.get("notes") or ""):
         draft["notes"] = ((draft.get("notes") or "") + " " + sched.group(0)).strip()
 
-    requested = matched_items()
+    if requested is None:
+        requested = matched_items()
 
     # "Ese" / "esa" referring to several options Sabi just offered: ask which one, never
     # pick for the client, and keep the rest of the draft untouched. A single offered
@@ -544,7 +586,6 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
     m = re.search(r"(?:direcci[oó]n|dir(?:ección)?|calle|av(?:enida)?\.?)\s*[:\-]?\s*(.+)", text)
     if draft["order_type"] == "delivery" and m:
         draft["address"] = m.group(1).strip()
-    zones = delivery.zones_of(restaurant)
     if draft["order_type"] == "delivery" and zones:
         picked = delivery.find_zone(zones, text) or delivery.find_zone(zones, draft.get("address") or "")
         if picked:
@@ -578,11 +619,17 @@ def run_mock_agent(restaurant: Restaurant, items: list[MenuItem],
                 state["offer"] = extra.name
                 upsell = f" ¿Le sumamos {extra.name} por {fmt_money(extra.price, *rates)}?"
         got = ", ".join(f'{i["quantity"]} x {i["name"]}' for i in draft["items"])
+        quote = ""
+        if (missing or upsell) and asks_delivery_fee and draft["order_type"] == "delivery":
+            zone = delivery.find_zone(zones, draft.get("delivery_zone") or "")
+            if zone:
+                fee = fmt_money(zone["fee"], *rates) if zone["fee"] else "gratis"
+                quote = f" Delivery ({zone['name']}) — {fee}."
         if missing:
-            return AgentResult(reply=f"Anoté: {got}.{upsell} " + " ".join(missing),
+            return AgentResult(reply=f"Anoté: {got}.{quote}{upsell} " + " ".join(missing),
                                state={**state, "draft": draft})
         if upsell:
-            return AgentResult(reply=f"Anoté: {got}.{upsell} ¿O lo dejamos así?",
+            return AgentResult(reply=f"Anoté: {got}.{quote}{upsell} ¿O lo dejamos así?",
                                state={**state, "draft": draft})
         summary, _ = summarize_order(draft, {i.name.lower(): i for i in items}, rates_of(restaurant),
                                      delivery_fee_for(restaurant, draft),

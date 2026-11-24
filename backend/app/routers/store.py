@@ -153,7 +153,7 @@ async def public_store(slug: str, db: AsyncSession = Depends(get_db)):
         "name": r.name, "slug": r.slug, "tagline": r.tagline, "logo_url": r.logo_url,
         "brand_color": r.brand_color or "#25D366", "opening_hours": r.opening_hours,
         "whatsapp": settings.shared_whatsapp_number or r.owner_phone,
-        "rates": {"usd": r.exchange_rate, "eur": r.eur_rate},
+        "currency": r.currency, "rates": {"usd": r.exchange_rate, "eur": r.eur_rate},
         "delivery_fee": r.delivery_fee, "delivery_info": r.delivery_info,
         "delivery_zones": delivery.zones_of(r),
         "menu": [{"id": i.id, "name": i.name, "price": i.price, "category": i.category,

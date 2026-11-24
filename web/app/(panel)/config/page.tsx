@@ -9,9 +9,11 @@ export default function Config() {
   const [zonesText, setZonesText] = useState("");
   const [auto, setAuto] = useState(true);
   const [ratesDate, setRatesDate] = useState("");
+  const [isEuro, setIsEuro] = useState(false);
   const [saved, setSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
+  const deliveryUnit = isEuro ? "euros" : "dólares";
 
   function applyRates(r: Rates) {
     setForm((f) => ({ ...f, exchange_rate: String(r.exchange_rate), eur_rate: String(r.eur_rate) }));
@@ -21,6 +23,7 @@ export default function Config() {
 
   useEffect(() => {
     api("/me").then((r) => {
+      setIsEuro(r.currency === "EUR");
       setForm({
         welcome_message: r.welcome_message, opening_hours: r.opening_hours,
         owner_phone: r.owner_phone, name: r.name, exchange_rate: String(r.exchange_rate), eur_rate: String(r.eur_rate),
@@ -47,7 +50,7 @@ export default function Config() {
     const feeText = form.delivery_fee.trim().replace(",", ".");
     const fee = feeText === "" ? null : parseFloat(feeText);
     if (fee !== null && (Number.isNaN(fee) || fee < 0 || fee > 99)) {
-      setError("El delivery debe ser un monto en dólares entre 0 y 99.");
+      setError(`El delivery debe ser un monto en ${deliveryUnit} entre 0 y 99.`);
       return;
     }
     const r = await api("/settings", { method: "PUT", body: JSON.stringify({
@@ -99,11 +102,11 @@ export default function Config() {
         <fieldset className="space-y-3 rounded-lg border p-3">
           <legend className="px-1 text-sm font-medium">Delivery</legend>
           <label className="block text-sm">
-            <span className="mb-1 block font-medium">Zonas de delivery (una por línea, «Zona: dólares»)</span>
+            <span className="mb-1 block font-medium">Zonas de delivery (una por línea, «Zona: {deliveryUnit}»)</span>
             <textarea className="w-full rounded border p-2" rows={4} placeholder={"Lechería: 2\nBarcelona: 3\nPuerto La Cruz: 4"}
               value={zonesText} onChange={(e) => setZonesText(e.target.value)} />
           </label>
-          {field("delivery_fee", "Costo único de delivery en dólares, si no usas zonas (0 = gratis, vacío = lo confirma el local)")}
+          {field("delivery_fee", `Costo único de delivery en ${deliveryUnit}, si no usas zonas (0 = gratis, vacío = lo confirma el local)`)}
           {field("delivery_info", "Zonas y condiciones (se muestran al cliente)", true)}
           <p className="text-xs text-stone-500">Se lee de tu página web al crear la tienda. Revísalo y corrígelo si hace falta.</p>
         </fieldset>

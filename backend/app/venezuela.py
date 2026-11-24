@@ -216,8 +216,12 @@ def where_reply(restaurant) -> str:
     return f"{restaurant.name} hace delivery a {where}. No tengo su dirección exacta."
 
 
+def zones_for_city(zones: list[dict], city: City) -> list[dict]:
+    return [z for z in zones if find_city(z["name"].split(" · ", 1)[0]) == city]
+
+
 async def covering(db, city: str) -> list[tuple]:
-    """(restaurant, zone) for every catalog business whose own delivery zones include `city`.
+    """(restaurant, zones) for every catalog business whose own delivery zones include `city`.
     Internal test businesses ("Prueba ...") are never offered."""
     from .delivery import zones_of
     from .models import Restaurant
@@ -229,9 +233,9 @@ async def covering(db, city: str) -> list[tuple]:
                              .order_by(Restaurant.id))).scalars().all()
     out = []
     for r in rows:
-        zone = next((z for z in zones_of(r) if find_city(z["name"]) == target), None)
-        if zone:
-            out.append((r, zone))
+        zones = zones_for_city(zones_of(r), target)
+        if zones:
+            out.append((r, zones))
     return out
 
 
@@ -239,8 +243,9 @@ async def covers(db, restaurant, city: str) -> bool:
     return any(r.id == restaurant.id for r, _ in await covering(db, city))
 
 
-def _fee(usd: float) -> str:
-    return "sin costo" if not usd else "$" + f"{usd:.2f}".replace(".", ",")
+def _fee(amount: float, currency: str) -> str:
+    symbol = "€" if currency == "EUR" else "$"
+    return "sin costo" if not amount else symbol + f"{amount:.2f}".replace(".", ",")
 
 
 async def local_options(db, city: str, phone: str = "", fees: bool = False, only=None) -> str:
@@ -270,8 +275,9 @@ async def local_options(db, city: str, phone: str = "", fees: bool = False, only
         from . import memory
         offered = [r for r, _ in hits] + unconfirmed
         await memory.set_topic(db, phone, "recomendación de locales: " + ", ".join(r.name for r in offered))
-    lines = "\n".join(f"• *{r.name}*" + (f" — delivery a {z['name']} ({_fee(z['fee'])})" if fees else "")
-                      for r, z in hits)
+    lines = "\n".join(f"• *{r.name}*" + (" — " + "; ".join(
+        f"delivery a {z['name']} ({_fee(z['fee'], r.currency)})" for z in zones
+    ) if fees else "") for r, zones in hits)
     unsure = "\n".join(f"• *{r.name}*" for r in unconfirmed)
     if hits:
         text = f"En {name} te puedo atender con estos locales:\n{lines}"

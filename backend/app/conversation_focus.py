@@ -158,7 +158,7 @@ async def fee_reply(db,phone,body):
     the ones Sabi just listed) to that city, only from each business's own delivery zones."""
     from .auth import restaurant_by_mention
     from .delivery import zones_of
-    from .venezuela import _fee, find_city, local_options, plain
+    from .venezuela import _fee, find_city, local_options, plain, zones_for_city
     text=plain(body)
     m=_FEE_ASK.search(text)
     if not m or re.search(r'\b(?:viaje|carrera|taxi|ride|yummy|entradas?|boletos?|pasaje)\b',text):return None
@@ -189,13 +189,16 @@ async def fee_reply(db,phone,body):
     lines=[]
     for r in businesses:
         zones=zones_of(r)
-        zone=next((z for z in zones if find_city(z['name'])==city),None)
+        matches=zones_for_city(zones,city)
         if not zones:
             if r.delivery_fee is None:lines.append(f'El costo de delivery de {r.name} a {city.name} lo confirma el local al aprobar el pedido.')
-            elif r.delivery_fee:lines.append(f'El delivery de {r.name} cuesta {_fee(r.delivery_fee)}; el local confirma si llega a {city.name}.')
+            elif r.delivery_fee:lines.append(f'El delivery de {r.name} cuesta {_fee(r.delivery_fee,r.currency)}; el local confirma si llega a {city.name}.')
             else:lines.append(f'El delivery de {r.name} es sin costo; el local confirma si llega a {city.name}.')
-        elif not zone:lines.append(f'{r.name} no hace delivery a {city.name}.')
-        elif zone['fee']:lines.append(f'El delivery de {r.name} a {city.name} cuesta {_fee(zone["fee"])}.')
+        elif not matches:lines.append(f'{r.name} no hace delivery a {city.name}.')
+        elif len(matches)>1 or find_city(matches[0]['name'])!=city:
+            fees='; '.join(f'{z["name"]}: {_fee(z["fee"],r.currency)}' for z in matches)
+            lines.append(f'El delivery de {r.name} a {city.name} depende de la dirección: {fees}.')
+        elif matches[0]['fee']:lines.append(f'El delivery de {r.name} a {city.name} cuesta {_fee(matches[0]["fee"],r.currency)}.')
         else:lines.append(f'El delivery de {r.name} a {city.name} es sin costo.')
     return '\n'.join(lines)
 

@@ -12,6 +12,7 @@ logger = logging.getLogger("sabi.whatsapp")
 
 # In-memory log of "sent" messages for mock mode / local testing.
 sent_log: list[dict] = []
+TEXT_LIMIT = 4096
 
 # Request-local target, never a process-global "last message" per phone.
 _reply_context: ContextVar[tuple[str, str] | None] = ContextVar("sabi_reply_context", default=None)
@@ -47,6 +48,23 @@ async def send_whatsapp_message(to_phone: str, body: str) -> dict:
     """Send a text message via WhatsApp Cloud API, or log it in mock mode."""
     if settings.whatsapp_plain_text:
         body = plain_message(body)
+    while len(body) > TEXT_LIMIT:
+        limit = TEXT_LIMIT + 1
+        cut = body.rfind("\n", 0, limit)
+        if cut <= 0:
+            cut = body.rfind(" ", 0, limit)
+        if cut <= 0:
+            cut = TEXT_LIMIT
+        part = body[:cut].rstrip()
+        body = body[cut:].lstrip()
+        if part:
+            result = await _send_whatsapp_text(to_phone, part)
+            if "error" in result or not body:
+                return result
+    return await _send_whatsapp_text(to_phone, body)
+
+
+async def _send_whatsapp_text(to_phone: str, body: str) -> dict:
     entry = {"to": to_phone, "body": body}
     reply_to = _quote_target(to_phone)
     if reply_to:
