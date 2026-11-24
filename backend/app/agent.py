@@ -184,6 +184,7 @@ def grounded_retry(restaurant: Restaurant) -> str:
 
 
 _MENU_ASK = re.compile(r"\b(?:men[uú]|carta)\b", re.I)
+_MENU_MAX_CHARS = 3500
 
 
 def menu_reply(restaurant: Restaurant, items: list[MenuItem]) -> str:
@@ -198,9 +199,13 @@ def menu_reply(restaurant: Restaurant, items: list[MenuItem]) -> str:
     body = "\n\n".join(f"*{cat}*\n" + "\n".join(f"• {i.name} — ${_num(i.price)}" for i in its)
                        for cat, its in groups.items())
     link = f"{settings.frontend_base_url.rstrip('/')}/tienda/{restaurant.slug}" if restaurant.slug else ""
-    return (f"Este es el menú de {restaurant.name}:\n\n{body}\n\n"
-            + (f"También lo puedes ver con fotos aquí: {link}\n\n" if link else "")
-            + "¿Qué se te antoja?")
+    link_line = f"También lo puedes ver con fotos aquí: {link}\n\n" if link else ""
+    if len(body) > _MENU_MAX_CHARS:
+        # WhatsApp rejects a message over 4096 characters: list the sections instead.
+        cats = "\n".join(f"• {cat} ({len(its)})" for cat, its in groups.items())
+        return (f"El menú de {restaurant.name} tiene estas secciones:\n\n{cats}\n\n" + link_line
+                + "¿Cuál quieres ver?")
+    return f"Este es el menú de {restaurant.name}:\n\n{body}\n\n" + link_line + "¿Qué se te antoja?"
 
 
 def guard_representation(result: AgentResult,restaurant: Restaurant) -> AgentResult:
@@ -315,10 +320,12 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
         logger.warning("LLM cortado por max_tokens")
         reply, data = "", {}
         action = "continue"
+    listed_menu = False
     if not reply:
         asked_before = any(d == "outbound" and b == grounded_retry(restaurant) for d, b in history[-4:])
         if _MENU_ASK.search(incoming) or asked_before:
             reply = menu_reply(restaurant, items)
+            listed_menu = True
     order, rejected = clean_order(data.get("order"), available)
     if order is None:
         order = state.get("draft")
@@ -350,7 +357,7 @@ async def run_llm_agent(restaurant: Restaurant, items: list[MenuItem],
     new_state = {**state, "draft": order}
     offered = [i for i in available.values()
                if i.category in _UPSELL_CATEGORIES and i.name.lower() in reply.lower()]
-    if order and order["items"] and offered:
+    if order and order["items"] and offered and not listed_menu:
         new_state["upsell_offered"] = True
     return AgentResult(reply=reply or grounded_retry(restaurant), action=action,
                        order=order, state=new_state)

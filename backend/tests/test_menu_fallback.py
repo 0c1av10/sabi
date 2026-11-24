@@ -67,3 +67,30 @@ async def test_cut_off_answer_without_menu_ask_keeps_the_short_retry(Session, mo
         r = await bizza(db)
         reply = await service.handle_inbound_message(db, r, "000-cut", "Hola")
     assert reply == grounded_retry(r)
+
+
+def test_long_menu_lists_sections_within_whatsapp_limit():
+    from app.agent import menu_reply
+    r = Restaurant(name="Grande", slug="grande", owner_phone="", pin="unused")
+    items = [MenuItem(name=f"Plato largo número {n} con nombre extenso", price=10, category=f"Sección {n % 5}",
+                      available=True) for n in range(200)]
+    reply = menu_reply(r, items)
+    assert len(reply) < 4096
+    assert "• Sección 0 (40)" in reply and "/tienda/grande" in reply
+
+
+@pytest.mark.asyncio
+async def test_menu_fallback_does_not_count_as_the_upsell_offer(Session, monkeypatch):
+    from app import agent
+    fake_model(monkeypatch, "max_tokens", {})
+    async with Session() as db:
+        r = await bizza(db)
+        db.add(MenuItem(restaurant_id=r.id, name="Refresco", price=2, category="Bebidas"))
+        await db.commit()
+        conv = await service.get_or_create_conversation(db, r, "000-upsell", "")
+        pizza = (await db.execute(service.select(MenuItem).where(MenuItem.name == "Pizza Margarita"))).scalar_one()
+        draft = {"items": [{"menu_item_id": pizza.id, "name": pizza.name, "qty": 1}]}
+        monkeypatch.setattr(agent, "clean_order", lambda *_: (draft, []))
+        result = await agent.run_agent(db, r, conv, [], "Muéstrame el menú")
+    assert "Refresco" in result.reply
+    assert not result.state.get("upsell_offered")
