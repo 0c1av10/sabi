@@ -69,6 +69,11 @@ async def _unresolved_place_reply(db,phone,body):
     # A catalog business that registered delivery to the city is not an unresolved place.
     if known and (not city or await venezuela.covers(db,known,city)):
         return None
+    if not known:
+        # Demand signal for businesses outside the catalog: name and stated city only,
+        # so the team can review and onboard them (docs/REQUESTED_BUSINESSES.md).
+        from .. import requested
+        await requested.record(db,entity,city)
     await focus.save(db,phone,domain='place',entity=entity,city=city)
     return (f'Estás consultando por {entity}'+(f' en {city}.' if city else '.')+
             ' No lo tengo identificado en el catálogo verificado y no voy a usar el menú ni el delivery de otro local. Si tienes su enlace oficial, pásamelo para revisar esa fuente.')
