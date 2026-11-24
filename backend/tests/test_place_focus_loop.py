@@ -134,3 +134,25 @@ async def test_menu_of_the_business_just_named_needs_no_switch_confirmation(Sess
         await webhook._resolve(db, '111', 'NACIONAL Restaurante en Cumaná')
         restaurant, _, reply = await webhook._resolve(db, '111', 'Muéstrame el menú')
         assert restaurant and restaurant.id == n.id and not reply
+
+
+async def test_city_change_without_focus_city_drops_an_address_in_another_city(Session):
+    import json
+    async with Session() as db:
+        n, _ = await _seed(db)
+        conv = await _open_order(db, n, {'stage': 'payment', 'draft': {
+            'items': [{'name': 'Cachapa', 'quantity': 1}], 'order_type': 'delivery',
+            'address': 'Av. Principal, Lechería', 'delivery_zone': 'Lechería'}})
+        await focus.save(db, '111', domain='restaurant', entity='NACIONAL Restaurante')
+        await webhook._events_route(db, '111', 'Mejor en Barcelona')
+        await db.refresh(conv)
+        state = json.loads(conv.state_json)
+        assert state['stage'] == 'chat' and not state['draft']['address']
+
+
+async def test_menu_after_coverage_question_without_open_order(Session):
+    async with Session() as db:
+        n, _ = await _seed(db)
+        await webhook._resolve(db, '111', 'NACIONAL Restaurante en Cumaná')
+        restaurant, _, _ = await webhook._resolve(db, '111', 'Muéstrame el menú')
+        assert restaurant and restaurant.id == n.id
